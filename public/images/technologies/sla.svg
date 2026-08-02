@@ -1,0 +1,49 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 540" width="720" height="540" role="img" aria-label="Proses SLA: laser UV mengeraskan resin di dalam vat dan part terangkat pada build plate">
+  <defs>
+    <linearGradient id="bgSla" x1="0" y1="0" x2="720" y2="540" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FDF4F2"/><stop offset="1" stop-color="#F7DAD4"/>
+    </linearGradient>
+    <linearGradient id="resin" x1="0" y1="300" x2="0" y2="430" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#DD7461" stop-opacity=".75"/><stop offset="1" stop-color="#95271D" stop-opacity=".9"/>
+    </linearGradient>
+    <linearGradient id="laser" x1="360" y1="470" x2="360" y2="330" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#C8912F" stop-opacity="0"/><stop offset="1" stop-color="#C8912F"/>
+    </linearGradient>
+    <pattern id="gridSla" width="36" height="36" patternUnits="userSpaceOnUse">
+      <path d="M36 0H0V36" fill="none" stroke="#95271D" stroke-opacity=".07" stroke-width="1"/>
+    </pattern>
+  </defs>
+  <rect width="720" height="540" fill="url(#bgSla)"/>
+  <rect width="720" height="540" fill="url(#gridSla)"/>
+  <circle cx="112" cy="104" r="96" fill="#95271D" opacity=".06"/>
+
+  <rect x="150" y="70" width="24" height="330" rx="12" fill="#4A120C"/>
+  <rect x="150" y="70" width="180" height="20" rx="10" fill="#611913"/>
+
+  <rect x="238" y="128" width="244" height="16" rx="8" fill="#2C2523"/>
+  <rect x="352" y="90" width="16" height="44" rx="8" fill="#453C39"/>
+
+  <path d="M296 144h128v34l-22 22h-84l-22-22z" fill="#EBA193"/>
+  <path d="M318 200h84v42l-18 24h-48l-18-24z" fill="#C74D38"/>
+  <path d="M336 266h48v40l-12 26h-24l-12-26z" fill="#95271D"/>
+  <path d="M296 144h128v34l-22 22h-42V144z" fill="#F5C8C0"/>
+
+  <rect x="196" y="300" width="328" height="130" rx="16" fill="url(#resin)"/>
+  <rect x="196" y="300" width="328" height="130" rx="16" fill="none" stroke="#611913" stroke-width="4"/>
+  <path d="M204 316h312" stroke="#FDF4F2" stroke-opacity=".4" stroke-width="4" stroke-linecap="round"/>
+  <rect x="180" y="430" width="360" height="22" rx="11" fill="#2C2523"/>
+
+  <rect x="284" y="470" width="152" height="34" rx="10" fill="#453C39"/>
+  <path d="M352 470h16l-8-14z" fill="#453C39"/>
+  <path d="M348 336h24v134h-24z" fill="url(#laser)" opacity=".75"/>
+  <circle cx="360" cy="338" r="9" fill="#C8912F"/>
+  <circle cx="360" cy="338" r="18" fill="#C8912F" opacity=".28"/>
+
+  <g stroke="#4A120C" stroke-opacity=".35" stroke-width="2" stroke-dasharray="7 7" fill="none">
+    <path d="M556 144v156"/>
+  </g>
+  <g fill="none" stroke="#95271D" stroke-opacity=".55" stroke-width="2" stroke-linecap="round">
+    <path d="M556 260V160"/><path d="M549 172l7-14 7 14"/>
+  </g>
+  <text x="360" y="530" text-anchor="middle" font-family="sans-serif" font-size="20" font-weight="700" fill="#7C1F17">Stereolithography</text>
+</svg>

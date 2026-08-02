@@ -1,0 +1,60 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" width="640" height="640" role="img" aria-label="Ilustrasi isometrik mesin 3D printing yang sedang mencetak part">
+  <defs>
+    <linearGradient id="hFrame" x1="120" y1="80" x2="520" y2="560" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#C74D38"/><stop offset="1" stop-color="#611913"/>
+    </linearGradient>
+    <linearGradient id="hPart" x1="240" y1="300" x2="400" y2="470" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#EBA193"/><stop offset="1" stop-color="#95271D"/>
+    </linearGradient>
+    <radialGradient id="hGlow" cx="320" cy="400" r="220" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#C74D38" stop-opacity=".55"/><stop offset="1" stop-color="#C74D38" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <circle cx="320" cy="400" r="230" fill="url(#hGlow)"/>
+
+  <g stroke="#EBA193" stroke-opacity=".22" stroke-width="1.4" fill="none">
+    <path d="M320 92 560 230v276L320 644 80 506V230z"/>
+    <path d="M80 230l240 138 240-138M320 368v276"/>
+  </g>
+
+  <g stroke="#DD7461" stroke-opacity=".45" stroke-width="2" fill="none" stroke-linecap="round">
+    <path d="M112 168h84M112 168v-56M528 168h-84M528 168v-56"/>
+    <path d="M112 568h84M112 568v56M528 568h-84M528 568v56"/>
+  </g>
+
+  <path d="M164 466l156 90 156-90-156-90z" fill="#4A120C" fill-opacity=".85"/>
+  <path d="M164 466v26l156 90 156-90v-26l-156 90z" fill="#2A0906"/>
+
+  <g>
+    <path d="M212 424l108 62 108-62-108-62z" fill="#C74D38"/>
+    <path d="M212 424v18l108 62 108-62v-18l-108 62z" fill="#7C1F17"/>
+  </g>
+
+  <g>
+    <path d="M320 254l86 50v100l-86 50-86-50V304z" fill="url(#hPart)"/>
+    <path d="M320 254l86 50-86 50-86-50z" fill="#F5C8C0"/>
+    <path d="M320 354v100l86-50V304z" fill="#95271D"/>
+    <g stroke="#4A120C" stroke-opacity=".35" stroke-width="1.6" fill="none">
+      <path d="M234 316l86 50 86-50M234 332l86 50 86-50M234 348l86 50 86-50M234 364l86 50 86-50M234 380l86 50 86-50"/>
+    </g>
+  </g>
+
+  <path d="M320 254v-46" stroke="#C8912F" stroke-width="6" stroke-linecap="round"/>
+  <path d="M300 168h40l-12 42h-16z" fill="#2C2523"/>
+  <rect x="272" y="126" width="96" height="44" rx="14" fill="url(#hFrame)"/>
+  <rect x="290" y="140" width="34" height="8" rx="4" fill="#FDF4F2" fill-opacity=".8"/>
+
+  <rect x="140" y="112" width="360" height="16" rx="8" fill="#611913"/>
+  <rect x="140" y="112" width="18" height="360" rx="9" fill="#4A120C"/>
+  <rect x="482" y="112" width="18" height="360" rx="9" fill="#4A120C"/>
+
+  <circle cx="556" cy="220" r="44" fill="#95271D"/>
+  <circle cx="556" cy="220" r="28" fill="#C74D38"/>
+  <circle cx="556" cy="220" r="12" fill="#2A0906"/>
+  <path d="M528 200c-44 6-84 -8-116 -46" fill="none" stroke="#C8912F" stroke-width="5" stroke-linecap="round"/>
+
+  <g fill="#C8912F" opacity=".7">
+    <circle cx="120" cy="300" r="5"/><circle cx="96" cy="380" r="4"/><circle cx="540" cy="420" r="5"/><circle cx="566" cy="356" r="4"/>
+  </g>
+</svg>

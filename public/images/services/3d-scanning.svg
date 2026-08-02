@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 400" width="640" height="400" role="img" aria-label="Objek di atas turntable dipindai scanner 3D dan hasilnya tampil di layar">
+  <defs>
+    <linearGradient id="bgScan" x1="0" y1="0" x2="640" y2="400" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FDF4F2"/><stop offset="1" stop-color="#FBE5E1"/>
+    </linearGradient>
+    <linearGradient id="beamScan" x1="410" y1="0" x2="250" y2="0" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#C8912F" stop-opacity=".5"/><stop offset="1" stop-color="#C8912F" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+  <rect width="640" height="400" fill="url(#bgScan)"/>
+  <circle cx="120" cy="80" r="90" fill="#95271D" opacity=".05"/>
+
+  <path d="M250 130h160v150H250z" fill="url(#beamScan)"/>
+  <g stroke="#C8912F" stroke-width="1.8" opacity=".8" stroke-linecap="round">
+    <path d="M256 150h148"/><path d="M256 176h148"/><path d="M256 202h148"/><path d="M256 228h148"/><path d="M256 254h148"/>
+  </g>
+
+  <ellipse cx="212" cy="300" rx="106" ry="26" fill="#EFE9E7"/>
+  <ellipse cx="212" cy="292" rx="106" ry="26" fill="#DED4D0"/>
+  <ellipse cx="212" cy="288" rx="88" ry="20" fill="#ffffff"/>
+  <g stroke="#95271D" stroke-opacity=".3" stroke-width="1.5" fill="none">
+    <ellipse cx="212" cy="288" rx="58" ry="13"/>
+    <ellipse cx="212" cy="288" rx="28" ry="6"/>
+  </g>
+
+  <path d="M212 132c26 0 42 20 42 44 0 18-10 28-10 44 0 20 14 30 14 48h-92c0-18 14-28 14-48 0-16-10-26-10-44 0-24 16-44 42-44z" fill="#95271D"/>
+  <path d="M212 132c26 0 42 20 42 44 0 18-10 28-10 44h-32z" fill="#C74D38"/>
+  <circle cx="212" cy="120" r="26" fill="#611913"/>
+  <circle cx="205" cy="114" r="9" fill="#C74D38"/>
+
+  <rect x="430" y="120" width="26" height="170" rx="6" fill="#453C39"/>
+  <path d="M406 300h74l-8-14h-58z" fill="#2C2523"/>
+  <rect x="404" y="128" width="78" height="54" rx="10" fill="#2C2523"/>
+  <circle cx="424" cy="155" r="12" fill="#C8912F"/>
+  <circle cx="424" cy="155" r="5" fill="#FDF4F2"/>
+  <circle cx="462" cy="155" r="9" fill="#95271D"/>
+
+  <rect x="500" y="182" width="118" height="88" rx="10" fill="#ffffff" stroke="#EFE9E7" stroke-width="2"/>
+  <rect x="490" y="270" width="138" height="10" rx="5" fill="#DED4D0"/>
+  <g stroke="#95271D" stroke-width="1.4" fill="none" stroke-opacity=".85">
+    <path d="M559 204l30 18v34l-30 18-30-18v-34z"/>
+    <path d="M529 222l30 18 30-18M559 240v34"/>
+    <path d="M544 213l30 18M544 249l30-18"/>
+  </g>
+</svg>

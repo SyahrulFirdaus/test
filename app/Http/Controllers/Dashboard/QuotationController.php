@@ -1,0 +1,478 @@
+<?php
+
+namespace App\Http\Controllers\Dashboard;
+
+use App\Http\Controllers\Controller;
+use App\Models\QuotationItem;
+use App\Models\QuotationRequest;
+use App\Models\User;
+use App\Notifications\CancellationRequested;
+use App\Services\MeshInspector;
+use App\Services\PrintEstimator;
+use App\Support\AnalysisStatus;
+use App\Support\Finishing;
+use App\Support\InfillPattern;
+use App\Support\MaterialColor;
+use App\Support\Printer;
+use App\Support\PrintResolution;
+use App\Support\QuotationStatus;
+use App\Support\UploadLimit;
+use Illuminate\Contracts\View\View;
+use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Notification;
+use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
+use RuntimeException;
+
+/**
+ * "Penawaran Saya" — daftar, detail, penyuntingan, dan pembatalan.
+ *
+ * Penyuntingan hanya terbuka selama status masih "Menunggu Review". Begitu
+ * admin memindahkannya ke "File Sedang Direview", seluruh isi penawaran
+ * menjadi read only supaya berkas yang sedang ditinjau tim produksi tidak
+ * berubah di tengah jalan.
+ */
+class QuotationController extends Controller
+{
+    public function __construct(
+        private readonly PrintEstimator $estimator,
+        private readonly MeshInspector $inspector,
+    ) {}
+
+    public function index(Request $request): View
+    {
+        $quotations = QuotationRequest::query()
+            ->ownedBy($request->user())
+            ->status($request->query('status'))
+            ->search($request->query('q'))
+            ->withCount('items')
+            ->latestFirst()
+            ->paginate(10)
+            ->withQueryString();
+
+        return view('dashboard.quotations.index', [
+            'quotations' => $quotations,
+            'statuses' => QuotationStatus::options(),
+            'filters' => [
+                'status' => $request->query('status'),
+                'q' => $request->query('q'),
+            ],
+        ]);
+    }
+
+    public function show(Request $request, QuotationRequest $quotation): View
+    {
+        $this->authorizeOwner($request, $quotation);
+
+        return view('dashboard.quotations.show', [
+            'quotation' => $quotation->load('items', 'timelineHistories'),
+        ]);
+    }
+
+    /** Formulir penyuntingan isi penawaran. */
+    public function edit(Request $request, QuotationRequest $quotation): View|RedirectResponse
+    {
+        $this->authorizeOwner($request, $quotation);
+
+        if (! $quotation->isEditable()) {
+            return redirect()
+                ->route('dashboard.quotations.show', $quotation)
+                ->with('error', 'Penawaran ini sudah masuk tahap "'.$quotation->status_label.'" sehingga tidak dapat diubah lagi.');
+        }
+
+        return view('dashboard.quotations.edit', [
+            'quotation' => $quotation->load('items'),
+            'technologies' => config('printing.technologies'),
+            'resolutions' => PrintResolution::all(),
+            'printers' => Printer::all(),
+            'infillDensities' => InfillPattern::densities(),
+            'infillPatterns' => InfillPattern::all(),
+            'materialColors' => MaterialColor::all(),
+            'finishings' => Finishing::all(),
+            'hollowTechnologies' => config('printing.hollow.technologies', []),
+            'drainPositions' => config('printing.hollow.drain_hole.positions', []),
+            'maxModels' => UploadLimit::maxFiles(),
+            'maxFileMb' => UploadLimit::maxMegabytes(),
+        ]);
+    }
+
+    /** Tambah satu model 3D ke penawaran yang masih menunggu review. */
+    public function storeItem(Request $request, QuotationRequest $quotation): RedirectResponse
+    {
+        $this->authorizeOwner($request, $quotation);
+        $this->guardEditable($quotation);
+
+        $maxModels = UploadLimit::maxFiles();
+        $current = $quotation->items()->count();
+
+        $request->validate([
+            'model' => ['required', 'file', 'extensions:stl,obj', 'max:'.UploadLimit::maxKilobytes()],
+        ], [
+            'model.required' => 'Pilih file model yang akan ditambahkan.',
+            'model.extensions' => 'File model harus berformat .stl atau .obj.',
+            'model.max' => 'Ukuran file melebihi batas unggah ('.UploadLimit::maxMegabytes().' MB per file).',
+        ]);
+
+        if ($current >= $maxModels) {
+            throw ValidationException::withMessages([
+                'model' => "Satu penawaran maksimal memuat {$maxModels} file 3D. Hapus salah satu file lebih dulu.",
+            ]);
+        }
+
+        /** @var UploadedFile $file */
+        $file = $request->file('model');
+        $extension = strtolower($file->getClientOriginalExtension());
+
+        // Geometri diukur di server karena berkas ini tidak melewati viewer di
+        // halaman 3D Models.
+        try {
+            $stats = $this->inspector->inspect($file->getRealPath(), $extension);
+        } catch (RuntimeException $exception) {
+            throw ValidationException::withMessages([
+                'model' => 'File tidak dapat dibaca: '.$exception->getMessage(),
+            ]);
+        }
+
+        $template = $quotation->items()->orderBy('position')->first();
+
+        $path = $file->storeAs(
+            'quotations/'.now()->format('Y-m'),
+            Str::uuid().'.'.$extension,
+            'local'
+        );
+
+        $settings = [
+            'quantity' => 1,
+            'technology' => $template?->technology ?? array_key_first(config('printing.technologies')),
+            'material' => $template?->material ?? array_key_first(config('printing.technologies.FDM.materials', ['PLA' => []])),
+            'printer' => $template?->printer ?? Printer::default(),
+            'resolution' => $template?->resolution ?? PrintResolution::default(),
+            'scale_percent' => 100,
+            'infill_density' => $template?->infill_density,
+            'infill_pattern' => $template?->infill_pattern ?? InfillPattern::default(),
+            'material_color' => $template?->material_color ?? MaterialColor::default(),
+            'finishing' => $template?->finishing ?? Finishing::default(),
+            'support_enabled' => (bool) ($template?->support_enabled ?? false),
+            'hollow_enabled' => false,
+        ];
+
+        $modelStats = [
+            'vertices' => $stats['vertices'],
+            'triangles' => $stats['triangles'],
+            'dimensions' => $stats['dimensions'],
+            'volume_cm3' => $stats['volume_cm3'],
+            'surface_area_cm2' => $stats['surface_area_cm2'],
+            'measured_by' => 'server',
+        ];
+
+        $quotation->items()->create([
+            'position' => $current + 1,
+
+            'file_name' => $file->getClientOriginalName(),
+            'file_path' => $path,
+            'file_format' => strtoupper($extension),
+            'file_size' => $file->getSize(),
+
+            'model_stats' => $modelStats,
+            // Analisis kelayakan penuh berjalan di viewer; berkas yang
+            // ditambahkan dari sini ditandai perlu ditinjau engineer.
+            'analysis_status' => AnalysisStatus::WARNING,
+            'analysis' => [[
+                'id' => 'server_measured',
+                'label' => 'Ditambahkan dari dashboard',
+                'status' => 'warn',
+                'message' => 'Volume dan dimensi diukur di server. Kelayakan cetak akan dipastikan engineer kami.',
+            ]],
+
+            'material_color' => $settings['material_color'],
+            'fits_build_volume' => $this->fitsBuildVolume($stats['dimensions'], Printer::buildVolume($settings['printer'], null)),
+
+            ...$this->estimateAttributes($settings, $modelStats),
+        ]);
+
+        $quotation->refreshSummary();
+
+        return back()->with('status', 'File '.$file->getClientOriginalName().' berhasil ditambahkan ke penawaran.');
+    }
+
+    /** Ubah pengaturan printing dan jumlah cetak satu model. */
+    public function updateItem(Request $request, QuotationRequest $quotation, QuotationItem $item): RedirectResponse
+    {
+        $this->authorizeOwner($request, $quotation);
+        $this->guardEditable($quotation);
+
+        $validated = $request->validate([
+            'quantity' => ['required', 'integer', 'min:1', 'max:10000'],
+            'technology' => ['required', 'string', 'in:'.implode(',', array_keys(config('printing.technologies')))],
+            'material' => ['required', 'string', 'max:60'],
+            'printer' => ['required', 'string', 'in:'.implode(',', Printer::keys())],
+            'resolution' => ['nullable', 'string', 'in:'.implode(',', PrintResolution::keys())],
+            'scale_percent' => ['nullable', 'numeric', 'min:10', 'max:400'],
+            'infill_density' => ['nullable', 'numeric', 'min:0', 'max:1'],
+            'infill_pattern' => ['nullable', 'string', 'in:'.implode(',', InfillPattern::keys())],
+            'material_color' => ['nullable', 'string', 'in:'.implode(',', MaterialColor::keys())],
+            'finishing' => ['nullable', 'string', 'in:'.implode(',', Finishing::keys())],
+            'support_enabled' => ['nullable', 'boolean'],
+            'hollow_enabled' => ['nullable', 'boolean'],
+            'hollow_wall_thickness_mm' => ['nullable', 'numeric', 'min:0.1', 'max:50'],
+            'hollow_drain_diameter_mm' => ['nullable', 'numeric', 'min:0.1', 'max:50'],
+            'hollow_drain_position' => ['nullable', 'string', 'in:'.implode(',', array_keys(config('printing.hollow.drain_hole.positions', [])))],
+        ], [
+            'quantity.required' => 'Jumlah cetak wajib diisi.',
+            'quantity.min' => 'Jumlah cetak minimal 1 unit.',
+        ]);
+
+        if (! $this->estimator->supports($validated['technology'], $validated['material'])) {
+            throw ValidationException::withMessages([
+                'material' => "Material {$validated['material']} tidak tersedia untuk teknologi {$validated['technology']}.",
+            ]);
+        }
+
+        $stats = is_array($item->model_stats) ? $item->model_stats : [];
+        $buildVolume = Printer::buildVolume($validated['printer'], is_array($item->build_volume) ? $item->build_volume : null);
+
+        // Volume support hasil pengukuran di viewer hanya berlaku untuk skala
+        // dan pilihan support yang sama; begitu salah satunya berubah, server
+        // kembali memakai rumus simulasinya.
+        $scaleUnchanged = abs((float) ($validated['scale_percent'] ?? 100) - (float) $item->scale_percent) < 0.01;
+        $measuredSupport = $scaleUnchanged && $item->support_volume_cm3 !== null
+            ? (float) $item->support_volume_cm3
+            : null;
+
+        $item->update([
+            // Warna mengikuti material yang dipilih: resin bening hanya tersedia
+            // bening, part logam hanya warna aslinya.
+            'material_color' => MaterialColor::resolveForMaterial(
+                $validated['material_color'] ?? $item->material_color,
+                $validated['technology'],
+                $validated['material'],
+            ),
+            'fits_build_volume' => $this->fitsBuildVolume($stats['dimensions'] ?? null, $buildVolume, (float) ($validated['scale_percent'] ?? 100)),
+
+            ...$this->estimateAttributes([
+                ...$validated,
+                'support_volume_cm3' => $measuredSupport,
+            ], $stats),
+        ]);
+
+        $quotation->refreshSummary();
+
+        return back()->with('status', "Pengaturan {$item->file_name} berhasil diperbarui.");
+    }
+
+    /** Hapus satu model dari penawaran; penawaran harus menyisakan minimal satu. */
+    public function destroyItem(Request $request, QuotationRequest $quotation, QuotationItem $item): RedirectResponse
+    {
+        $this->authorizeOwner($request, $quotation);
+        $this->guardEditable($quotation);
+
+        if ($quotation->items()->count() <= 1) {
+            return back()->with('error', 'Penawaran harus memuat minimal satu file 3D. Batalkan penawaran bila memang tidak jadi dipesan.');
+        }
+
+        $name = $item->file_name;
+        $item->delete();
+
+        // Nomor urut dirapatkan agar penomoran model tetap runut.
+        $quotation->items()->orderBy('position')->get()
+            ->each(fn (QuotationItem $remaining, int $index) => $remaining->update(['position' => $index + 1]));
+
+        $quotation->refreshSummary();
+
+        return back()->with('status', "File {$name} berhasil dihapus dari penawaran.");
+    }
+
+    /**
+     * Pembatalan penawaran.
+     *
+     * Selama masih "Menunggu Review" pembatalan langsung berlaku. Setelah
+     * berkas mulai direview, yang tercatat adalah permintaan pembatalan yang
+     * menunggu keputusan admin.
+     */
+    public function cancel(Request $request, QuotationRequest $quotation): RedirectResponse
+    {
+        $this->authorizeOwner($request, $quotation);
+
+        $validated = $request->validate([
+            'reason' => ['nullable', 'string', 'max:1000'],
+        ]);
+
+        $reason = filled($validated['reason'] ?? null) ? trim($validated['reason']) : null;
+
+        if ($quotation->canBeCancelledDirectly()) {
+            $quotation->update([
+                'status' => QuotationStatus::CANCELLED_BY_USER,
+                'cancellation_reason' => $reason,
+                'cancellation_requested_at' => now(),
+                'cancellation_resolved_at' => now(),
+            ]);
+
+            $quotation->recordHistory(
+                QuotationStatus::CANCELLED_BY_USER,
+                $reason ?? 'Penawaran dibatalkan oleh pemiliknya sebelum masuk proses review.',
+                $request->user()->name,
+            );
+
+            return redirect()
+                ->route('dashboard.quotations.show', $quotation)
+                ->with('status', 'Penawaran berhasil dibatalkan.');
+        }
+
+        if (! $quotation->canRequestCancellation()) {
+            return back()->with('error', 'Penawaran ini sudah tidak dapat dibatalkan.');
+        }
+
+        $quotation->update([
+            'status' => QuotationStatus::CANCELLATION_REQUESTED,
+            'status_before_cancellation' => $quotation->status,
+            'cancellation_reason' => $reason,
+            'cancellation_requested_at' => now(),
+            'cancellation_resolved_at' => null,
+        ]);
+
+        $quotation->recordHistory(
+            QuotationStatus::CANCELLATION_REQUESTED,
+            $reason ?? 'Pemilik penawaran mengajukan pembatalan dan menunggu persetujuan admin.',
+            $request->user()->name,
+        );
+
+        Notification::send(User::admins()->get(), new CancellationRequested($quotation));
+
+        return redirect()
+            ->route('dashboard.quotations.show', $quotation)
+            ->with('status', 'Permintaan pembatalan terkirim. Admin akan meninjau pengajuan Anda.');
+    }
+
+    /* ------------------------------------------------------------------ */
+
+    /** Penawaran milik akun lain tidak boleh terbaca sama sekali. */
+    private function authorizeOwner(Request $request, QuotationRequest $quotation): void
+    {
+        abort_unless($quotation->user_id === $request->user()->id, 404);
+    }
+
+    private function guardEditable(QuotationRequest $quotation): void
+    {
+        if (! $quotation->isEditable()) {
+            throw ValidationException::withMessages([
+                'status' => 'Penawaran sudah berstatus "'.$quotation->status_label.'" sehingga isinya tidak dapat diubah lagi.',
+            ]);
+        }
+    }
+
+    /**
+     * Hitung ulang estimasi satu model beserta kolom pengaturannya.
+     *
+     * Angka estimasi tidak pernah diambil dari kiriman browser: seluruhnya
+     * dihitung App\Services\PrintEstimator memakai config/printing.php, persis
+     * seperti saat penawaran pertama kali dikirim.
+     *
+     * @param  array<string, mixed>  $settings
+     * @param  array<string, mixed>  $stats
+     * @return array<string, mixed>
+     */
+    private function estimateAttributes(array $settings, array $stats): array
+    {
+        $printer = Printer::exists($settings['printer'] ?? null) ? (string) $settings['printer'] : Printer::default();
+        $buildVolume = Printer::buildVolume($printer, null);
+
+        // Volume dasar (sebelum diskalakan) menjadi masukan estimator; skala
+        // diberlakukan di dalamnya.
+        $baseVolume = (float) ($stats['volume_cm3'] ?? 0);
+        $surfaceArea = isset($stats['surface_area_cm2']) ? (float) $stats['surface_area_cm2'] : null;
+        $dimensions = is_array($stats['dimensions'] ?? null) ? $stats['dimensions'] : null;
+
+        $estimate = $this->estimator->estimate(
+            (string) $settings['technology'],
+            (string) $settings['material'],
+            $baseVolume,
+            (int) $settings['quantity'],
+            [
+                'support' => filter_var($settings['support_enabled'] ?? false, FILTER_VALIDATE_BOOLEAN),
+                'support_volume_cm3' => $settings['support_volume_cm3'] ?? null,
+                'dimensions' => $dimensions,
+                'resolution' => $settings['resolution'] ?? null,
+
+                'scale' => ((float) ($settings['scale_percent'] ?? 100)) / 100,
+                'surface_area_cm2' => $surfaceArea,
+                'infill_density' => $settings['infill_density'] ?? null,
+                'infill_pattern' => $settings['infill_pattern'] ?? null,
+                'finishing' => $settings['finishing'] ?? null,
+                'hollow' => [
+                    'enabled' => filter_var($settings['hollow_enabled'] ?? false, FILTER_VALIDATE_BOOLEAN),
+                    'wall_thickness_mm' => $settings['hollow_wall_thickness_mm'] ?? null,
+                    'drain_hole_diameter_mm' => $settings['hollow_drain_diameter_mm'] ?? null,
+                    'drain_hole_position' => $settings['hollow_drain_position'] ?? null,
+                ],
+
+                'printer' => $printer,
+                'build_volume' => $buildVolume,
+            ],
+        );
+
+        return [
+            'technology' => strtoupper((string) $settings['technology']),
+            'material' => (string) $settings['material'],
+
+            'printer' => $printer,
+            'printer_name' => Printer::name($printer),
+            'build_volume' => $buildVolume,
+
+            'quantity' => (int) $settings['quantity'],
+            'scale_percent' => round($estimate['scale'] * 100, 2),
+            'resolution' => $estimate['resolution'],
+            'layer_height_mm' => $estimate['layer_height_mm'],
+            'infill_density' => $estimate['infill_density'],
+            'infill_pattern' => $estimate['infill_pattern'],
+            'finishing' => $estimate['finishing'],
+            'support_enabled' => $estimate['support_enabled'],
+            'support_type' => $estimate['support_enabled'] ? config('printing.support.default_type') : null,
+
+            'hollow_enabled' => $estimate['hollow_enabled'],
+            'hollow_wall_thickness_mm' => $estimate['hollow_wall_thickness_mm'],
+            'hollow_drain_diameter_mm' => $estimate['hollow_drain_diameter_mm'],
+            'hollow_drain_position' => $estimate['hollow_drain_position'],
+
+            'model_volume_cm3' => $estimate['model_volume_cm3'],
+            'material_volume_cm3' => $estimate['material_volume_cm3'],
+            'support_volume_cm3' => $estimate['support_volume_cm3'],
+            'estimated_weight_g' => $estimate['weight_g'],
+            'support_weight_g' => $estimate['support_weight_g'],
+            'estimated_minutes' => $estimate['total_minutes'],
+            'estimated_cost' => $estimate['total_cost'],
+            'cost_breakdown' => $estimate['breakdown'],
+        ];
+    }
+
+    /**
+     * Apakah model masih muat di area cetak mesinnya.
+     *
+     * Pemeriksaan di sini sederhana — membandingkan sisi terpanjang model
+     * dengan sisi terpanjang meja tanpa mencoba memutar model, jadi hasilnya
+     * cukup sebagai penanda awal, bukan pengganti susunan di viewer.
+     *
+     * @param  array<string, mixed>|null  $dimensions
+     * @param  array<string, mixed>|null  $buildVolume
+     */
+    private function fitsBuildVolume(?array $dimensions, ?array $buildVolume, float $scalePercent = 100): bool
+    {
+        if ($dimensions === null || $buildVolume === null) {
+            return true;
+        }
+
+        $scale = $scalePercent / 100;
+
+        $model = collect(['x', 'y', 'z'])->map(fn (string $axis) => (float) ($dimensions[$axis] ?? 0) * $scale)->sort()->values();
+        $plate = collect(['x', 'y', 'z'])->map(fn (string $axis) => (float) ($buildVolume[$axis] ?? 0))->sort()->values();
+
+        foreach ([0, 1, 2] as $index) {
+            if ($model[$index] > $plate[$index]) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+}

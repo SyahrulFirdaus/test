@@ -1,0 +1,57 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 540" width="720" height="540" role="img" aria-label="Proses MJF: carriage menyemprot agent di atas hamparan serbuk nylon lalu dipanaskan lampu inframerah">
+  <defs>
+    <linearGradient id="bgMjf" x1="0" y1="0" x2="720" y2="540" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FDF4F2"/><stop offset="1" stop-color="#F7DAD4"/>
+    </linearGradient>
+    <linearGradient id="heat" x1="0" y1="196" x2="0" y2="300" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#C8912F" stop-opacity=".55"/><stop offset="1" stop-color="#C8912F" stop-opacity="0"/>
+    </linearGradient>
+    <pattern id="powder" width="12" height="12" patternUnits="userSpaceOnUse">
+      <circle cx="3" cy="3" r="1.4" fill="#7C1F17" fill-opacity=".35"/>
+      <circle cx="9" cy="9" r="1.4" fill="#7C1F17" fill-opacity=".35"/>
+    </pattern>
+    <pattern id="gridMjf" width="36" height="36" patternUnits="userSpaceOnUse">
+      <path d="M36 0H0V36" fill="none" stroke="#95271D" stroke-opacity=".07" stroke-width="1"/>
+    </pattern>
+  </defs>
+  <rect width="720" height="540" fill="url(#bgMjf)"/>
+  <rect width="720" height="540" fill="url(#gridMjf)"/>
+  <circle cx="622" cy="112" r="98" fill="#95271D" opacity=".06"/>
+
+  <rect x="108" y="120" width="504" height="26" rx="13" fill="#4A120C"/>
+  <rect x="108" y="120" width="24" height="300" rx="12" fill="#611913"/>
+  <rect x="588" y="120" width="24" height="300" rx="12" fill="#611913"/>
+
+  <rect x="252" y="152" width="216" height="46" rx="12" fill="#95271D"/>
+  <rect x="272" y="164" width="64" height="10" rx="5" fill="#FDF4F2" fill-opacity=".85"/>
+  <rect x="352" y="164" width="40" height="10" rx="5" fill="#FDF4F2" fill-opacity=".45"/>
+  <rect x="264" y="198" width="88" height="14" rx="4" fill="#2C2523"/>
+  <rect x="376" y="198" width="80" height="16" rx="6" fill="#C8912F"/>
+
+  <path d="M264 212h88v18h-88z" fill="url(#heat)"/>
+  <path d="M376 214h80v22h-80z" fill="url(#heat)"/>
+  <g fill="#95271D" opacity=".55">
+    <circle cx="286" cy="240" r="3.5"/><circle cx="308" cy="252" r="3"/><circle cx="330" cy="240" r="3.5"/>
+    <circle cx="272" cy="256" r="2.6"/><circle cx="344" cy="256" r="2.6"/>
+  </g>
+
+  <g stroke="#C8912F" stroke-width="3" stroke-linecap="round" opacity=".75">
+    <path d="M480 210l14 22"/><path d="M500 206l6 26"/><path d="M520 210l-4 24"/>
+  </g>
+
+  <rect x="140" y="276" width="440" height="132" rx="10" fill="#EBA193"/>
+  <rect x="140" y="276" width="440" height="132" rx="10" fill="url(#powder)"/>
+  <rect x="140" y="276" width="440" height="14" rx="7" fill="#F5C8C0"/>
+
+  <path d="M232 300h104v88H232z" fill="#7C1F17"/>
+  <path d="M232 300h104v20H232z" fill="#95271D"/>
+  <circle cx="284" cy="348" r="20" fill="#EBA193"/>
+  <path d="M380 306h84l16 34-16 42h-84l-16-42z" fill="#611913"/>
+  <circle cx="422" cy="344" r="16" fill="#EBA193"/>
+
+  <rect x="124" y="408" width="472" height="28" rx="14" fill="#2C2523"/>
+  <rect x="160" y="436" width="60" height="18" rx="9" fill="#453C39"/>
+  <rect x="500" y="436" width="60" height="18" rx="9" fill="#453C39"/>
+
+  <text x="360" y="500" text-anchor="middle" font-family="sans-serif" font-size="20" font-weight="700" fill="#7C1F17">Multi Jet Fusion</text>
+</svg>

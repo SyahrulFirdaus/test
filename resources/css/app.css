@@ -1,0 +1,518 @@
+@import 'tailwindcss';
+@import 'aos/dist/aos.css';
+
+@source '../../vendor/laravel/framework/src/Illuminate/Pagination/resources/views/*.blade.php';
+@source '../../storage/framework/views/*.php';
+@source '../**/*.blade.php';
+@source '../**/*.js';
+
+/* -------------------------------------------------------------------------
+ | Design token
+ | Warna utama #95271D dipakai sebagai brand-600 dan menjadi dasar seluruh
+ | tangga warna. Netral "ink" sengaja dibuat hangat (sedikit kemerahan)
+ | agar menyatu dengan brand, bukan abu-abu dingin yang terasa terpisah.
+ * ------------------------------------------------------------------------- */
+@theme {
+    --font-sans: 'Plus Jakarta Sans', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+    --font-display: 'Space Grotesk', 'Plus Jakarta Sans', ui-sans-serif, system-ui, sans-serif;
+
+    --color-brand-50: #fdf4f2;
+    --color-brand-100: #fbe5e1;
+    --color-brand-200: #f5c8c0;
+    --color-brand-300: #eba193;
+    --color-brand-400: #dd7461;
+    --color-brand-500: #c74d38;
+    --color-brand-600: #95271d;
+    --color-brand-700: #7c1f17;
+    --color-brand-800: #611913;
+    --color-brand-900: #4a120c;
+    --color-brand-950: #2a0906;
+
+    --color-ink-50: #f8f5f4;
+    --color-ink-100: #efe9e7;
+    --color-ink-200: #ded4d0;
+    --color-ink-300: #bfb1ac;
+    --color-ink-400: #97867f;
+    --color-ink-500: #776862;
+    --color-ink-600: #5d514c;
+    --color-ink-700: #453c39;
+    --color-ink-800: #2c2523;
+    --color-ink-900: #191413;
+    --color-ink-950: #0f0b0a;
+
+    /* Aksen kuningan — hangat, industrial, dan kontras terhadap oxblood. */
+    --color-accent-400: #e0b45f;
+    --color-accent-500: #c8912f;
+    --color-accent-600: #a3731f;
+
+    --shadow-card: 0 1px 2px rgb(25 20 19 / 0.04), 0 12px 32px -12px rgb(25 20 19 / 0.12);
+    --shadow-card-hover: 0 2px 4px rgb(149 39 29 / 0.08), 0 24px 48px -16px rgb(149 39 29 / 0.28);
+    --shadow-glow: 0 24px 60px -20px rgb(149 39 29 / 0.55);
+
+    --animate-float: float 7s ease-in-out infinite;
+    --animate-float-slow: float 11s ease-in-out infinite;
+    --animate-build: build 3.2s ease-in-out infinite;
+    --animate-marquee: marquee 32s linear infinite;
+}
+
+@keyframes float {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-14px); }
+}
+
+@keyframes build {
+    0%, 100% { transform: translateY(0); opacity: 1; }
+    50% { transform: translateY(-6px); opacity: 0.65; }
+}
+
+@keyframes marquee {
+    from { transform: translateX(0); }
+    to { transform: translateX(-50%); }
+}
+
+/* -------------------------------------------------------------------------
+ | Base
+ * ------------------------------------------------------------------------- */
+@layer base {
+    html {
+        scroll-behavior: smooth;
+        /* Offset agar target anchor tidak tertutup navbar sticky. */
+        scroll-padding-top: 8rem;
+        -webkit-tap-highlight-color: transparent;
+    }
+
+    body {
+        @apply bg-white font-sans text-ink-700 antialiased;
+    }
+
+    h1, h2, h3, h4 {
+        @apply font-display text-ink-900;
+        text-wrap: balance;
+    }
+
+    p {
+        text-wrap: pretty;
+    }
+
+    ::selection {
+        @apply bg-brand-600 text-white;
+    }
+
+    :focus-visible {
+        @apply outline-2 outline-offset-2 outline-brand-600;
+    }
+
+    /* Scrollbar yang menyatu dengan tema. */
+    * {
+        scrollbar-color: var(--color-ink-300) transparent;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+        html {
+            scroll-behavior: auto;
+        }
+
+        *, *::before, *::after {
+            animation-duration: 0.01ms !important;
+            animation-iteration-count: 1 !important;
+            transition-duration: 0.01ms !important;
+        }
+
+        [data-aos] {
+            opacity: 1 !important;
+            transform: none !important;
+        }
+    }
+}
+
+/* -------------------------------------------------------------------------
+ | Utility kustom
+ | Tailwind v4 hanya mengizinkan `@apply` terhadap utility terdaftar, jadi
+ | dua kelas dasar yang dipakai ulang di banyak tempat didefinisikan di sini.
+ * ------------------------------------------------------------------------- */
+@utility btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-full px-6 py-3 text-sm font-semibold
+           tracking-wide transition-all duration-300 ease-out;
+}
+
+@utility card {
+    @apply relative flex h-full flex-col overflow-hidden rounded-2xl border border-ink-100 bg-white
+           shadow-card transition-all duration-300 ease-out;
+}
+
+/* -------------------------------------------------------------------------
+ | Komponen berulang
+ * ------------------------------------------------------------------------- */
+@layer components {
+    .container-page {
+        @apply mx-auto w-full max-w-7xl px-5 sm:px-8 lg:px-10;
+    }
+
+    .section {
+        @apply py-20 md:py-28;
+    }
+
+    .btn-primary {
+        @apply btn bg-brand-600 text-white shadow-[0_10px_30px_-12px_rgba(149,39,29,0.9)]
+               hover:-translate-y-0.5 hover:bg-brand-700 hover:shadow-[0_18px_40px_-14px_rgba(149,39,29,0.95)];
+    }
+
+    .btn-outline {
+        @apply btn border border-ink-200 bg-white/80 text-ink-800
+               hover:-translate-y-0.5 hover:border-brand-600 hover:text-brand-600;
+    }
+
+    .btn-ghost-light {
+        @apply btn border border-white/30 text-white backdrop-blur-sm
+               hover:-translate-y-0.5 hover:border-white hover:bg-white hover:text-brand-700;
+    }
+
+    /* Kepala situs: top bar putih di atas, navbar di bawahnya. Keduanya
+       menempel di puncak layar dan memenuhi lebar penuh — tanpa container. */
+    .site-header {
+        @apply fixed inset-x-0 top-0 z-50;
+    }
+
+    /* Navbar transparan di atas hero gelap, memadat setelah digulir. */
+    .navbar {
+        @apply border-b border-transparent transition-all duration-300 ease-out;
+    }
+
+    .site-header.is-scrolled .navbar {
+        @apply border-ink-100 bg-white/90 shadow-[0_8px_30px_-18px_rgba(25,20,19,0.35)] backdrop-blur-lg;
+    }
+
+    .nav-link {
+        @apply relative rounded-full px-4 py-2 text-sm font-semibold text-white/85 transition-colors duration-200
+               hover:text-white;
+    }
+
+    .nav-link::after {
+        content: '';
+        @apply absolute inset-x-4 -bottom-0.5 h-0.5 origin-left scale-x-0 rounded-full bg-current
+               transition-transform duration-300 ease-out;
+    }
+
+    .nav-link:hover::after,
+    .nav-link[aria-current='page']::after {
+        @apply scale-x-100;
+    }
+
+    .nav-link[aria-current='page'] {
+        @apply text-white;
+    }
+
+    .site-header.is-scrolled .nav-link {
+        @apply text-ink-600 hover:text-brand-600;
+    }
+
+    .site-header.is-scrolled .nav-link[aria-current='page'] {
+        @apply text-brand-600;
+    }
+
+    .navbar .brand-name {
+        @apply text-white transition-colors duration-300;
+    }
+
+    .site-header.is-scrolled .brand-name {
+        @apply text-ink-900;
+    }
+
+    .navbar .nav-toggle {
+        @apply text-white transition-colors duration-300;
+    }
+
+    .site-header.is-scrolled .nav-toggle {
+        @apply text-ink-800;
+    }
+
+    /* Tombol utama kanan navbar (Sign In / Dashboard). */
+    .navbar .nav-cta {
+        @apply btn bg-brand-600 px-5 py-2.5 text-white shadow-[0_10px_24px_-12px_rgba(149,39,29,0.9)]
+               hover:-translate-y-0.5 hover:bg-brand-700 hover:text-white;
+    }
+
+    /* Tombol sekunder kanan navbar (Order Now) — bergaris, menyesuaikan latar. */
+    .navbar .nav-cta-outline {
+        @apply btn border border-white/40 px-5 py-2.5 text-white hover:border-white hover:bg-white hover:text-brand-700;
+    }
+
+    .site-header.is-scrolled .nav-cta-outline {
+        @apply border-ink-200 text-ink-800 hover:border-brand-600 hover:bg-brand-600 hover:text-white;
+    }
+
+    /* Menu mobile selalu tampil di atas panel putih, jadi warnanya dikunci gelap. */
+    .nav-link-mobile {
+        @apply flex items-center justify-between rounded-xl px-4 py-3 text-base font-semibold text-ink-700
+               transition-colors duration-200 hover:bg-brand-50 hover:text-brand-600;
+    }
+
+    .nav-link-mobile[aria-current='page'] {
+        @apply bg-brand-50 text-brand-600;
+    }
+
+    /* Carousel video pada hero halaman utama. */
+    .hero-carousel-arrow {
+        @apply absolute top-1/2 z-10 inline-flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full
+               border border-white/25 bg-ink-950/50 text-white backdrop-blur transition-all duration-200
+               hover:border-white hover:bg-ink-950/80 focus-visible:outline-2 focus-visible:outline-offset-2
+               focus-visible:outline-white;
+    }
+
+    .hero-carousel-dot {
+        @apply h-1.5 w-6 rounded-full bg-white/35 transition-all duration-300
+               hover:bg-white/60 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white;
+    }
+
+    .hero-carousel-dot[aria-selected='true'] {
+        @apply w-10 bg-brand-400;
+    }
+
+    .eyebrow {
+        @apply inline-flex items-center gap-2 rounded-full border border-brand-200 bg-brand-50 px-4 py-1.5
+               text-xs font-semibold uppercase tracking-[0.18em] text-brand-700;
+    }
+
+    .card-interactive {
+        @apply card hover:-translate-y-1.5 hover:border-brand-200 hover:shadow-card-hover;
+    }
+
+    /* Halaman 3D Models — area unggah dan tombol kontrol viewer 3D. */
+    .dropzone {
+        @apply relative flex flex-col items-center justify-center rounded-3xl border-2 border-dashed
+               border-ink-200 bg-ink-50/70 px-6 py-14 text-center transition-all duration-300 ease-out;
+    }
+
+    .dropzone:hover {
+        @apply border-brand-300 bg-brand-50/60;
+    }
+
+    .dropzone.is-dragging {
+        @apply scale-[1.01] border-brand-600 bg-brand-50 shadow-card-hover;
+    }
+
+    .viewer-tool {
+        @apply inline-flex items-center gap-2 rounded-xl border border-ink-200 bg-white px-3.5 py-2.5
+               text-xs font-semibold text-ink-700 transition-all duration-200
+               hover:border-brand-300 hover:text-brand-600
+               disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:border-ink-200 disabled:hover:text-ink-700;
+    }
+
+    .viewer-tool[aria-pressed='true'] {
+        @apply border-brand-600 bg-brand-600 text-white hover:text-white;
+    }
+
+    /* Tombol preset sudut pandang — lebih ringkas dari .viewer-tool. */
+    .view-preset {
+        @apply inline-flex items-center justify-center rounded-lg border border-ink-200 bg-white px-3 py-2
+               text-[0.7rem] font-semibold text-ink-600 transition-all duration-200
+               hover:border-brand-300 hover:text-brand-600
+               disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:border-ink-200 disabled:hover:text-ink-600;
+    }
+
+    /* Saat kartu viewer masuk mode layar penuh, kanvas mengisi sisa ruang. */
+    [data-viewer-fullscreen-target]:fullscreen {
+        @apply flex h-screen w-screen flex-col rounded-none border-0 bg-white;
+    }
+
+    [data-viewer-fullscreen-target]:fullscreen [data-viewer-canvas] {
+        height: auto;
+        flex: 1 1 auto;
+    }
+
+    [data-viewer-fullscreen-target]:fullscreen > div:last-child {
+        @apply flex flex-1 flex-col;
+    }
+
+    /* Kartu pilihan resolusi — satu radio aktif dalam satu waktu, seperti
+       pilihan kualitas pada Ultimaker Cura. */
+    .resolution-card {
+        @apply relative flex cursor-pointer flex-col rounded-2xl border-2 border-ink-100 bg-white p-5
+               transition-all duration-200 ease-out hover:border-brand-300 hover:shadow-card;
+    }
+
+    .resolution-card:has(input:checked) {
+        @apply border-brand-600 bg-brand-50/40 shadow-card-hover;
+    }
+
+    /* Fokus keyboard tetap terlihat meski radio-nya disembunyikan. */
+    .resolution-card:has(input:focus-visible) {
+        @apply outline-2 outline-offset-2 outline-brand-600;
+    }
+
+    .resolution-check {
+        @apply inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-2
+               border-ink-200 bg-white text-transparent transition-all duration-200;
+    }
+
+    .resolution-card:has(input:checked) .resolution-check {
+        @apply border-brand-600 bg-brand-600 text-white;
+    }
+
+    /* Panel rinci di dalam card printer. Dilipat agar halaman tetap ringkas
+       meski setiap mesin membawa seluruh pengaturannya sendiri. */
+    .card-section {
+        @apply overflow-hidden rounded-2xl border border-ink-100 bg-white;
+    }
+
+    .card-section-summary {
+        @apply flex cursor-pointer list-none items-center justify-between gap-3 px-5 py-4
+               text-sm font-bold text-ink-800 transition-colors hover:bg-ink-50
+               focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-brand-600;
+    }
+
+    .card-section-summary::-webkit-details-marker {
+        display: none;
+    }
+
+    /* Penanda buka/tutup, digambar sendiri supaya konsisten lintas browser. */
+    .card-section-summary::after {
+        content: '';
+        @apply h-2 w-2 shrink-0 rotate-45 border-b-2 border-r-2 border-ink-400 transition-transform duration-200;
+        margin-top: -0.25rem;
+    }
+
+    .card-section[open] > .card-section-summary::after {
+        @apply -rotate-[135deg];
+        margin-top: 0.25rem;
+    }
+
+    .card-section[open] > .card-section-summary {
+        @apply border-b border-ink-100 bg-ink-50/70;
+    }
+
+    .card-section-body {
+        @apply px-5 py-5;
+    }
+
+    /* Pengatur jumlah pesanan: tombol − / + mengapit kotak angka. Dipakai pada
+       kartu daftar model dan di dalam modal Edit Specification. */
+    .qty-step {
+        @apply inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-ink-200
+               bg-white font-display text-base font-bold leading-none text-ink-700 transition-all duration-200
+               hover:border-brand-600 hover:bg-brand-50 hover:text-brand-700
+               disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:border-ink-200
+               disabled:hover:bg-white disabled:hover:text-ink-700;
+    }
+
+    .qty-input {
+        @apply h-9 w-16 rounded-lg border border-ink-200 bg-white text-center text-sm font-bold text-ink-900
+               transition-colors duration-200 focus:border-brand-600 focus:outline-none;
+    }
+
+    /* Panah bawaan input number memakan ruang yang sudah sempit. */
+    .qty-input::-webkit-outer-spin-button,
+    .qty-input::-webkit-inner-spin-button {
+        -webkit-appearance: none;
+        margin: 0;
+    }
+
+    .qty-input {
+        -moz-appearance: textfield;
+        appearance: textfield;
+    }
+
+    /* Tombol + / − pada panel Scale Model. */
+    .scale-step {
+        @apply inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-ink-200
+               bg-white font-display text-xl font-bold leading-none text-ink-700 transition-all duration-200
+               hover:border-brand-600 hover:bg-brand-50 hover:text-brand-700
+               disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:border-ink-200
+               disabled:hover:bg-white disabled:hover:text-ink-700;
+    }
+
+    /* Pilihan kepadatan infill: satu radio aktif dalam satu waktu. */
+    .density-chip {
+        @apply cursor-pointer;
+    }
+
+    .density-chip > span {
+        @apply inline-flex min-w-[4rem] items-center justify-center rounded-xl border-2 border-ink-100
+               bg-white px-4 py-2.5 text-sm font-bold text-ink-700 transition-all duration-200
+               hover:border-brand-300;
+    }
+
+    .density-chip:has(input:checked) > span {
+        @apply border-brand-600 bg-brand-600 text-white shadow-[0_10px_24px_-14px_rgba(149,39,29,0.95)];
+    }
+
+    .density-chip:has(input:focus-visible) > span {
+        @apply outline-2 outline-offset-2 outline-brand-600;
+    }
+
+    /* Contoh warna material pada panel Pilihan Produksi. */
+    .color-swatch {
+        @apply relative inline-flex h-10 w-10 items-center justify-center rounded-full border-2
+               border-ink-200 transition-all duration-200 hover:scale-105 hover:border-brand-400
+               focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600;
+        background-color: var(--swatch);
+    }
+
+    .color-swatch[aria-pressed='true'] {
+        @apply scale-105 border-brand-600 shadow-[0_0_0_3px_rgba(149,39,29,0.18)];
+    }
+
+    /* Kartu satu model 3D pada daftar unggahan halaman 3D Models. Model yang
+       sedang ditinjau di viewer ditandai `is-active`. */
+    .model-card {
+        @apply relative flex h-full w-full flex-col rounded-2xl border-2 border-ink-100 bg-white p-4
+               text-left transition-all duration-200 ease-out hover:border-brand-300 hover:shadow-card;
+    }
+
+    .model-card.is-active {
+        @apply border-brand-600 bg-brand-50/40 shadow-card-hover;
+    }
+
+    .model-card:focus-visible {
+        @apply outline-2 outline-offset-2 outline-brand-600;
+    }
+
+    .model-card-remove {
+        @apply absolute right-2.5 top-2.5 rounded-lg p-1.5 text-ink-300 transition-colors
+               hover:bg-brand-50 hover:text-brand-700 focus-visible:outline-2
+               focus-visible:outline-offset-2 focus-visible:outline-brand-600;
+    }
+
+    .field-label {
+        @apply block text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-ink-400;
+    }
+
+    .field-input {
+        @apply mt-2 w-full rounded-xl border border-ink-200 bg-white px-4 py-3 text-sm text-ink-900
+               transition-colors duration-200 placeholder:text-ink-300
+               focus:border-brand-600 focus:outline-none;
+    }
+
+    .field-error {
+        @apply mt-1.5 text-xs font-semibold text-brand-700;
+    }
+
+    .prose-brand {
+        @apply text-base leading-relaxed text-ink-600;
+    }
+
+    /* Garis dekoratif tipis bermotif grid teknik. */
+    .blueprint-grid {
+        background-image:
+            linear-gradient(to right, rgb(149 39 29 / 0.06) 1px, transparent 1px),
+            linear-gradient(to bottom, rgb(149 39 29 / 0.06) 1px, transparent 1px);
+        background-size: 48px 48px;
+    }
+
+    .blueprint-grid-dark {
+        background-image:
+            linear-gradient(to right, rgb(255 255 255 / 0.05) 1px, transparent 1px),
+            linear-gradient(to bottom, rgb(255 255 255 / 0.05) 1px, transparent 1px);
+        background-size: 56px 56px;
+    }
+}
+
+@layer utilities {
+    .text-gradient-brand {
+        @apply bg-gradient-to-r from-brand-500 via-brand-600 to-brand-800 bg-clip-text text-transparent;
+    }
+
+    .mask-fade-b {
+        mask-image: linear-gradient(to bottom, black 65%, transparent 100%);
+    }
+}

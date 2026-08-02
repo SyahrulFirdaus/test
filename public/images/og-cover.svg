@@ -1,0 +1,44 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" width="1200" height="630" role="img" aria-label="NUSAMA3D — 3D Printing Service &amp; Engineering Solutions">
+  <defs>
+    <linearGradient id="ogBg" x1="0" y1="0" x2="1200" y2="630" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#2A0906"/><stop offset="0.55" stop-color="#611913"/><stop offset="1" stop-color="#95271D"/>
+    </linearGradient>
+    <pattern id="ogGrid" width="48" height="48" patternUnits="userSpaceOnUse">
+      <path d="M48 0H0V48" fill="none" stroke="#ffffff" stroke-opacity=".07" stroke-width="1"/>
+    </pattern>
+    <clipPath id="ogHex">
+      <path d="M60 14.4 99.6 37.2 99.6 82.8 60 105.6 20.4 82.8 20.4 37.2Z"/>
+    </clipPath>
+  </defs>
+
+  <rect width="1200" height="630" fill="url(#ogBg)"/>
+  <rect width="1200" height="630" fill="url(#ogGrid)"/>
+  <circle cx="1080" cy="120" r="220" fill="#C74D38" opacity=".18"/>
+
+  <!-- marka logo -->
+  <g transform="translate(88 150)">
+    <circle cx="60" cy="60" r="60" fill="#95271D"/>
+    <path fill-rule="evenodd" clip-rule="evenodd" fill="#ffffff"
+          d="M60 14.4 99.6 37.2 99.6 82.8 60 105.6 20.4 82.8 20.4 37.2Z M60 24.6 30 42.2 30 77.8 60 95.4 90 77.8 90 42.2Z"/>
+    <g clip-path="url(#ogHex)">
+      <path fill="#ffffff" d="M26 27.4 105.2 73 94 92.6 14.8 47Z"/>
+    </g>
+    <circle cx="60" cy="60" r="54.6" fill="none" stroke="#ffffff" stroke-width="2.2" stroke-opacity=".9"/>
+  </g>
+
+  <text x="88" y="330" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="76" font-weight="800" fill="#ffffff" letter-spacing="1">NUSAMA3D</text>
+  <text x="88" y="382" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="24" font-weight="700" fill="#EBA193" letter-spacing="4">3D PRINTING SERVICE &amp; ENGINEERING SOLUTIONS</text>
+  <text x="88" y="452" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="28" fill="#F5C8C0">3D Printing · Product Development · Reverse Engineering</text>
+  <text x="88" y="494" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="28" fill="#F5C8C0">3D Design · 3D Scanning · Paint &amp; Finishing</text>
+
+  <g transform="translate(830 210)">
+    <path d="M150 0l130 75v150l-130 75L20 225V75z" fill="#C74D38" opacity=".9"/>
+    <path d="M150 0l130 75-130 75L20 75z" fill="#F5C8C0" opacity=".9"/>
+    <path d="M150 150v150l130-75V75z" fill="#7C1F17" opacity=".95"/>
+    <g stroke="#4A120C" stroke-opacity=".35" stroke-width="2" fill="none">
+      <path d="M20 100l130 75 130-75M20 125l130 75 130-75M20 150l130 75 130-75M20 175l130 75 130-75"/>
+    </g>
+  </g>
+
+  <rect x="88" y="546" width="72" height="6" rx="3" fill="#C8912F"/>
+</svg>

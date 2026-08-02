@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 400" width="640" height="400" role="img" aria-label="Spray gun mengecat part hasil cetak dengan pilihan warna finishing">
+  <defs>
+    <linearGradient id="bgPaint" x1="0" y1="0" x2="640" y2="400" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FDF4F2"/><stop offset="1" stop-color="#FBE5E1"/>
+    </linearGradient>
+    <linearGradient id="spray" x1="228" y1="0" x2="392" y2="0" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#95271D" stop-opacity=".35"/><stop offset="1" stop-color="#95271D" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="glossy" x1="380" y1="130" x2="500" y2="290" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#C74D38"/><stop offset="1" stop-color="#7C1F17"/>
+    </linearGradient>
+  </defs>
+  <rect width="640" height="400" fill="url(#bgPaint)"/>
+  <circle cx="560" cy="90" r="86" fill="#95271D" opacity=".05"/>
+
+  <rect x="66" y="150" width="52" height="92" rx="10" fill="#611913"/>
+  <rect x="76" y="128" width="32" height="26" rx="6" fill="#4A120C"/>
+  <path d="M118 170h44l-6 40h-38z" fill="#2C2523"/>
+  <path d="M92 242h34l10 46H82z" fill="#453C39"/>
+  <path d="M162 178h30l16 12-16 12h-30z" fill="#95271D"/>
+
+  <path d="M228 132l164 60-164 60z" fill="url(#spray)"/>
+  <g fill="#95271D" opacity=".45">
+    <circle cx="252" cy="176" r="4"/><circle cx="276" cy="200" r="3"/><circle cx="266" cy="222" r="4"/>
+    <circle cx="300" cy="164" r="3"/><circle cx="312" cy="204" r="5"/><circle cx="296" cy="240" r="3"/>
+    <circle cx="340" cy="182" r="4"/><circle cx="352" cy="216" r="3"/><circle cx="330" cy="248" r="4"/>
+  </g>
+
+  <ellipse cx="444" cy="304" rx="86" ry="18" fill="#DED4D0"/>
+  <path d="M444 128c48 0 82 36 82 84 0 34-14 60-34 76H396c-20-16-34-42-34-76 0-48 34-84 82-84z" fill="url(#glossy)"/>
+  <path d="M444 128c-48 0-82 36-82 84 0 34 14 60 34 76h48V128z" fill="#DED4D0"/>
+  <path d="M414 156c-18 12-28 32-28 56 0 22 6 40 18 54" fill="none" stroke="#ffffff" stroke-width="4" stroke-linecap="round" opacity=".7"/>
+  <path d="M474 156c18 12 28 32 28 56 0 22-6 40-18 54" fill="none" stroke="#ffffff" stroke-width="4" stroke-linecap="round" opacity=".35"/>
+  <path d="M444 128v160" stroke="#4A120C" stroke-opacity=".25" stroke-width="2" stroke-dasharray="8 8"/>
+
+  <g>
+    <rect x="66" y="316" width="54" height="42" rx="10" fill="#95271D"/>
+    <rect x="128" y="316" width="54" height="42" rx="10" fill="#C74D38"/>
+    <rect x="190" y="316" width="54" height="42" rx="10" fill="#C8912F"/>
+    <rect x="252" y="316" width="54" height="42" rx="10" fill="#2C2523"/>
+    <rect x="314" y="316" width="54" height="42" rx="10" fill="#ffffff" stroke="#DED4D0" stroke-width="2"/>
+  </g>
+</svg>

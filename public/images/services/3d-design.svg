@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 400" width="640" height="400" role="img" aria-label="Pemodelan 3D dengan titik kontrol dan kurva desain">
+  <defs>
+    <linearGradient id="bgDes" x1="0" y1="0" x2="640" y2="400" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FDF4F2"/><stop offset="1" stop-color="#FBE5E1"/>
+    </linearGradient>
+    <linearGradient id="faceA" x1="200" y1="120" x2="440" y2="300" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#DD7461"/><stop offset="1" stop-color="#C74D38"/>
+    </linearGradient>
+    <pattern id="gridDes" width="40" height="40" patternUnits="userSpaceOnUse">
+      <path d="M40 0H0V40" fill="none" stroke="#95271D" stroke-opacity=".08" stroke-width="1"/>
+    </pattern>
+  </defs>
+  <rect width="640" height="400" fill="url(#bgDes)"/>
+  <rect width="640" height="400" fill="url(#gridDes)"/>
+
+  <g stroke="#95271D" stroke-opacity=".35" stroke-width="1.6" fill="none">
+    <path d="M60 300h520"/>
+    <path d="M60 300L136 224"/>
+    <path d="M60 300V120"/>
+  </g>
+
+  <path d="M320 108l124 66v132l-124 66-124-66V174z" fill="url(#faceA)"/>
+  <path d="M320 108l124 66-124 66-124-66z" fill="#EBA193"/>
+  <path d="M320 240v132l124-66V174z" fill="#95271D"/>
+  <path d="M196 174v132l124 66V240z" fill="#B63A2C"/>
+
+  <g fill="none" stroke="#4A120C" stroke-opacity=".55" stroke-width="1.5">
+    <path d="M320 108v132M196 174l124 66 124-66"/>
+  </g>
+
+  <g fill="#ffffff" stroke="#95271D" stroke-width="3">
+    <rect x="313" y="101" width="14" height="14" rx="3"/>
+    <rect x="437" y="167" width="14" height="14" rx="3"/>
+    <rect x="189" y="167" width="14" height="14" rx="3"/>
+    <rect x="437" y="299" width="14" height="14" rx="3"/>
+    <rect x="189" y="299" width="14" height="14" rx="3"/>
+    <rect x="313" y="365" width="14" height="14" rx="3"/>
+  </g>
+
+  <path d="M452 118c46 14 62 52 46 92" fill="none" stroke="#C8912F" stroke-width="3" stroke-dasharray="8 7" stroke-linecap="round"/>
+  <circle cx="452" cy="118" r="7" fill="#C8912F"/>
+  <circle cx="498" cy="210" r="7" fill="#C8912F"/>
+
+  <path d="M96 122l0 62 15-15 10 22 12-6-10-21h20z" fill="#2C2523"/>
+</svg>
