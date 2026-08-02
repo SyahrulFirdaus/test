@@ -1,0 +1,41 @@
+{
+  "_model-record-roln1-Mb.js": {
+    "file": "assets/model-record-roln1-Mb.js",
+    "name": "model-record"
+  },
+  "resources/css/app.css": {
+    "file": "assets/app-B9CB73ZX.css",
+    "src": "resources/css/app.css",
+    "isEntry": true
+  },
+  "resources/js/app.js": {
+    "file": "assets/app-DDn4q_6X.js",
+    "name": "app",
+    "src": "resources/js/app.js",
+    "isEntry": true
+  },
+  "resources/js/dashboard.js": {
+    "file": "assets/dashboard-D0CjEqJI.js",
+    "name": "dashboard",
+    "src": "resources/js/dashboard.js",
+    "isEntry": true
+  },
+  "resources/js/model-detail.js": {
+    "file": "assets/model-detail-CN3z9R4D.js",
+    "name": "model-detail",
+    "src": "resources/js/model-detail.js",
+    "isEntry": true,
+    "imports": [
+      "_model-record-roln1-Mb.js"
+    ]
+  },
+  "resources/js/model-viewer.js": {
+    "file": "assets/model-viewer-EeJ7DJdF.js",
+    "name": "model-viewer",
+    "src": "resources/js/model-viewer.js",
+    "isEntry": true,
+    "imports": [
+      "_model-record-roln1-Mb.js"
+    ]
+  }
+}
