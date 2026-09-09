@@ -5,7 +5,7 @@
 @section('content')
     @php
         $rupiah = fn ($value) => 'Rp'.number_format((float) $value, 0, ',', '.');
-        $angka = fn ($value, $digits = 2) => is_numeric($value) ? number_format((float) $value, $digits, ',', '.') : '—';
+        $angka = fn ($value, $digits = 2) => is_numeric($value) ? number_format((float) $value, $digits, ',', '.') : '-';
     @endphp
 
     <a href="{{ route('dashboard.quotations.index') }}" class="inline-flex items-center gap-2 text-sm font-semibold text-ink-500 transition-colors hover:text-brand-600">
@@ -36,6 +36,67 @@
             </a>
         </div>
     </div>
+
+    {{-- Pembayaran bertahap (khusus akun Business). Selama masih berjalan,
+         ajakan ini tetap tampil meski penawaran sudah lewat tahap pembayaran —
+         termin berikutnya berjalan bersamaan dengan produksi. --}}
+    @if ($quotation->paymentTerm && ! $quotation->paymentTerm->isRejected())
+        @php $term = $quotation->paymentTerm; @endphp
+
+        <div class="mt-6 rounded-2xl border-2 border-brand-300 bg-brand-50 p-5">
+            <div class="flex flex-wrap items-start justify-between gap-4">
+                <div class="min-w-0">
+                    <p class="font-display text-sm font-bold text-brand-900">
+                        {{ $term->status_label }} &middot; {{ $term->scheme_label }}
+                    </p>
+                    <p class="mt-1.5 text-sm text-brand-800">
+                        @if ($term->isPending())
+                            Pengajuan skema pembayaran Anda sedang ditinjau admin.
+                        @elseif ($term->isCompleted())
+                            Seluruh termin sudah lunas. Total {{ $rupiah($term->total_amount) }} diterima.
+                        @else
+                            Sudah dibayar {{ $rupiah($term->paidAmount()) }} dari {{ $rupiah($term->total_amount) }}.
+                            Sisa {{ $rupiah($term->outstandingAmount()) }}.
+                        @endif
+                    </p>
+                </div>
+
+                <a href="{{ route('dashboard.quotations.payment', $quotation) }}" class="btn-primary shrink-0 px-5 py-2.5">
+                    Lihat Jadwal Pembayaran
+                </a>
+            </div>
+        </div>
+    @endif
+
+    {{-- Tahap pembayaran: seluruh rinciannya ada di halaman tersendiri, jadi di
+         sini cukup ajakan untuk menuju ke sana. --}}
+    @if ($quotation->isPaymentStage() && ! $quotation->usesInstallments() && ! $quotation->hasPendingPaymentTerm())
+        <div class="mt-6 rounded-2xl border-2 border-brand-300 bg-brand-50 p-5">
+            <div class="flex flex-wrap items-start justify-between gap-4">
+                <div class="min-w-0">
+                    <p class="font-display text-sm font-bold text-brand-900">
+                        @if ($quotation->status === \App\Support\QuotationStatus::PAYMENT_REVIEW)
+                            Bukti pembayaran Anda sedang diverifikasi admin.
+                        @elseif ($quotation->status === \App\Support\QuotationStatus::PAYMENT_REJECTED)
+                            Bukti pembayaran ditolak — silakan unggah ulang.
+                        @else
+                            Penawaran Anda menunggu pembayaran.
+                        @endif
+                    </p>
+                    <p class="mt-1.5 text-sm text-brand-800">
+                        Total tagihan {{ $rupiah($quotation->payment_amount) }}.
+                        @if ($quotation->payment_due_at && $quotation->needsPaymentProof())
+                            Batas pembayaran {{ $quotation->payment_due_at->translatedFormat('d F Y, H:i') }} WIB.
+                        @endif
+                    </p>
+                </div>
+
+                <a href="{{ route('dashboard.quotations.payment', $quotation) }}" class="btn-primary shrink-0 px-5 py-2.5">
+                    Buka Halaman Pembayaran
+                </a>
+            </div>
+        </div>
+    @endif
 
     {{-- Keadaan penyuntingan & pembatalan --}}
     @if ($quotation->hasPendingCancellation())
@@ -102,6 +163,27 @@
                         Angka di atas masih estimasi sistem. Harga resmi dikirimkan setelah engineer kami menyelesaikan review.
                     </p>
                 @endif
+
+                {{-- Salinan alamat saat penawaran dibuat. Mengubah alamat di menu
+                     Alamat tidak menggeser tujuan penawaran yang sudah berjalan. --}}
+                <div class="mt-5 rounded-xl border border-ink-100 p-4">
+                    <p class="text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-ink-400">Alamat Pengiriman</p>
+
+                    @if ($shipping = $quotation->shipping_address)
+                        <p class="mt-2 text-sm font-semibold text-ink-800">
+                            {{ $shipping['recipient_name'] ?? '-' }}
+                            <span class="font-normal text-ink-400">&middot;</span>
+                            <span class="font-normal text-ink-600">{{ $shipping['recipient_phone'] ?? '-' }}</span>
+                        </p>
+                        <p class="mt-1 text-sm leading-relaxed text-ink-600">{{ $shipping['full'] ?? '-' }}</p>
+                    @else
+                        <p class="mt-2 text-sm leading-relaxed text-ink-500">
+                            Belum ada alamat pengiriman pada penawaran ini.
+                            <a href="{{ route('dashboard.addresses.index') }}" class="font-semibold text-brand-600 hover:text-brand-700">Tambahkan alamat</a>
+                            agar penawaran berikutnya terisi otomatis.
+                        </p>
+                    @endif
+                </div>
             </section>
 
             {{-- Daftar file --}}
@@ -133,7 +215,7 @@
 
                                 <div class="text-right">
                                     <p class="font-display text-sm font-bold text-brand-700">{{ $rupiah($item->display_price) }}</p>
-                                    <p class="mt-0.5 text-xs text-ink-400">{{ $angka($item->total_weight_g, 1) }} g &middot; {{ $item->estimated_duration ?? '—' }}</p>
+                                    <p class="mt-0.5 text-xs text-ink-400">{{ $angka($item->total_weight_g, 1) }} g &middot; {{ $item->lead_time ?? '-' }}</p>
                                 </div>
                             </div>
 

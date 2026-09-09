@@ -7,6 +7,10 @@ use App\Models\QuotationItem;
 use App\Models\QuotationRequest;
 use App\Notifications\CancellationDecided;
 use App\Notifications\QuotationStatusUpdated;
+use App\Services\ActivityLogger;
+use App\Services\PaymentFlow;
+use App\Support\ActivityAction;
+use App\Support\ActivityModule;
 use App\Support\QuotationStatus;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
@@ -16,6 +20,11 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class QuotationRequestController extends Controller
 {
+    public function __construct(
+        private readonly PaymentFlow $payments,
+        private readonly ActivityLogger $activity,
+    ) {}
+
     /** Daftar seluruh permintaan penawaran beserta filter dan ringkasannya. */
     public function index(Request $request): View
     {
@@ -102,7 +111,38 @@ class QuotationRequestController extends Controller
             }
         }
 
+        // Keadaan sebelum penyimpanan direkam untuk perbandingan Before/After
+        // pada jejak audit — termasuk status, harga, dan catatan admin.
+        $before = [
+            'status' => QuotationStatus::label($quotation->status),
+            'estimated_price' => $quotation->estimated_price,
+            'estimated_finish' => $quotation->estimated_finish?->format('Y-m-d'),
+            'admin_note' => $quotation->admin_note,
+        ];
+
         $quotation->update($attributes);
+
+        $this->activity->logChanges(
+            action: ActivityAction::QUOTATION_STATUS_UPDATE,
+            before: $before,
+            after: [
+                'status' => QuotationStatus::label($quotation->status),
+                'estimated_price' => $quotation->estimated_price,
+                'estimated_finish' => $quotation->estimated_finish?->format('Y-m-d'),
+                'admin_note' => $quotation->admin_note,
+            ],
+            description: $statusChanged
+                ? 'Mengubah status penawaran '.$quotation->tracking_number.' menjadi '.QuotationStatus::label($validated['status']).'.'
+                : 'Memperbarui data penawaran '.$quotation->tracking_number.'.',
+            subject: $quotation,
+            actor: $request->user(),
+        );
+
+        // Berpindah ke "Menunggu Pembayaran" membuka jendela pembayaran 24 jam
+        // sekaligus membersihkan bukti dari percobaan sebelumnya.
+        if ($statusChanged && $validated['status'] === QuotationStatus::AWAITING_PAYMENT) {
+            $this->payments->open($quotation);
+        }
 
         if ($statusChanged || $note !== null) {
             $quotation->recordHistory(
@@ -136,12 +176,26 @@ class QuotationRequestController extends Controller
         }
 
         $note = $this->decisionNote($request);
+        $statusBefore = $quotation->status;
 
         $quotation->update([
             'status' => QuotationStatus::CANCELLATION_APPROVED,
             'cancellation_resolved_at' => now(),
             'cancellation_admin_note' => $note,
         ]);
+
+        $this->activity->log(
+            action: ActivityAction::CANCELLATION_APPROVE,
+            description: 'Menyetujui pembatalan penawaran '.$quotation->tracking_number
+                .($note ? ' dengan catatan: '.$note : '.'),
+            subject: $quotation,
+            old: ['status' => QuotationStatus::label($statusBefore)],
+            new: [
+                'status' => QuotationStatus::label(QuotationStatus::CANCELLATION_APPROVED),
+                'admin_note' => $note,
+            ],
+            actor: $request->user(),
+        );
 
         $quotation->recordHistory(
             QuotationStatus::CANCELLATION_APPROVED,
@@ -168,6 +222,7 @@ class QuotationRequestController extends Controller
 
         $note = $this->decisionNote($request);
         $restored = $quotation->status_before_cancellation ?: QuotationStatus::REVIEWING;
+        $statusBefore = $quotation->status;
 
         $quotation->update([
             'status' => $restored,
@@ -188,6 +243,19 @@ class QuotationRequestController extends Controller
             $restored,
             'Penawaran dilanjutkan pada tahap '.QuotationStatus::label($restored).'.',
             $request->user()?->name,
+        );
+
+        $this->activity->log(
+            action: ActivityAction::CANCELLATION_REJECT,
+            description: 'Menolak pembatalan penawaran '.$quotation->tracking_number
+                .', dilanjutkan pada tahap '.QuotationStatus::label($restored).'.',
+            subject: $quotation,
+            old: ['status' => QuotationStatus::label($statusBefore)],
+            new: [
+                'status' => QuotationStatus::label($restored),
+                'admin_note' => $note,
+            ],
+            actor: $request->user(),
         );
 
         $quotation->user?->notify(new CancellationDecided($quotation, false, $note));
@@ -240,6 +308,8 @@ class QuotationRequestController extends Controller
             'admin_note' => ['nullable', 'string', 'max:2000'],
         ]);
 
+        $before = $item->only(['estimated_price', 'admin_note']);
+
         $item->update([
             'estimated_price' => $validated['estimated_price'] ?? null,
             'admin_note' => filled($validated['admin_note'] ?? null) ? trim($validated['admin_note']) : null,
@@ -247,14 +317,50 @@ class QuotationRequestController extends Controller
 
         $quotation->refreshQuotedPrice();
 
+        // Penyesuaian harga oleh admin termasuk perubahan yang perlu punya
+        // riwayat jelas — angka inilah yang akhirnya ditagihkan.
+        $this->activity->logChanges(
+            action: ActivityAction::QUOTATION_PRICE_UPDATE,
+            before: $before,
+            after: $item->only(['estimated_price', 'admin_note']),
+            description: 'Mengubah estimasi model '.$item->file_name.' pada penawaran '.$quotation->tracking_number.'.',
+            subject: $item,
+            actor: $request->user(),
+            module: ActivityModule::ADMIN,
+            subjectLabel: $item->file_name,
+        );
+
         return back()->with('status', "Estimasi model {$item->file_name} berhasil disimpan.");
     }
 
-    public function destroy(QuotationRequest $quotation): RedirectResponse
+    public function destroy(Request $request, QuotationRequest $quotation): RedirectResponse
     {
+        // Isi penawaran direkam sebelum barisnya hilang. Penghapusan justru
+        // aktivitas yang paling perlu meninggalkan jejak, karena datanya
+        // sendiri tidak lagi dapat diperiksa setelahnya.
+        $removed = [
+            'tracking_number' => $quotation->tracking_number,
+            'customer' => $quotation->name,
+            'email' => $quotation->email,
+            'status' => QuotationStatus::label($quotation->status),
+            'model_count' => $quotation->items()->count(),
+            'estimated_price' => $quotation->estimated_price,
+        ];
+
+        $trackingNumber = $quotation->tracking_number;
+
         // Berkas dan foto ikut terhapus lewat event `deleting` pada model,
         // riwayat ikut terhapus lewat foreign key cascade.
         $quotation->delete();
+
+        $this->activity->log(
+            action: ActivityAction::QUOTATION_DELETE,
+            description: 'Menghapus penawaran '.$trackingNumber.' beserta seluruh berkasnya.',
+            old: $removed,
+            actor: $request->user(),
+            module: ActivityModule::ADMIN,
+            subjectLabel: $trackingNumber,
+        );
 
         return redirect()
             ->route('admin.quotations.index')

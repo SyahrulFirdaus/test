@@ -442,10 +442,36 @@ return [
         'max_file_size_mb' => 300,
     ],
 
+    /*
+    |----------------------------------------------------------------------
+    | Teknologi & Material
+    |----------------------------------------------------------------------
+    | Satu-satunya sumber data katalog: halaman 3D Printing Guide, modal Edit
+    | Specification, estimator di browser, dan perhitungan ulang di server
+    | seluruhnya membaca dari sini. Jangan menyalin daftar ini ke view atau ke
+    | JavaScript — tambahkan datanya di sini saja.
+    |
+    | Selain angka estimasi, tiap material membawa keterangan yang ditampilkan
+    | pada panduan dan panel kiri Edit Specification:
+    |
+    |   description      penjelasan satu kalimat
+    |   characteristics  sifat teknis singkat, label => nilai
+    |   pros / cons      kelebihan dan kekurangan
+    |   max_size         ukuran cetak terbesar yang diterima (mm)
+    |   min_size         ukuran terkecil yang masih dapat dibentuk (mm)
+    |   min_size_slender batas alternatif untuk part memanjang; model yang lolos
+    |                    salah satu dari keduanya dianggap memenuhi syarat
+    |
+    | `max_size` sengaja tidak pernah melebihi `build_volume` teknologinya agar
+    | validasi material tidak pernah bertentangan dengan pemeriksaan area cetak
+    | yang sudah berjalan di viewer.
+    */
     'technologies' => [
 
         'FDM' => [
             'name' => 'Fused Deposition Modeling',
+            // Dipakai sebagai label pilihan teknologi, mis. "FDM (Plastic)".
+            'family' => 'Plastic',
             'description' => 'Filamen termoplastik dilelehkan lalu diekstrusi lapis demi lapis. Paling ekonomis untuk prototipe fungsional, jig, dan part berukuran besar.',
             'build_volume' => ['x' => 500, 'y' => 500, 'z' => 600],
             // Dinding selalu padat; sisanya terisi sebanyak kepadatan infill.
@@ -463,15 +489,76 @@ return [
             // material tersebut; kuncinya mengacu ke `material_colors.options`.
             // Material tanpa kunci ini menerima seluruh warna.
             'materials' => [
-                'PLA' => ['density' => 1.24, 'price_per_gram' => 900, 'colors' => ['putih', 'hitam', 'abu', 'merah', 'biru']],
-                'ABS' => ['density' => 1.04, 'price_per_gram' => 950, 'colors' => ['putih', 'hitam', 'abu', 'merah']],
-                'PETG' => ['density' => 1.27, 'price_per_gram' => 1100, 'colors' => ['putih', 'hitam', 'abu', 'biru', 'bening']],
-                'TPU' => ['density' => 1.21, 'price_per_gram' => 1800, 'colors' => ['hitam', 'putih', 'merah']],
+                'PLA' => [
+                    'density' => 1.24,
+                    'price_per_gram' => 900,
+                    'colors' => ['putih', 'hitam', 'abu', 'merah', 'biru'],
+                    'description' => 'Filamen paling umum. Mudah dicetak, dimensinya stabil, dan permukaannya rapi.',
+                    'characteristics' => [
+                        'Kekuatan' => 'Sedang',
+                        'Tahan panas' => 'Rendah, melunak di ±60 °C',
+                        'Kelenturan' => 'Kaku',
+                        'Permukaan' => 'Halus',
+                    ],
+                    'pros' => ['Paling ekonomis dan cepat', 'Detail rapi, minim melengkung'],
+                    'cons' => ['Melunak di atas ±60 °C', 'Agak getas bila dibebani terus-menerus'],
+                    'max_size' => ['x' => 250, 'y' => 250, 'z' => 300],
+                    'min_size' => ['x' => 30, 'y' => 30, 'z' => 10],
+                ],
+                'ABS' => [
+                    'density' => 1.04,
+                    'price_per_gram' => 950,
+                    'colors' => ['putih', 'hitam', 'abu', 'merah'],
+                    'description' => 'Termoplastik teknik yang lebih tahan panas dan benturan daripada PLA.',
+                    'characteristics' => [
+                        'Kekuatan' => 'Tinggi',
+                        'Tahan panas' => 'Baik, sampai ±100 °C',
+                        'Kelenturan' => 'Agak liat',
+                        'Permukaan' => 'Sedang, dapat dihaluskan uap aseton',
+                    ],
+                    'pros' => ['Tahan panas dan benturan', 'Dapat dihaluskan dengan uap aseton'],
+                    'cons' => ['Rawan menyusut dan terangkat dari meja', 'Butuh dinding lebih tebal pada part besar'],
+                    'max_size' => ['x' => 500, 'y' => 480, 'z' => 480],
+                    'min_size' => ['x' => 30, 'y' => 30, 'z' => 10],
+                ],
+                'PETG' => [
+                    'density' => 1.27,
+                    'price_per_gram' => 1100,
+                    'colors' => ['putih', 'hitam', 'abu', 'biru', 'bening'],
+                    'description' => 'Perpaduan kemudahan PLA dengan ketangguhan ABS. Cocok untuk part fungsional harian.',
+                    'characteristics' => [
+                        'Kekuatan' => 'Tinggi',
+                        'Tahan panas' => 'Sedang, sampai ±75 °C',
+                        'Kelenturan' => 'Liat',
+                        'Permukaan' => 'Sedang, sedikit mengkilap',
+                    ],
+                    'pros' => ['Liat, tidak mudah patah', 'Tahan air dan bahan kimia ringan'],
+                    'cons' => ['Rawan stringing pada detail halus', 'Permukaan sedikit lebih kasar'],
+                    'max_size' => ['x' => 500, 'y' => 500, 'z' => 600],
+                    'min_size' => ['x' => 30, 'y' => 30, 'z' => 10],
+                ],
+                'TPU' => [
+                    'density' => 1.21,
+                    'price_per_gram' => 1800,
+                    'colors' => ['hitam', 'putih', 'merah'],
+                    'description' => 'Material elastis seperti karet untuk gasket, bumper, dan part yang perlu lentur.',
+                    'characteristics' => [
+                        'Kekuatan' => 'Sedang',
+                        'Tahan panas' => 'Sedang, sampai ±80 °C',
+                        'Kelenturan' => 'Sangat lentur',
+                        'Permukaan' => 'Sedang, sedikit bertekstur',
+                    ],
+                    'pros' => ['Elastis dan tahan sobek', 'Meredam getaran dengan baik'],
+                    'cons' => ['Waktu cetak lebih lama', 'Tidak cocok untuk part yang harus kaku'],
+                    'max_size' => ['x' => 250, 'y' => 250, 'z' => 300],
+                    'min_size' => ['x' => 30, 'y' => 30, 'z' => 10],
+                ],
             ],
         ],
 
         'SLA' => [
             'name' => 'Stereolithography',
+            'family' => 'Resin',
             'description' => 'Resin fotopolimer dikeraskan lapis demi lapis oleh sinar UV. Menghasilkan detail paling halus dan permukaan mulus untuk model presentasi dan part presisi.',
             'build_volume' => ['x' => 300, 'y' => 200, 'z' => 300],
             // Resin mengeras penuh, tidak ada rongga infill — pengurangan
@@ -487,15 +574,80 @@ return [
             'setup_fee' => 50000,
             'machine_rate_per_hour' => 30000,
             'materials' => [
-                'Standard Resin' => ['density' => 1.10, 'price_per_gram' => 2200, 'colors' => ['abu', 'putih', 'hitam']],
-                'Tough Resin' => ['density' => 1.12, 'price_per_gram' => 2800, 'colors' => ['abu', 'hitam']],
-                'Flexible Resin' => ['density' => 1.08, 'price_per_gram' => 3200, 'colors' => ['hitam', 'abu']],
-                'Clear Resin' => ['density' => 1.10, 'price_per_gram' => 3000, 'colors' => ['bening']],
+                'Standard Resin' => [
+                    'density' => 1.10,
+                    'price_per_gram' => 2200,
+                    'colors' => ['abu', 'putih', 'hitam'],
+                    'description' => 'Resin serbaguna dengan detail paling halus. Pilihan utama untuk model presentasi.',
+                    'characteristics' => [
+                        'Kekuatan' => 'Rendah',
+                        'Tahan panas' => 'Rendah',
+                        'Kelenturan' => 'Getas',
+                        'Permukaan' => 'Sangat halus',
+                    ],
+                    'pros' => ['Detail dan permukaan terbaik', 'Biaya paling ringan di antara resin'],
+                    'cons' => ['Getas, tidak untuk part fungsional', 'Warna dapat menguning bila lama terkena UV'],
+                    'max_size' => ['x' => 300, 'y' => 200, 'z' => 300],
+                    'min_size' => ['x' => 5, 'y' => 5, 'z' => 5],
+                    'min_size_slender' => ['x' => 10, 'y' => 2, 'z' => 2],
+                ],
+                'Tough Resin' => [
+                    'density' => 1.12,
+                    'price_per_gram' => 2800,
+                    'colors' => ['abu', 'hitam'],
+                    'description' => 'Resin yang diformulasikan lebih liat, mendekati karakter ABS.',
+                    'characteristics' => [
+                        'Kekuatan' => 'Sedang hingga tinggi',
+                        'Tahan panas' => 'Sedang',
+                        'Kelenturan' => 'Liat',
+                        'Permukaan' => 'Sangat halus',
+                    ],
+                    'pros' => ['Lebih tahan benturan', 'Detail tetap halus'],
+                    'cons' => ['Lebih mahal daripada resin standar', 'Tetap kalah kuat dibanding nylon'],
+                    'max_size' => ['x' => 300, 'y' => 200, 'z' => 300],
+                    'min_size' => ['x' => 5, 'y' => 5, 'z' => 5],
+                    'min_size_slender' => ['x' => 10, 'y' => 2, 'z' => 2],
+                ],
+                'Flexible Resin' => [
+                    'density' => 1.08,
+                    'price_per_gram' => 3200,
+                    'colors' => ['hitam', 'abu'],
+                    'description' => 'Resin lentur untuk part yang perlu ditekuk atau menyerap tekanan.',
+                    'characteristics' => [
+                        'Kekuatan' => 'Rendah',
+                        'Tahan panas' => 'Rendah',
+                        'Kelenturan' => 'Lentur',
+                        'Permukaan' => 'Halus',
+                    ],
+                    'pros' => ['Lentur dengan detail tinggi', 'Baik untuk segel dan bantalan'],
+                    'cons' => ['Toleransi dimensi lebih longgar', 'Perlu dinding lebih tebal agar tidak sobek'],
+                    'max_size' => ['x' => 300, 'y' => 200, 'z' => 300],
+                    'min_size' => ['x' => 5, 'y' => 5, 'z' => 5],
+                    'min_size_slender' => ['x' => 10, 'y' => 2, 'z' => 2],
+                ],
+                'Clear Resin' => [
+                    'density' => 1.10,
+                    'price_per_gram' => 3000,
+                    'colors' => ['bening'],
+                    'description' => 'Resin bening untuk part tembus pandang seperti lensa, housing, dan model aliran fluida.',
+                    'characteristics' => [
+                        'Kekuatan' => 'Rendah',
+                        'Tahan panas' => 'Rendah',
+                        'Kelenturan' => 'Getas',
+                        'Permukaan' => 'Sangat halus, tembus pandang setelah dipoles',
+                    ],
+                    'pros' => ['Tembus pandang setelah dipoles', 'Detail sangat halus'],
+                    'cons' => ['Butuh pemolesan tambahan', 'Kejernihan berkurang seiring waktu'],
+                    'max_size' => ['x' => 300, 'y' => 200, 'z' => 300],
+                    'min_size' => ['x' => 5, 'y' => 5, 'z' => 5],
+                    'min_size_slender' => ['x' => 10, 'y' => 2, 'z' => 2],
+                ],
             ],
         ],
 
         'MJF' => [
             'name' => 'Multi Jet Fusion',
+            'family' => 'Nylon',
             'description' => 'Serbuk nylon dilebur menyeluruh oleh fusing agent dan lampu inframerah. Tanpa support, kuat merata ke segala arah, dan efisien untuk produksi batch.',
             'build_volume' => ['x' => 380, 'y' => 284, 'z' => 380],
             // Part MJF umumnya dicetak padat, tetapi rongganya boleh dikurangi
@@ -510,13 +662,46 @@ return [
             'setup_fee' => 120000,
             'machine_rate_per_hour' => 45000,
             'materials' => [
-                'PA12' => ['density' => 1.01, 'price_per_gram' => 3500, 'colors' => ['abu', 'hitam', 'putih']],
-                'PA11' => ['density' => 1.03, 'price_per_gram' => 4200, 'colors' => ['abu', 'hitam']],
+                'PA12' => [
+                    'density' => 1.01,
+                    'price_per_gram' => 3500,
+                    'colors' => ['abu', 'hitam', 'putih'],
+                    'description' => 'Nylon serbuk standar industri untuk part fungsional dan produksi batch kecil.',
+                    'characteristics' => [
+                        'Kekuatan' => 'Tinggi, merata ke segala arah',
+                        'Tahan panas' => 'Baik, sampai ±160 °C',
+                        'Kelenturan' => 'Liat',
+                        'Permukaan' => 'Bertekstur matte',
+                    ],
+                    'pros' => ['Kuat merata ke segala arah', 'Tanpa support, geometri rumit bebas dibuat'],
+                    'cons' => ['Permukaan bertekstur seperti pasir', 'Sedikit menyerap kelembapan'],
+                    'max_size' => ['x' => 370, 'y' => 276, 'z' => 360],
+                    'min_size' => ['x' => 5, 'y' => 5, 'z' => 5],
+                    'min_size_slender' => ['x' => 10, 'y' => 2, 'z' => 2],
+                ],
+                'PA11' => [
+                    'density' => 1.03,
+                    'price_per_gram' => 4200,
+                    'colors' => ['abu', 'hitam'],
+                    'description' => 'Nylon berbahan dasar nabati, lebih liat dan tahan benturan daripada PA12.',
+                    'characteristics' => [
+                        'Kekuatan' => 'Tinggi',
+                        'Tahan panas' => 'Baik, sampai ±180 °C',
+                        'Kelenturan' => 'Sangat liat',
+                        'Permukaan' => 'Bertekstur matte',
+                    ],
+                    'pros' => ['Lebih liat dan tahan lelah', 'Cocok untuk engsel hidup dan klip'],
+                    'cons' => ['Lebih mahal daripada PA12', 'Kekakuannya sedikit lebih rendah'],
+                    'max_size' => ['x' => 370, 'y' => 276, 'z' => 360],
+                    'min_size' => ['x' => 5, 'y' => 5, 'z' => 5],
+                    'min_size_slender' => ['x' => 10, 'y' => 2, 'z' => 2],
+                ],
             ],
         ],
 
         'SLM' => [
             'name' => 'Selective Laser Melting',
+            'family' => 'Metal',
             'description' => 'Serbuk logam dilelehkan sepenuhnya oleh laser berdaya tinggi di ruang bebas oksigen. Menghasilkan part logam padat dengan sifat mekanis setara logam tempa.',
             'build_volume' => ['x' => 250, 'y' => 250, 'z' => 300],
             // Rongga logam dapat dikurangi untuk menghemat serbuk dan waktu
@@ -533,12 +718,84 @@ return [
             // Part logam diserahkan dalam warna aslinya; pewarnaan dilakukan
             // lewat finishing, bukan lewat pilihan warna material.
             'materials' => [
-                'Stainless Steel' => ['density' => 7.99, 'price_per_gram' => 9000, 'colors' => ['logam']],
-                'Aluminum' => ['density' => 2.67, 'price_per_gram' => 12000, 'colors' => ['logam']],
-                'Titanium' => ['density' => 4.43, 'price_per_gram' => 28000, 'colors' => ['logam']],
+                'Stainless Steel' => [
+                    'density' => 7.99,
+                    'price_per_gram' => 9000,
+                    'colors' => ['logam'],
+                    'description' => 'Logam serbaguna yang kuat dan tahan korosi untuk part akhir maupun tooling.',
+                    'characteristics' => [
+                        'Kekuatan' => 'Sangat tinggi',
+                        'Tahan panas' => 'Sangat baik',
+                        'Kelenturan' => 'Kaku',
+                        'Permukaan' => 'Kasar, dapat dimesin dan dipoles',
+                    ],
+                    'pros' => ['Kuat dan tahan korosi', 'Dapat dimesin serta dipoles setelah cetak'],
+                    'cons' => ['Paling berat di antara pilihan logam', 'Waktu cetak panjang'],
+                    'max_size' => ['x' => 250, 'y' => 250, 'z' => 300],
+                    'min_size' => ['x' => 5, 'y' => 5, 'z' => 5],
+                    'min_size_slender' => ['x' => 10, 'y' => 2, 'z' => 2],
+                ],
+                'Aluminum' => [
+                    'density' => 2.67,
+                    'price_per_gram' => 12000,
+                    'colors' => ['logam'],
+                    'description' => 'Logam ringan dengan konduktivitas panas tinggi. Umum untuk bracket dan heat sink.',
+                    'characteristics' => [
+                        'Kekuatan' => 'Tinggi terhadap bobotnya',
+                        'Tahan panas' => 'Baik',
+                        'Kelenturan' => 'Kaku',
+                        'Permukaan' => 'Kasar, dapat dimesin dan dipoles',
+                    ],
+                    'pros' => ['Rasio kekuatan terhadap berat baik', 'Melepas panas dengan cepat'],
+                    'cons' => ['Lebih lunak daripada baja', 'Perlu perlakuan panas untuk hasil terbaik'],
+                    'max_size' => ['x' => 250, 'y' => 250, 'z' => 300],
+                    'min_size' => ['x' => 5, 'y' => 5, 'z' => 5],
+                    'min_size_slender' => ['x' => 10, 'y' => 2, 'z' => 2],
+                ],
+                'Titanium' => [
+                    'density' => 4.43,
+                    'price_per_gram' => 28000,
+                    'colors' => ['logam'],
+                    'description' => 'Logam paling kuat sekaligus ringan, biokompatibel, untuk part kritis.',
+                    'characteristics' => [
+                        'Kekuatan' => 'Tertinggi dengan bobot ringan',
+                        'Tahan panas' => 'Sangat baik',
+                        'Kelenturan' => 'Kaku',
+                        'Permukaan' => 'Kasar, dapat dimesin dan dipoles',
+                    ],
+                    'pros' => ['Kekuatan tertinggi dengan bobot ringan', 'Tahan korosi dan biokompatibel'],
+                    'cons' => ['Material paling mahal', 'Support wajib dan sulit dilepas'],
+                    'max_size' => ['x' => 250, 'y' => 250, 'z' => 300],
+                    'min_size' => ['x' => 5, 'y' => 5, 'z' => 5],
+                    'min_size_slender' => ['x' => 10, 'y' => 2, 'z' => 2],
+                ],
             ],
         ],
 
+    ],
+
+    /*
+    |----------------------------------------------------------------------
+    | Lead Time Pengerjaan
+    |----------------------------------------------------------------------
+    | Yang dibutuhkan pelanggan bukan lama mesin berputar, melainkan kapan
+    | pesanannya selesai. Jam mesin hasil estimasi karena itu tidak lagi
+    | ditampilkan apa adanya, melainkan diterjemahkan menjadi rentang hari
+    | kerja yang sudah memperhitungkan antrean, post-processing, dan QC.
+    |
+    | Tiap tingkat berlaku selama total menit mesin masih di bawah atau sama
+    | dengan `max_minutes`; tingkat terakhir (`max_minutes` null) menjadi
+    | penampung untuk pekerjaan yang lebih besar dari itu.
+    */
+    'lead_time' => [
+        'unit' => 'Hari Kerja',
+
+        'tiers' => [
+            ['max_minutes' => 480, 'min_days' => 3, 'max_days' => 5],
+            ['max_minutes' => 1440, 'min_days' => 5, 'max_days' => 7],
+            ['max_minutes' => 4320, 'min_days' => 7, 'max_days' => 10],
+            ['max_minutes' => null, 'min_days' => 10, 'max_days' => 14],
+        ],
     ],
 
     /*
@@ -581,6 +838,11 @@ return [
             'description' => 'Menunggu penyelesaian pembayaran.',
             'group' => 'flow',
         ],
+        'payment_review' => [
+            'label' => 'Pengecekan Pembayaran',
+            'description' => 'Bukti pembayaran sudah diterima dan sedang diverifikasi admin.',
+            'group' => 'flow',
+        ],
         'payment_received' => [
             'label' => 'Pembayaran Diterima',
             'description' => 'Pembayaran Anda sudah kami terima.',
@@ -607,6 +869,15 @@ return [
             'group' => 'flow',
         ],
 
+        // Bukti pembayaran ditolak admin. Bukan pembatalan — penawaran tetap
+        // berjalan dan pemiliknya dapat mengunggah bukti yang benar selama
+        // batas waktunya belum lewat.
+        'payment_rejected' => [
+            'label' => 'Pembayaran Ditolak',
+            'description' => 'Bukti pembayaran ditolak admin. Silakan periksa alasannya lalu unggah ulang bukti yang sesuai.',
+            'group' => 'payment',
+        ],
+
         'cancelled_by_user' => [
             'label' => 'Dibatalkan oleh User',
             'description' => 'Penawaran dibatalkan sebelum masuk proses review.',
@@ -625,6 +896,13 @@ return [
         'cancellation_rejected' => [
             'label' => 'Pembatalan Ditolak',
             'description' => 'Admin menolak pembatalan, penawaran diteruskan.',
+            'group' => 'cancellation',
+        ],
+
+        // Dipasang sistem, bukan admin: batas waktu pembayaran 24 jam terlewati.
+        'payment_expired' => [
+            'label' => 'Penawaran Dibatalkan (Expired)',
+            'description' => 'Batas waktu pembayaran terlewati sehingga penawaran dibatalkan otomatis oleh sistem.',
             'group' => 'cancellation',
         ],
     ],

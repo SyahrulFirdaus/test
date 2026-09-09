@@ -76,7 +76,7 @@
 
                 <p class="mt-6 rounded-2xl bg-ink-50 p-5 text-xs leading-relaxed text-ink-500">
                     Perubahan pengaturan pada halaman ini otomatis tersimpan dan langsung tercermin pada daftar model di
-                    halaman 3D Models — termasuk gambar pratinjaunya bila Anda mengubah skala, orientasi, atau warna material.
+                    halaman 3D Models, termasuk gambar pratinjaunya bila Anda mengubah skala, orientasi, atau warna material.
                 </p>
             </div>
         </div>

@@ -5,7 +5,7 @@
 @section('content')
     @php
         $rupiah = fn ($value) => 'Rp'.number_format((float) $value, 0, ',', '.');
-        $angka = fn ($value, $digits = 2) => is_numeric($value) ? number_format((float) $value, $digits, ',', '.') : '—';
+        $angka = fn ($value, $digits = 2) => is_numeric($value) ? number_format((float) $value, $digits, ',', '.') : '-';
         $itemCount = $quotation->items->count();
     @endphp
 
@@ -49,7 +49,7 @@
 
                 <div class="min-w-[240px] flex-1">
                     <label for="model" class="field-label">Pilih File</label>
-                    <input type="file" id="model" name="model" accept=".stl,.obj" required
+                    <input type="file" id="model" name="model" accept="{{ \App\Support\ModelFormat::accept() }}" required
                            class="field-input file:mr-3 file:rounded-lg file:border-0 file:bg-brand-600 file:px-4 file:py-2 file:text-xs file:font-semibold file:text-white">
                     @error('model') <p class="field-error">{{ $message }}</p> @enderror
                 </div>
@@ -125,7 +125,7 @@
                             <label for="technology-{{ $item->id }}" class="field-label">Teknologi</label>
                             <select id="technology-{{ $item->id }}" name="technology" class="field-input" data-technology-select>
                                 @foreach ($technologies as $code => $config)
-                                    <option value="{{ $code }}" @selected($item->technology === $code)>{{ $code }} — {{ $config['name'] }}</option>
+                                    <option value="{{ $code }}" @selected($item->technology === $code)>{{ $code }} ({{ $config['name'] }})</option>
                                 @endforeach
                             </select>
                         </div>
@@ -160,7 +160,7 @@
                             <select id="resolution-{{ $item->id }}" name="resolution" class="field-input">
                                 @foreach ($resolutions as $key => $resolution)
                                     <option value="{{ $key }}" @selected($item->resolution === $key)>
-                                        {{ number_format($resolution['layer_height'], 2, ',', '.') }} mm — {{ $resolution['name'] }}
+                                        {{ number_format($resolution['layer_height'], 2, ',', '.') }} mm ({{ $resolution['name'] }})
                                     </option>
                                 @endforeach
                             </select>
@@ -255,7 +255,7 @@
                             @foreach ([
                                 'Spesifikasi' => $item->specification_summary,
                                 'Berat' => $angka($item->total_weight_g, 1).' g',
-                                'Waktu' => $item->estimated_duration ?? '—',
+                                'Lead Time' => $item->lead_time ?? '-',
                                 'Estimasi' => $rupiah($item->estimated_cost),
                             ] as $label => $value)
                                 <div>

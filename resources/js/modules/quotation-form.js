@@ -1,4 +1,4 @@
-import { formatCurrency, formatDuration, formatNumber } from './print-estimator';
+import { formatCurrency, formatLeadTime } from './print-estimator';
 
 /**
  * Form permintaan penawaran pada halaman 3D Models.
@@ -29,12 +29,6 @@ export default function initQuotationForm(viewer, root) {
     const submitLabel = form.querySelector('[data-quotation-submit-label]');
     const spinner = form.querySelector('[data-quotation-spinner]');
     const alertBox = form.querySelector('[data-quotation-alert]');
-
-    const badges = {
-        ready: ['🟢 Ready', 'border-emerald-200 bg-emerald-50 text-emerald-700'],
-        warning: ['🟡 Perlu perbaikan', 'border-amber-200 bg-amber-50 text-amber-700'],
-        not_printable: ['🔴 Not Printable', 'border-brand-200 bg-brand-50 text-brand-700'],
-    };
 
     // Pratinjau dan seluruh simulasi terbuka untuk siapa saja; hanya pengiriman
     // penawaran yang menuntut akun. Bila belum masuk, tombol "Minta Penawaran"
@@ -79,17 +73,15 @@ export default function initQuotationForm(viewer, root) {
     const renderSummary = (payload) => {
         const rows = payload.items
             .map((item, index) => {
-                const [label, classes] = badges[item.analysis_status] ?? ['—', 'border-ink-200 bg-ink-50 text-ink-600'];
-
                 return `
                     <li class="flex flex-wrap items-start justify-between gap-3 border-b border-ink-100 py-3 last:border-0">
                         <div class="min-w-0">
                             <p class="flex items-center gap-2">
-                                <span class="font-mono text-[0.65rem] text-ink-400">Printer ${index + 1}</span>
+                                <span class="font-mono text-[0.65rem] text-ink-400">Object ${index + 1}</span>
                                 <span class="truncate text-sm font-bold text-ink-900" title="${escapeAttribute(item.file.name)}">${escapeHtml(item.file.name)}</span>
                             </p>
                             <p class="mt-1 pl-5 text-xs text-ink-500">
-                                ${escapeHtml(item.printer_name)} &middot; ${escapeHtml(item.technology)} &middot;
+                                ${escapeHtml(item.technology)} &middot;
                                 ${escapeHtml(item.material)} &middot; ${item.quantity} pcs
                                 ${item.scale_percent !== 100 ? ` &middot; skala ${item.scale_percent}%` : ''}
                                 ${item.hollow_enabled ? ' &middot; hollow' : ''}
@@ -100,11 +92,10 @@ export default function initQuotationForm(viewer, root) {
                             </p>
                             ${item.fits_build_volume
                                 ? ''
-                                : '<p class="mt-1 pl-5 text-[0.7rem] font-semibold text-brand-700">⚠ Melewati area cetak mesin yang dipilih</p>'}
+                                : '<p class="mt-1 pl-5 text-[0.7rem] font-semibold text-brand-700">⚠ Melewati batas area cetak</p>'}
                         </div>
                         <div class="text-right">
                             <p class="font-display text-sm font-bold text-brand-700">${formatCurrency(item.estimate.totalCost)}</p>
-                            <span class="mt-1 inline-block rounded-full border px-2 py-0.5 text-[0.6rem] font-bold ${classes}">${label}</span>
                         </div>
                     </li>
                 `;
@@ -112,22 +103,16 @@ export default function initQuotationForm(viewer, root) {
             .join('');
 
         summary.innerHTML = `
-            <div class="flex flex-wrap items-center justify-between gap-3 border-b border-ink-100 pb-3">
-                <div>
-                    <p class="font-display text-sm font-bold text-ink-900">Ringkasan Permintaan</p>
-                    <p class="mt-0.5 text-[0.65rem] text-ink-400">Satu printer untuk setiap model</p>
-                </div>
-                <span class="rounded-full border border-brand-200 bg-brand-50 px-3 py-1 text-xs font-bold text-brand-700">
-                    ${payload.items.length} printer
-                </span>
+            <div class="border-b border-ink-100 pb-3">
+                <p class="font-display text-sm font-bold text-ink-900">Daftar 3D Object</p>
             </div>
 
             <ul class="mt-1">${rows}</ul>
 
-            <dl class="mt-3 grid gap-3 border-t border-ink-100 pt-3 sm:grid-cols-3">
+            <dl class="mt-3 grid gap-3 border-t border-ink-100 pt-3 sm:grid-cols-2">
                 ${[
-                    ['Total Berat', `${formatNumber(payload.totals.weightG, 1)} gram`],
-                    ['Total Waktu', formatDuration(payload.totals.minutes)],
+                    // Model dicetak paralel, jadi lead time mengikuti mesin terlama.
+                    ['Estimasi Lead Time', formatLeadTime(payload.totals.longestMinutes ?? payload.totals.minutes)],
                     ['Total Biaya', formatCurrency(payload.totals.cost)],
                 ]
                     .map(
@@ -262,7 +247,7 @@ export default function initQuotationForm(viewer, root) {
             const maxMb = (viewer.config.limits.uploadMaxBytes / 1024 / 1024).toFixed(1);
             showAlert(
                 `File ${oversized.map((item) => item.file.name).join(', ')} melebihi batas unggah server (${maxMb} MB per file). ` +
-                    'Model tetap dapat Anda tinjau di viewer — untuk penawaran, kirimkan filenya langsung melalui email atau WhatsApp kami.'
+                    'Model tetap dapat Anda tinjau di viewer. Untuk penawaran, kirimkan filenya langsung melalui email atau WhatsApp kami.'
             );
             return;
         }
@@ -396,7 +381,7 @@ export default function initQuotationForm(viewer, root) {
 
 /** Label warna material sesuai config, mis. "Bening". */
 function colorLabel(config, key) {
-    return config?.materialColors?.options?.[key]?.label ?? '—';
+    return config?.materialColors?.options?.[key]?.label ?? '-';
 }
 
 /** Label finishing sesuai config, mis. "Polishing". */

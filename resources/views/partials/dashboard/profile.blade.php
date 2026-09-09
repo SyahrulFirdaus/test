@@ -37,30 +37,54 @@
                 @error('phone') <p class="field-error">{{ $message }}</p> @enderror
             </div>
 
-            <div>
-                <label for="city" class="field-label">
-                    Kota Asal @unless ($isAdmin) <span class="text-brand-600">*</span> @endunless
-                </label>
-                <input type="text" id="city" name="city" value="{{ old('city', $user->city) }}" maxlength="120" class="field-input">
-                @error('city') <p class="field-error">{{ $message }}</p> @enderror
-            </div>
+            @if ($isAdmin)
+                <div>
+                    <label for="city" class="field-label">Kota Asal</label>
+                    <input type="text" id="city" name="city" value="{{ old('city', $user->city) }}" maxlength="120" class="field-input">
+                    @error('city') <p class="field-error">{{ $message }}</p> @enderror
+                </div>
 
-            <div>
-                <label for="postal_code" class="field-label">
-                    Kode Pos @unless ($isAdmin) <span class="text-brand-600">*</span> @endunless
-                </label>
-                <input type="text" id="postal_code" name="postal_code" value="{{ old('postal_code', $user->postal_code) }}" inputmode="numeric" maxlength="12" class="field-input">
-                @error('postal_code') <p class="field-error">{{ $message }}</p> @enderror
-            </div>
+                <div>
+                    <label for="postal_code" class="field-label">Kode Pos</label>
+                    <input type="text" id="postal_code" name="postal_code" value="{{ old('postal_code', $user->postal_code) }}" inputmode="numeric" maxlength="12" class="field-input">
+                    @error('postal_code') <p class="field-error">{{ $message }}</p> @enderror
+                </div>
 
-            <div class="sm:col-span-2">
-                <label for="address" class="field-label">
-                    Alamat Lengkap @unless ($isAdmin) <span class="text-brand-600">*</span> @endunless
-                </label>
-                <textarea id="address" name="address" rows="3" maxlength="500" class="field-input">{{ old('address', $user->address) }}</textarea>
-                @error('address') <p class="field-error">{{ $message }}</p> @enderror
-            </div>
+                <div class="sm:col-span-2">
+                    <label for="address" class="field-label">Alamat Lengkap</label>
+                    <textarea id="address" name="address" rows="3" maxlength="500" class="field-input">{{ old('address', $user->address) }}</textarea>
+                    @error('address') <p class="field-error">{{ $message }}</p> @enderror
+                </div>
+            @endif
         </div>
+
+        {{-- Alamat pengiriman pelanggan kini diurus di menu Alamat sendiri agar
+             tidak tercatat di dua tempat. Yang ditampilkan di sini hanya
+             ringkasan alamat utamanya. --}}
+        @unless ($isAdmin)
+            @php $defaultAddress = $user->defaultAddress; @endphp
+
+            <div class="mt-6 rounded-2xl border border-ink-100 bg-ink-50/60 p-5">
+                <div class="flex flex-wrap items-start justify-between gap-3">
+                    <div class="min-w-0">
+                        <p class="text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-ink-400">Alamat Utama</p>
+
+                        @if ($defaultAddress)
+                            <p class="mt-1.5 text-sm font-semibold text-ink-900">
+                                {{ $defaultAddress->label }}
+                                <span class="font-normal text-ink-400">&middot;</span>
+                                <span class="font-normal text-ink-600">{{ $defaultAddress->recipient_name }}</span>
+                            </p>
+                            <p class="mt-0.5 text-sm leading-relaxed text-ink-500">{{ $defaultAddress->full_address }}</p>
+                        @else
+                            <p class="mt-1.5 text-sm text-ink-500">Belum ada alamat tersimpan.</p>
+                        @endif
+                    </div>
+
+                    <a href="{{ route('dashboard.addresses.index') }}" class="viewer-tool shrink-0">Kelola Alamat</a>
+                </div>
+            </div>
+        @endunless
 
         <div class="mt-7 flex flex-wrap items-center justify-between gap-3">
             <a href="{{ route($passwordRoute) }}" class="text-sm font-semibold text-brand-600 transition-colors hover:text-brand-700">

@@ -13,6 +13,7 @@ import SharedRenderer from './modules/shared-renderer';
 import PrinterCard from './modules/printer-card';
 import { createModelChannel, modelStore } from './modules/model-store';
 import { toRecord } from './modules/model-record';
+import { configureLeadTime } from './modules/print-estimator';
 
 const SAVE_DELAY_MS = 400;
 
@@ -50,10 +51,14 @@ async function boot(container) {
     }
 
     const config = readConfig(container);
-    const buffer = await record.blob.arrayBuffer();
     const file = new File([record.blob], record.name, {
         type: record.blob.type || 'application/octet-stream',
     });
+
+    // Berkas CAD sudah ditesselasi saat diunggah; yang digambar di sini adalah
+    // hasil konversinya, sedangkan `file` tetap berkas STEP aslinya.
+    const buffer = await (record.mesh ?? record.blob).arrayBuffer();
+    const bufferFormat = record.mesh ? record.meshFormat : null;
 
     const channel = createModelChannel();
     const renderer = new SharedRenderer();
@@ -70,6 +75,8 @@ async function boot(container) {
                     size: record.size,
                 }),
                 blob: record.blob,
+                mesh: record.mesh ?? null,
+                meshFormat: record.meshFormat ?? null,
                 createdAt: record.createdAt,
             };
 
@@ -88,6 +95,7 @@ async function boot(container) {
         root: cardHost.querySelector('article'),
         file,
         buffer,
+        bufferFormat,
         config,
         renderer,
         state: record.state,
@@ -126,7 +134,13 @@ function readConfig(container) {
     const el = container.querySelector('[data-printing-config]');
 
     try {
-        return JSON.parse(el?.textContent ?? '{}');
+        const config = JSON.parse(el?.textContent ?? '{}');
+
+        // Rentang hari kerja untuk estimasi lead time, dikirim server bersama
+        // parameter estimasi lainnya.
+        configureLeadTime(config.leadTime);
+
+        return config;
     } catch {
         return { technologies: {}, limits: {} };
     }

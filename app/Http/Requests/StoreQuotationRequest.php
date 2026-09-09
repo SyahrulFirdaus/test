@@ -7,10 +7,12 @@ use App\Support\AnalysisStatus;
 use App\Support\Finishing;
 use App\Support\InfillPattern;
 use App\Support\MaterialColor;
+use App\Support\ModelFormat;
 use App\Support\Printer;
 use App\Support\PrintResolution;
 use App\Support\UploadLimit;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\Validator;
 
 class StoreQuotationRequest extends FormRequest
@@ -32,11 +34,23 @@ class StoreQuotationRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'name' => ['required', 'string', 'max:120'],
-            'email' => ['required', 'email:rfc', 'max:160'],
-            'whatsapp' => ['required', 'string', 'max:32', 'regex:/^[0-9+\-\s()]{8,32}$/'],
-            'company' => ['nullable', 'string', 'max:160'],
+            // Nama, email, nomor WhatsApp, dan nama perusahaan sengaja tidak
+            // divalidasi di sini: keempatnya bukan lagi isian pelanggan.
+            // Nilainya dibaca langsung dari akun yang sedang masuk saat
+            // penawaran disimpan — nama perusahaan dari profil perusahaan milik
+            // akun Business — sehingga profil yang diperbarui otomatis dipakai
+            // penawaran berikutnya dan kiriman yang disusun sendiri tidak dapat
+            // memalsukan identitas maupun mengaku mewakili perusahaan lain.
             'notes' => ['nullable', 'string', 'max:2000'],
+
+            // Alamat pengiriman dipilih dari buku alamat pemilik akun. Boleh
+            // kosong: pelanggan yang belum sempat mengisi alamat tetap dapat
+            // meminta penawaran, dan admin menanyakannya saat review.
+            // Pemeriksaan kepemilikan mencegah alamat akun lain ikut terpakai.
+            'address_id' => [
+                'nullable',
+                Rule::exists('addresses', 'id')->where('user_id', $this->user()?->id),
+            ],
 
             // Sisa dari saat seluruh model masih berbagi satu mesin. Tetap
             // diterima sebagai nilai bawaan bagi model yang tidak menyebutkan
@@ -52,7 +66,7 @@ class StoreQuotationRequest extends FormRequest
             // sendiri sehingga tidak saling memengaruhi.
             'items' => ['required', 'array', 'min:1', 'max:'.$this->maxItems()],
 
-            'items.*.model' => ['required', 'file', 'extensions:stl,obj', 'max:'.UploadLimit::maxKilobytes()],
+            'items.*.model' => ['required', 'file', ModelFormat::rule(), 'max:'.UploadLimit::maxKilobytes()],
             'items.*.quantity' => ['required', 'integer', 'min:1', 'max:10000'],
 
             // Satu model dicetak pada satu mesin, jadi pilihan printer dan
@@ -97,18 +111,12 @@ class StoreQuotationRequest extends FormRequest
     public function messages(): array
     {
         return [
-            'name.required' => 'Nama wajib diisi.',
-            'email.required' => 'Email wajib diisi.',
-            'email.email' => 'Format email belum benar.',
-            'whatsapp.required' => 'Nomor WhatsApp wajib diisi.',
-            'whatsapp.regex' => 'Nomor WhatsApp hanya boleh berisi angka, spasi, tanda +, -, dan tanda kurung.',
-
-            'items.required' => 'Belum ada model yang dilampirkan. Unggah minimal satu file .stl atau .obj.',
-            'items.min' => 'Belum ada model yang dilampirkan. Unggah minimal satu file .stl atau .obj.',
+            'items.required' => 'Belum ada model yang dilampirkan. Unggah minimal satu file '.ModelFormat::label().'.',
+            'items.min' => 'Belum ada model yang dilampirkan. Unggah minimal satu file '.ModelFormat::label().'.',
             'items.max' => 'Satu permintaan penawaran maksimal memuat '.$this->maxItems().' model.',
 
             'items.*.model.required' => 'File model belum terlampir. Unggah ulang file Anda lalu coba lagi.',
-            'items.*.model.extensions' => 'File model harus berformat .stl atau .obj.',
+            'items.*.model.extensions' => 'File model harus berformat '.ModelFormat::label().'.',
             'items.*.model.max' => 'Ukuran file melebihi batas unggah server ('.UploadLimit::maxMegabytes().' MB).',
             'items.*.quantity.required' => 'Jumlah cetak wajib diisi untuk setiap model.',
             'items.*.quantity.min' => 'Jumlah cetak minimal 1 unit.',

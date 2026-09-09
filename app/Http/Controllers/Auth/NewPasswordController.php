@@ -4,13 +4,13 @@ namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
 use App\Models\User;
+use App\Support\PasswordPolicy;
 use Illuminate\Auth\Events\PasswordReset;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Password;
 use Illuminate\Support\Str;
-use Illuminate\Validation\Rules\Password as PasswordRule;
 
 /**
  * Langkah kedua "Lupa Password": pengguna membuat kata sandi baru memakai
@@ -32,12 +32,11 @@ class NewPasswordController extends Controller
         $request->validate([
             'token' => ['required'],
             'email' => ['required', 'email'],
-            'password' => ['required', 'confirmed', PasswordRule::min(8)],
+            'password' => ['required', 'confirmed', ...PasswordPolicy::rules()],
         ], [
+            ...PasswordPolicy::messages(),
             'email.required' => 'Email wajib diisi.',
             'password.required' => 'Kata sandi baru wajib diisi.',
-            'password.confirmed' => 'Konfirmasi kata sandi belum sama.',
-            'password.min' => 'Kata sandi minimal 8 karakter.',
         ]);
 
         $status = Password::reset(

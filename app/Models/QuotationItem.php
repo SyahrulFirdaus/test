@@ -96,6 +96,37 @@ class QuotationItem extends Model
         return $this->belongsTo(QuotationRequest::class);
     }
 
+    /**
+     * Spesifikasi cetak dalam bentuk siap dibaca manusia, untuk jejak audit.
+     *
+     * Yang diambil hanya pengaturan yang benar-benar dipilih pelanggan —
+     * teknologi, material, warna, finishing, jumlah, dan seterusnya — bukan
+     * seluruh kolom. Hasil perhitungan seperti berat dan durasi sengaja tidak
+     * ikut karena berubah dengan sendirinya mengikuti pilihan di atas, bukan
+     * karena ada yang menyuntingnya.
+     *
+     * Nilainya sudah berupa label, bukan kunci mentah, supaya perbandingan
+     * Before/After pada halaman Activity Logs terbaca apa adanya.
+     *
+     * @return array<string, mixed>
+     */
+    public function specSnapshot(): array
+    {
+        return [
+            'technology' => $this->technology,
+            'material' => $this->material,
+            'color' => MaterialColor::label($this->material_color),
+            'finishing' => Finishing::label($this->finishing),
+            'quantity' => (int) $this->quantity,
+            'printer' => $this->printer_label,
+            'resolution' => $this->resolution_label,
+            'scale' => $this->scale_label,
+            'infill' => $this->infill_label,
+            'support' => $this->support_enabled ? 'Ya' : 'Tidak',
+            'hollow' => $this->hollow_label,
+        ];
+    }
+
     /** Dimensi model dalam milimeter, bila tercatat saat analisis di browser. */
     public function getDimensionsAttribute(): ?array
     {
@@ -135,7 +166,7 @@ class QuotationItem extends Model
             ?? $this->hollow_drain_position;
 
         return sprintf(
-            'Ya — dinding %s mm, lubang %s mm di %s',
+            'Ya, dinding %s mm, lubang %s mm di %s',
             number_format((float) $this->hollow_wall_thickness_mm, 1, ',', '.'),
             number_format((float) $this->hollow_drain_diameter_mm, 1, ',', '.'),
             $position,

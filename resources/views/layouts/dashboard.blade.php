@@ -7,23 +7,63 @@
      */
     $user = auth()->user();
     $isAdmin = $user->isAdmin();
+    $isBusiness = ! $isAdmin && $user->isBusiness();
+
+    /*
+     * Menu pelanggan dibedakan menurut tipe akunnya.
+     *
+     * Personal mendapat menu seperlunya — penawaran, pembayaran, profil —
+     * sedangkan Business mendapat menu yang lebih lengkap mengikuti alur kerja
+     * perusahaan: quotation, produksi, payment term, dokumen, dan data
+     * perusahaannya.
+     *
+     * Beberapa menu Business menunjuk bagian pada dashboard itu sendiri
+     * (`anchor`) alih-alih halaman tersendiri, karena isinya memang tinggal di
+     * sana — lebih baik menunjuk ke tempat yang benar-benar ada daripada
+     * menyediakan halaman kosong.
+     */
+    $customerMenu = $isBusiness
+        ? [
+            ['label' => 'Dashboard', 'route' => 'dashboard', 'icon' => 'grid', 'active' => 'dashboard'],
+            ['label' => '3D Models', 'route' => 'models', 'icon' => 'cube', 'active' => 'models'],
+            ['label' => 'Quotations', 'route' => 'dashboard.quotations.index', 'icon' => 'layers', 'active' => 'dashboard.quotations.*', 'unless_status' => true],
+            // "Orders" adalah daftar penawaran yang sama, disaring pada tahap
+            // produksi — di sistem ini pesanan memang penawaran yang sudah
+            // dibayar, bukan entitas tersendiri.
+            ['label' => 'Orders', 'route' => 'dashboard.quotations.index', 'params' => ['status' => \App\Support\QuotationStatus::PRODUCTION], 'icon' => 'printer', 'active' => 'dashboard.quotations.index', 'only_status' => \App\Support\QuotationStatus::PRODUCTION],
+            ['label' => 'Payment Terms', 'route' => 'dashboard', 'anchor' => 'payment-terms', 'icon' => 'clock', 'active' => 'dashboard.payment-terms'],
+            ['label' => 'Production', 'route' => 'dashboard', 'anchor' => 'production', 'icon' => 'scan', 'active' => 'dashboard.production'],
+            ['label' => 'Documents', 'route' => 'dashboard', 'anchor' => 'documents', 'icon' => 'download', 'active' => 'dashboard.documents'],
+            ['label' => 'Re-order', 'route' => 'dashboard', 'anchor' => 'reorder', 'icon' => 'reset', 'active' => 'dashboard.reorder'],
+            ['label' => 'Company Profile', 'route' => 'dashboard.company-profile.edit', 'icon' => 'layers', 'active' => 'dashboard.company-profile.*'],
+            ['label' => 'Profil Akun', 'route' => 'dashboard.profile.edit', 'icon' => 'user', 'active' => 'dashboard.profile.*'],
+            ['label' => 'Alamat', 'route' => 'dashboard.addresses.index', 'icon' => 'map-pin', 'active' => 'dashboard.addresses.*'],
+            ['label' => 'Notifications', 'route' => 'dashboard.notifications.index', 'icon' => 'bell', 'active' => 'dashboard.notifications.*'],
+            ['label' => 'Ganti Password', 'route' => 'dashboard.password.edit', 'icon' => 'lock', 'active' => 'dashboard.password.*'],
+        ]
+        : [
+            ['label' => 'Dashboard', 'route' => 'dashboard', 'icon' => 'grid', 'active' => 'dashboard'],
+            ['label' => '3D Models', 'route' => 'models', 'icon' => 'cube', 'active' => 'models'],
+            ['label' => 'Penawaran Saya', 'route' => 'dashboard.quotations.index', 'icon' => 'layers', 'active' => 'dashboard.quotations.*'],
+            ['label' => 'Alamat', 'route' => 'dashboard.addresses.index', 'icon' => 'map-pin', 'active' => 'dashboard.addresses.*'],
+            ['label' => 'Notifikasi', 'route' => 'dashboard.notifications.index', 'icon' => 'bell', 'active' => 'dashboard.notifications.*'],
+            ['label' => 'Profil', 'route' => 'dashboard.profile.edit', 'icon' => 'user', 'active' => 'dashboard.profile.*'],
+            ['label' => 'Ganti Password', 'route' => 'dashboard.password.edit', 'icon' => 'lock', 'active' => 'dashboard.password.*'],
+        ];
 
     $menu = $isAdmin
         ? [
             ['label' => 'Dashboard', 'route' => 'admin.dashboard', 'icon' => 'grid', 'active' => 'admin.dashboard'],
             ['label' => 'Penawaran', 'route' => 'admin.quotations.index', 'icon' => 'layers', 'active' => 'admin.quotations.*'],
+            ['label' => 'Verifikasi Pembayaran', 'route' => 'admin.payments.index', 'icon' => 'check', 'active' => 'admin.payments.*'],
+            ['label' => 'Payment Terms', 'route' => 'admin.payment-terms.index', 'icon' => 'layers', 'active' => 'admin.payment-terms.*'],
             ['label' => 'User', 'route' => 'admin.users.index', 'icon' => 'users', 'active' => 'admin.users.*'],
+            ['label' => 'Activity Logs', 'route' => 'admin.activity-logs.index', 'icon' => 'shield', 'active' => 'admin.activity-logs.*'],
             ['label' => 'Notifikasi', 'route' => 'admin.notifications.index', 'icon' => 'bell', 'active' => 'admin.notifications.*'],
             ['label' => 'Profil', 'route' => 'admin.profile.edit', 'icon' => 'user', 'active' => 'admin.profile.*'],
             ['label' => 'Ganti Password', 'route' => 'admin.password.edit', 'icon' => 'lock', 'active' => 'admin.password.*'],
         ]
-        : [
-            ['label' => 'Dashboard', 'route' => 'dashboard', 'icon' => 'grid', 'active' => 'dashboard'],
-            ['label' => 'Penawaran Saya', 'route' => 'dashboard.quotations.index', 'icon' => 'layers', 'active' => 'dashboard.quotations.*'],
-            ['label' => 'Notifikasi', 'route' => 'dashboard.notifications.index', 'icon' => 'bell', 'active' => 'dashboard.notifications.*'],
-            ['label' => 'Profil', 'route' => 'dashboard.profile.edit', 'icon' => 'user', 'active' => 'dashboard.profile.*'],
-            ['label' => 'Ganti Password', 'route' => 'dashboard.password.edit', 'icon' => 'lock', 'active' => 'dashboard.password.*'],
-        ];
+        : $customerMenu;
 
     $unreadNotifications = $user->unreadNotifications()->latest()->limit(8)->get();
     $unreadCount = $user->unreadNotifications()->count();
@@ -64,15 +104,33 @@
             <span class="flex min-w-0 flex-col leading-tight">
                 <span class="truncate font-display text-sm font-bold text-ink-900">{{ $company->name }}</span>
                 <span class="text-[0.6rem] font-semibold uppercase tracking-[0.18em] text-brand-600">
-                    {{ $isAdmin ? 'Dashboard Admin' : 'Dashboard Akun' }}
+                    {{ $isAdmin ? 'Dashboard Admin' : ($isBusiness ? 'Business Account' : 'Dashboard Akun') }}
                 </span>
             </span>
         </div>
 
         <nav class="flex-1 space-y-1 overflow-y-auto p-4" aria-label="Navigasi dashboard">
             @foreach ($menu as $item)
-                @php $isActive = request()->routeIs($item['active']); @endphp
-                <a href="{{ route($item['route']) }}"
+                @php
+                    $isActive = request()->routeIs($item['active']);
+
+                    /*
+                     * "Quotations" dan "Orders" menunjuk halaman yang sama dengan
+                     * penyaring berbeda, jadi keduanya dibedakan lewat penyaring
+                     * status yang sedang aktif — bukan hanya nama route-nya.
+                     */
+                    if ($isActive && isset($item['only_status'])) {
+                        $isActive = request()->query('status') === $item['only_status'];
+                    } elseif ($isActive && ($item['unless_status'] ?? false)) {
+                        $isActive = request()->query('status') !== \App\Support\QuotationStatus::PRODUCTION;
+                    }
+
+                    // Menu dapat menunjuk halaman lain, halaman yang sama dengan
+                    // penyaring, atau satu bagian pada dashboard.
+                    $href = route($item['route'], $item['params'] ?? [])
+                        .(isset($item['anchor']) ? '#'.$item['anchor'] : '');
+                @endphp
+                <a href="{{ $href }}"
                    class="flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold transition-colors
                           {{ $isActive ? 'bg-brand-600 text-white shadow-[0_10px_24px_-14px_rgba(149,39,29,0.95)]' : 'text-ink-600 hover:bg-brand-50 hover:text-brand-700' }}"
                    @if ($isActive) aria-current="page" @endif>

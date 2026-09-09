@@ -9,7 +9,7 @@
         eyebrow="Layanan"
         current="Services"
         title='Layanan lengkap dari <span class="text-brand-400">file digital</span> sampai part siap pakai'
-        description="Setiap layanan dapat berdiri sendiri maupun dirangkai menjadi satu alur kerja utuh — mulai dari memindai objek nyata, menyempurnakan desainnya, mencetaknya, hingga memberi sentuhan akhir.">
+        description="Setiap layanan dapat berdiri sendiri maupun dirangkai menjadi satu alur kerja utuh, mulai dari memindai objek nyata, menyempurnakan desainnya, mencetaknya, hingga memberi sentuhan akhir.">
         <x-slot:actions>
             <a href="#daftar-layanan" class="btn-primary w-full sm:w-auto">
                 Lihat Semua Layanan
@@ -63,7 +63,7 @@
                                     <x-dynamic-component :component="'icons.'.$service->icon" class="h-7 w-7" />
                                 </span>
                                 <span class="font-display text-sm font-bold uppercase tracking-[0.16em] text-brand-600">
-                                    0{{ $loop->iteration }} &mdash; Layanan
+                                    Layanan 0{{ $loop->iteration }}
                                 </span>
                             </div>
 
@@ -101,7 +101,7 @@
                 <div class="lg:col-span-5">
                     <h2 class="text-2xl font-bold tracking-tight text-ink-900 sm:text-3xl">Format file yang kami terima</h2>
                     <p class="mt-4 text-base leading-relaxed text-ink-600">
-                        Belum punya file 3D? Tidak masalah — kirimkan sketsa, foto, atau bahkan part fisiknya.
+                        Belum punya file 3D? Tidak masalah. Kirimkan sketsa, foto, atau bahkan part fisiknya.
                         Tim kami akan membantu membuatkan modelnya melalui layanan 3D Design atau 3D Scanning.
                     </p>
                 </div>

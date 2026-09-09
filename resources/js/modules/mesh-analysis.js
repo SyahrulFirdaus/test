@@ -366,7 +366,7 @@ export function buildChecks(metrics, dimensions, technology, limits) {
             id: 'non-manifold',
             label: 'Non-manifold edge',
             status: STATUS_PASS,
-            message: 'Setiap tepi dipakai tepat oleh dua muka — geometri bersih.',
+            message: 'Setiap tepi dipakai tepat oleh dua muka, geometrinya bersih.',
         });
     } else {
         checks.push({
@@ -397,7 +397,7 @@ export function buildChecks(metrics, dimensions, technology, limits) {
             id: 'normals',
             label: 'Arah normal muka',
             status: STATUS_WARN,
-            message: `Ditemukan ${number.format(metrics.inconsistentEdges)} tepi dengan orientasi muka berlawanan. Sebagian normal kemungkinan terbalik — umumnya masih dapat diperbaiki otomatis oleh slicer, namun sebaiknya dibetulkan lebih dulu.`,
+            message: `Ditemukan ${number.format(metrics.inconsistentEdges)} tepi dengan orientasi muka berlawanan. Sebagian normal kemungkinan terbalik. Umumnya masih dapat diperbaiki otomatis oleh slicer, namun sebaiknya dibetulkan lebih dulu.`,
         });
     } else {
         checks.push({
@@ -424,7 +424,7 @@ export function buildChecks(metrics, dimensions, technology, limits) {
             id: 'size',
             label: 'Ukuran model',
             status: STATUS_WARN,
-            message: `Sisi terkecil ${minDimension.toFixed(2)} mm tergolong sangat tipis. Fitur setipis ini rawan patah pada FDM — pertimbangkan SLA untuk hasil lebih baik.`,
+            message: `Sisi terkecil ${minDimension.toFixed(2)} mm tergolong sangat tipis. Fitur setipis ini rawan patah pada FDM. Pertimbangkan SLA untuk hasil lebih baik.`,
         });
     } else {
         checks.push({
@@ -473,7 +473,7 @@ export function buildChecks(metrics, dimensions, technology, limits) {
                 id: 'build-volume',
                 label: `Area cetak ${technology.code}`,
                 status: STATUS_FAIL,
-                message: `Pada orientasi sekarang (${sizeText}) model tidak muat di area cetak ${buildText}, ${!heightFits ? 'karena terlalu tinggi' : 'karena tapaknya terlalu lebar'}. Model ini masih muat bila diputar — coba ubah orientasinya pada panel Orientasi Model.`,
+                message: `Pada orientasi sekarang (${sizeText}) model tidak muat di area cetak ${buildText}, ${!heightFits ? 'karena terlalu tinggi' : 'karena tapaknya terlalu lebar'}. Model ini masih muat bila diputar. Coba ubah orientasinya pada panel Orientasi Model.`,
             });
         } else if (!fitsAsOriented) {
             checks.push({

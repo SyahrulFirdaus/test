@@ -2,16 +2,18 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { STLLoader } from 'three/addons/loaders/STLLoader.js';
 import { OBJLoader } from 'three/addons/loaders/OBJLoader.js';
+import { ThreeMFLoader } from 'three/addons/loaders/3MFLoader.js';
 
 import { analyzeGeometry, buildChecks, CHECK_STATUS } from './mesh-analysis';
 import {
     estimate as calculateEstimate,
     formatCount,
     formatCurrency,
-    formatDuration,
+    formatLeadTime,
     formatNumber,
     formatPercent,
 } from './print-estimator';
+import { extensionOf, FORMAT_NAMES } from './model-formats';
 import { estimateSupport, isSupportRequired, supportNote } from './support-estimator';
 import { buildSupport, disposeSupport } from './support-builder';
 import BuildPlate, { checkBuildVolume, createExceedMarkers, disposeExceedMarkers } from './build-plate';
@@ -51,7 +53,7 @@ export default class PrinterCard {
      * @param {object} [options.state] keadaan tersimpan dari snapshot(), dipakai
      *        halaman viewer untuk melanjutkan pengaturan yang sudah dipilih
      */
-    constructor({ root, file, buffer, config, renderer, onChange, onRemove, state }) {
+    constructor({ root, file, buffer, bufferFormat, config, renderer, onChange, onRemove, state }) {
         this.root = root;
         this.file = file;
         this.config = config;
@@ -59,7 +61,10 @@ export default class PrinterCard {
         this.onChange = onChange ?? (() => {});
         this.onRemove = onRemove ?? (() => {});
 
-        this.format = file.name.split('.').pop().toLowerCase().toUpperCase();
+        // Format yang ditampilkan mengikuti berkas asli pengguna; format isi
+        // buffer bisa berbeda untuk berkas CAD yang sudah ditesselasi.
+        this.format = extensionOf(file.name).toUpperCase();
+        this.bufferFormat = bufferFormat ?? null;
 
         // --- pengaturan milik mesin ini sendiri ---
         this.printerKey = config.defaultPrinter ?? Object.keys(config.printers ?? {})[0] ?? 'ender3';
@@ -314,10 +319,19 @@ export default class PrinterCard {
     /* ------------------------------------------------------------- model */
 
     buildModel(buffer) {
-        const extension = this.file.name.split('.').pop().toLowerCase();
         const color = this.colorHex(this.settings.color);
 
-        this.object = extension === 'stl' ? this.buildFromStl(buffer, color) : this.buildFromObj(buffer, color);
+        // `bufferFormat` dipakai berkas CAD: yang tersimpan tetap STEP aslinya,
+        // sedangkan yang digambar adalah hasil tesselasinya dalam bentuk STL.
+        const extension = this.bufferFormat ?? extensionOf(this.file.name);
+
+        if (extension === 'obj') {
+            this.object = this.buildFromObj(buffer, color);
+        } else if (extension === '3mf') {
+            this.object = this.buildFrom3mf(buffer, color);
+        } else {
+            this.object = this.buildFromStl(buffer, color);
+        }
 
         // Geometri dipusatkan lalu dibungkus pivot supaya rotasi dan skala
         // selalu terjadi di sekitar pusat modelnya sendiri.
@@ -348,8 +362,21 @@ export default class PrinterCard {
 
     buildFromObj(buffer, color) {
         const text = new TextDecoder().decode(buffer);
-        const object = new OBJLoader().parse(text);
 
+        return this.dressGroup(new OBJLoader().parse(text), color, 'OBJ');
+    }
+
+    /**
+     * 3MF membawa satuan, transformasi, dan susunan objeknya sendiri, jadi
+     * loader bawaan three.js dipakai apa adanya lalu hasilnya diseragamkan
+     * seperti OBJ — satu grup berisi mesh dengan material milik card ini.
+     */
+    buildFrom3mf(buffer, color) {
+        return this.dressGroup(new ThreeMFLoader().parse(buffer), color, '3MF');
+    }
+
+    /** Samakan material seluruh mesh di dalam grup, sekaligus pastikan isinya ada. */
+    dressGroup(object, color, label) {
         let hasGeometry = false;
 
         object.traverse((child) => {
@@ -369,7 +396,7 @@ export default class PrinterCard {
         });
 
         if (!hasGeometry) {
-            throw new Error('Tidak ada mesh pada file OBJ');
+            throw new Error(`Tidak ada mesh pada file ${label}`);
         }
 
         return object;
@@ -660,7 +687,7 @@ export default class PrinterCard {
             '[data-build="model"]',
             this.dimensions
                 ? `${formatNumber(this.dimensions.x, 0)} × ${formatNumber(this.dimensions.z, 0)} × ${formatNumber(this.dimensions.y, 0)} mm`
-                : '—'
+                : '-'
         );
 
         const used = this.dimensions ? this.dimensions.x * this.dimensions.y * this.dimensions.z : 0;
@@ -1116,9 +1143,9 @@ export default class PrinterCard {
 
             heading = 'Overhang Analysis';
             entries = [
-                [colors.safe ?? '#3FA45B', `Aman — di bawah ${safe}°`],
-                [colors.warn ?? '#E0A82E', `Mungkin perlu support — ${safe}°–${warn}°`],
-                [colors.critical ?? '#C0392B', `Wajib support — di atas ${warn}°`],
+                [colors.safe ?? '#3FA45B', `Aman: di bawah ${safe}°`],
+                [colors.warn ?? '#E0A82E', `Mungkin perlu support: ${safe}° sampai ${warn}°`],
+                [colors.critical ?? '#C0392B', `Wajib support: di atas ${warn}°`],
             ];
             footnote = 'Sudut diukur dari bidang tegak: dinding tegak 0°, langit-langit mendatar 90°.';
         } else {
@@ -1127,8 +1154,8 @@ export default class PrinterCard {
 
             heading = 'Wall Thickness Analysis';
             entries = [
-                [colors.safe ?? '#3FA45B', `Aman — ${formatNumber(minimum, 1)} mm ke atas`],
-                [colors.thin ?? '#C0392B', `Terlalu tipis — di bawah ${formatNumber(minimum, 1)} mm`],
+                [colors.safe ?? '#3FA45B', `Aman: ${formatNumber(minimum, 1)} mm ke atas`],
+                [colors.thin ?? '#C0392B', `Terlalu tipis: di bawah ${formatNumber(minimum, 1)} mm`],
             ];
 
             if (this.painted?.skipped) {
@@ -1326,7 +1353,7 @@ export default class PrinterCard {
         }
 
         this.technologySelect.innerHTML = Object.keys(this.config.technologies ?? {})
-            .map((code) => `<option value="${code}">${code} — ${escapeHtml(this.config.technologies[code].name)}</option>`)
+            .map((code) => `<option value="${code}">${code} (${escapeHtml(this.config.technologies[code].name)})</option>`)
             .join('');
 
         this.populateMaterials();
@@ -1605,7 +1632,7 @@ export default class PrinterCard {
         const volumeCm3 = (this.metrics.volumeMm3 / 1000) * scale ** 3;
 
         this.setStat('name', this.file.name);
-        this.setStat('format', `${this.format} (${this.format === 'STL' ? 'Stereolithography' : 'Wavefront'})`);
+        this.setStat('format', `${this.format} (${FORMAT_NAMES[this.format] ?? 'Model 3D'})`);
         this.setStat('size', formatBytes(this.file.size));
         this.setStat('vertices', formatCount(this.metrics.vertices));
         this.setStat('triangles', formatCount(this.metrics.triangles));
@@ -1616,7 +1643,7 @@ export default class PrinterCard {
         );
         this.setStat(
             'bounding-box',
-            `min (${formatNumber(this.boundingBox.min.x, 1)}, ${formatNumber(this.boundingBox.min.y, 1)}, ${formatNumber(this.boundingBox.min.z, 1)}) — ` +
+            `min (${formatNumber(this.boundingBox.min.x, 1)}, ${formatNumber(this.boundingBox.min.y, 1)}, ${formatNumber(this.boundingBox.min.z, 1)}) sampai ` +
                 `max (${formatNumber(this.boundingBox.max.x, 1)}, ${formatNumber(this.boundingBox.max.y, 1)}, ${formatNumber(this.boundingBox.max.z, 1)}) mm`
         );
         this.setStat('surface-area', `${formatNumber((this.metrics.surfaceAreaMm2 / 100) * scale ** 2, 2)} cm²`);
@@ -1697,14 +1724,14 @@ export default class PrinterCard {
         // tetap dapat diatur pada panelnya masing-masing, tetapi tidak lagi ikut
         // ditampilkan di sini. Rincian biaya per komponen juga ditiadakan —
         // pelanggan cukup melihat satu angka Estimasi Harga.
-        this.setEstimate('technology', `${technology.code} — ${technology.name}`);
+        this.setEstimate('technology', `${technology.code} (${technology.name})`);
         this.setEstimate('material', this.settings.material);
-        this.setEstimate('quality', resolution?.quality ?? '—');
+        this.setEstimate('quality', resolution?.quality ?? '-');
         this.setEstimate('volume', `${formatNumber(result.totalMaterialVolumeCm3, 2)} cm³`);
         this.setEstimate('weight', `${formatNumber(result.weightG, 1)} gram`);
         this.setEstimate('support-weight', `${formatNumber(result.supportWeightG, 1)} gram`);
         this.setEstimate('total-weight', `${formatNumber(result.totalWeightG, 1)} gram`);
-        this.setEstimate('time', formatDuration(result.totalMinutes));
+        this.setEstimate('time', formatLeadTime(result.totalMinutes));
         this.setEstimate('cost', formatCurrency(result.totalCost));
         this.setEstimate('quantity', `${this.settings.quantity} pcs`);
         this.setEstimate('support', this.supportEnabled() ? 'Ya' : 'Tidak');
@@ -1730,7 +1757,7 @@ export default class PrinterCard {
         this.setText('[data-scale-result="dimensions"]', `${formatNumber(x, 1)} × ${formatNumber(z, 1)} × ${formatNumber(y, 1)} mm`);
         this.setText('[data-scale-result="volume"]', `${formatNumber(this.estimate.modelVolumeCm3, 2)} cm³`);
         this.setText('[data-scale-result="weight"]', `${formatNumber(this.estimate.totalWeightG, 1)} gram`);
-        this.setText('[data-scale-result="time"]', formatDuration(this.estimate.totalMinutes));
+        this.setText('[data-scale-result="time"]', formatLeadTime(this.estimate.totalMinutes));
     }
 
     /* ------------------------------------------------------------- utils */

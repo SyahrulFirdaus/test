@@ -7,12 +7,16 @@ use App\Models\QuotationItem;
 use App\Models\QuotationRequest;
 use App\Models\User;
 use App\Notifications\CancellationRequested;
+use App\Services\ActivityLogger;
 use App\Services\MeshInspector;
 use App\Services\PrintEstimator;
+use App\Support\ActivityAction;
+use App\Support\ActivityModule;
 use App\Support\AnalysisStatus;
 use App\Support\Finishing;
 use App\Support\InfillPattern;
 use App\Support\MaterialColor;
+use App\Support\ModelFormat;
 use App\Support\Printer;
 use App\Support\PrintResolution;
 use App\Support\QuotationStatus;
@@ -39,6 +43,7 @@ class QuotationController extends Controller
     public function __construct(
         private readonly PrintEstimator $estimator,
         private readonly MeshInspector $inspector,
+        private readonly ActivityLogger $activity,
     ) {}
 
     public function index(Request $request): View
@@ -65,6 +70,16 @@ class QuotationController extends Controller
     public function show(Request $request, QuotationRequest $quotation): View
     {
         $this->authorizeOwner($request, $quotation);
+
+        // Pembukaan detail dicatat sekali per jam, bukan setiap kali halaman
+        // disegarkan: siapa yang mengaksesnya tetap terekam tanpa memenuhi
+        // tabel log dengan baris yang berulang.
+        $this->activity->logOnce(
+            action: ActivityAction::QUOTATION_VIEW,
+            description: 'Membuka detail penawaran '.$quotation->tracking_number.'.',
+            subject: $quotation,
+            actor: $request->user(),
+        );
 
         return view('dashboard.quotations.show', [
             'quotation' => $quotation->load('items', 'timelineHistories'),
@@ -108,10 +123,10 @@ class QuotationController extends Controller
         $current = $quotation->items()->count();
 
         $request->validate([
-            'model' => ['required', 'file', 'extensions:stl,obj', 'max:'.UploadLimit::maxKilobytes()],
+            'model' => ['required', 'file', ModelFormat::rule(), 'max:'.UploadLimit::maxKilobytes()],
         ], [
             'model.required' => 'Pilih file model yang akan ditambahkan.',
-            'model.extensions' => 'File model harus berformat .stl atau .obj.',
+            'model.extensions' => 'File model harus berformat '.ModelFormat::label().'.',
             'model.max' => 'Ukuran file melebihi batas unggah ('.UploadLimit::maxMegabytes().' MB per file).',
         ]);
 
@@ -126,13 +141,20 @@ class QuotationController extends Controller
         $extension = strtolower($file->getClientOriginalExtension());
 
         // Geometri diukur di server karena berkas ini tidak melewati viewer di
-        // halaman 3D Models.
-        try {
-            $stats = $this->inspector->inspect($file->getRealPath(), $extension);
-        } catch (RuntimeException $exception) {
-            throw ValidationException::withMessages([
-                'model' => 'File tidak dapat dibaca: '.$exception->getMessage(),
-            ]);
+        // halaman 3D Models. Berkas CAD (STEP/STP) tidak dapat diukur di sini —
+        // tesselasinya menuntut kernel CAD — jadi berkasnya tetap diterima
+        // dengan angka kosong sampai engineer meninjaunya.
+        $measurable = ModelFormat::isMeasurable($extension);
+        $stats = null;
+
+        if ($measurable) {
+            try {
+                $stats = $this->inspector->inspect($file->getRealPath(), $extension);
+            } catch (RuntimeException $exception) {
+                throw ValidationException::withMessages([
+                    'model' => 'File tidak dapat dibaca: '.$exception->getMessage(),
+                ]);
+            }
         }
 
         $template = $quotation->items()->orderBy('position')->first();
@@ -159,15 +181,15 @@ class QuotationController extends Controller
         ];
 
         $modelStats = [
-            'vertices' => $stats['vertices'],
-            'triangles' => $stats['triangles'],
-            'dimensions' => $stats['dimensions'],
-            'volume_cm3' => $stats['volume_cm3'],
-            'surface_area_cm2' => $stats['surface_area_cm2'],
-            'measured_by' => 'server',
+            'vertices' => $stats['vertices'] ?? 0,
+            'triangles' => $stats['triangles'] ?? 0,
+            'dimensions' => $stats['dimensions'] ?? null,
+            'volume_cm3' => $stats['volume_cm3'] ?? 0,
+            'surface_area_cm2' => $stats['surface_area_cm2'] ?? 0,
+            'measured_by' => $measurable ? 'server' : 'pending',
         ];
 
-        $quotation->items()->create([
+        $item = $quotation->items()->create([
             'position' => $current + 1,
 
             'file_name' => $file->getClientOriginalName(),
@@ -183,16 +205,32 @@ class QuotationController extends Controller
                 'id' => 'server_measured',
                 'label' => 'Ditambahkan dari dashboard',
                 'status' => 'warn',
-                'message' => 'Volume dan dimensi diukur di server. Kelayakan cetak akan dipastikan engineer kami.',
+                'message' => $measurable
+                    ? 'Volume dan dimensi diukur di server. Kelayakan cetak akan dipastikan engineer kami.'
+                    : 'Berkas CAD '.strtoupper($extension).' belum diukur otomatis. Estimasi ditetapkan engineer kami setelah file ditinjau — atau unggah lewat halaman 3D Models agar terukur langsung di browser.',
             ]],
 
             'material_color' => $settings['material_color'],
-            'fits_build_volume' => $this->fitsBuildVolume($stats['dimensions'], Printer::buildVolume($settings['printer'], null)),
+            'fits_build_volume' => $this->fitsBuildVolume($stats['dimensions'] ?? null, Printer::buildVolume($settings['printer'], null)),
 
             ...$this->estimateAttributes($settings, $modelStats),
         ]);
 
         $quotation->refreshSummary();
+
+        $this->activity->log(
+            action: ActivityAction::MODEL_UPLOAD,
+            description: 'Menambahkan model '.$item->file_name.' ke penawaran '.$quotation->tracking_number.'.',
+            subject: $item,
+            new: [
+                'file_name' => $item->file_name,
+                'file_format' => $item->file_format,
+                'file_size' => $item->file_size,
+                'quotation' => $quotation->tracking_number,
+                ...$item->specSnapshot(),
+            ],
+            actor: $request->user(),
+        );
 
         return back()->with('status', 'File '.$file->getClientOriginalName().' berhasil ditambahkan ke penawaran.');
     }
@@ -230,6 +268,10 @@ class QuotationController extends Controller
             ]);
         }
 
+        // Spesifikasi lama direkam sebelum disimpan; inilah sisi "Before" pada
+        // halaman detail Activity Logs.
+        $before = $item->specSnapshot();
+
         $stats = is_array($item->model_stats) ? $item->model_stats : [];
         $buildVolume = Printer::buildVolume($validated['printer'], is_array($item->build_volume) ? $item->build_volume : null);
 
@@ -259,6 +301,18 @@ class QuotationController extends Controller
 
         $quotation->refreshSummary();
 
+        // Hanya pengaturan yang benar-benar berbeda yang tercatat, sehingga
+        // penyimpanan tanpa perubahan tidak meninggalkan baris log kosong.
+        $this->activity->logChanges(
+            action: ActivityAction::SPEC_UPDATE,
+            before: $before,
+            after: $item->fresh()->specSnapshot(),
+            description: 'Mengubah spesifikasi model '.$item->file_name.' pada penawaran '.$quotation->tracking_number.'.',
+            subject: $item,
+            actor: $request->user(),
+            subjectLabel: $item->file_name,
+        );
+
         return back()->with('status', "Pengaturan {$item->file_name} berhasil diperbarui.");
     }
 
@@ -273,6 +327,16 @@ class QuotationController extends Controller
         }
 
         $name = $item->file_name;
+
+        // Spesifikasi model yang dihapus ikut direkam sebagai sisi "Before":
+        // begitu barisnya hilang, tidak ada lagi tempat membacanya.
+        $removed = [
+            'file_name' => $item->file_name,
+            'file_format' => $item->file_format,
+            'quotation' => $quotation->tracking_number,
+            ...$item->specSnapshot(),
+        ];
+
         $item->delete();
 
         // Nomor urut dirapatkan agar penomoran model tetap runut.
@@ -280,6 +344,16 @@ class QuotationController extends Controller
             ->each(fn (QuotationItem $remaining, int $index) => $remaining->update(['position' => $index + 1]));
 
         $quotation->refreshSummary();
+
+        $this->activity->log(
+            action: ActivityAction::MODEL_DELETE,
+            description: 'Menghapus model '.$name.' dari penawaran '.$quotation->tracking_number.'.',
+            subject: $quotation,
+            old: $removed,
+            actor: $request->user(),
+            module: ActivityModule::MODELS,
+            subjectLabel: $name,
+        );
 
         return back()->with('status', "File {$name} berhasil dihapus dari penawaran.");
     }
@@ -301,6 +375,8 @@ class QuotationController extends Controller
 
         $reason = filled($validated['reason'] ?? null) ? trim($validated['reason']) : null;
 
+        $statusBefore = $quotation->status;
+
         if ($quotation->canBeCancelledDirectly()) {
             $quotation->update([
                 'status' => QuotationStatus::CANCELLED_BY_USER,
@@ -313,6 +389,16 @@ class QuotationController extends Controller
                 QuotationStatus::CANCELLED_BY_USER,
                 $reason ?? 'Penawaran dibatalkan oleh pemiliknya sebelum masuk proses review.',
                 $request->user()->name,
+            );
+
+            $this->activity->log(
+                action: ActivityAction::QUOTATION_CANCEL,
+                description: 'Membatalkan penawaran '.$quotation->tracking_number
+                    .($reason ? ' dengan alasan: '.$reason : '.'),
+                subject: $quotation,
+                old: ['status' => QuotationStatus::label($statusBefore)],
+                new: ['status' => QuotationStatus::label(QuotationStatus::CANCELLED_BY_USER)],
+                actor: $request->user(),
             );
 
             return redirect()
@@ -336,6 +422,16 @@ class QuotationController extends Controller
             QuotationStatus::CANCELLATION_REQUESTED,
             $reason ?? 'Pemilik penawaran mengajukan pembatalan dan menunggu persetujuan admin.',
             $request->user()->name,
+        );
+
+        $this->activity->log(
+            action: ActivityAction::CANCELLATION_REQUEST,
+            description: 'Mengajukan pembatalan penawaran '.$quotation->tracking_number
+                .($reason ? ' dengan alasan: '.$reason : '.'),
+            subject: $quotation,
+            old: ['status' => QuotationStatus::label($statusBefore)],
+            new: ['status' => QuotationStatus::label(QuotationStatus::CANCELLATION_REQUESTED)],
+            actor: $request->user(),
         );
 
         Notification::send(User::admins()->get(), new CancellationRequested($quotation));

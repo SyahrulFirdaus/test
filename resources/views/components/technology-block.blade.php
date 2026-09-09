@@ -11,7 +11,7 @@
                 <div class="absolute -inset-4 rounded-3xl bg-gradient-to-br from-brand-100 to-transparent opacity-70 blur-2xl" aria-hidden="true"></div>
                 <div class="relative overflow-hidden rounded-2xl border border-ink-100 bg-white shadow-card">
                     <img src="{{ asset($technology->image) }}"
-                         alt="Ilustrasi teknologi {{ $technology->code }} — {{ $technology->name }}"
+                         alt="Ilustrasi teknologi {{ $technology->code }} ({{ $technology->name }})"
                          loading="lazy"
                          decoding="async"
                          width="720" height="540"

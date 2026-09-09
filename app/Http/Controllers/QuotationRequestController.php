@@ -3,10 +3,13 @@
 namespace App\Http\Controllers;
 
 use App\Http\Requests\StoreQuotationRequest;
+use App\Models\Address;
 use App\Models\QuotationRequest;
 use App\Models\User;
 use App\Notifications\NewQuotationSubmitted;
+use App\Services\ActivityLogger;
 use App\Services\PrintEstimator;
+use App\Support\ActivityAction;
 use App\Support\MaterialColor;
 use App\Support\Printer;
 use App\Support\QuotationStatus;
@@ -18,7 +21,10 @@ use Illuminate\Support\Str;
 
 class QuotationRequestController extends Controller
 {
-    public function __construct(private readonly PrintEstimator $estimator) {}
+    public function __construct(
+        private readonly PrintEstimator $estimator,
+        private readonly ActivityLogger $activity,
+    ) {}
 
     /**
      * Simpan permintaan penawaran beserta seluruh berkas modelnya.
@@ -48,7 +54,21 @@ class QuotationRequestController extends Controller
                 $item['build_volume'] ?? $request->input('build_volume'),
             ));
 
-        $quotation = DB::transaction(function () use ($request, $items) {
+        // Alamat pengiriman disalin isinya, bukan sekadar ditunjuk: pelanggan
+        // boleh menyunting atau menghapus alamatnya kapan saja, sedangkan
+        // tujuan pengiriman penawaran yang sudah terkirim tidak boleh ikut
+        // berubah. Alamat utama dipakai bila tidak ada yang dipilih.
+        $address = $request->user()
+            ->addresses()
+            ->with(Address::REGION_RELATIONS)
+            ->when(
+                $request->filled('address_id'),
+                fn ($query) => $query->whereKey($request->input('address_id')),
+                fn ($query) => $query->where('is_default', true),
+            )
+            ->first();
+
+        $quotation = DB::transaction(function () use ($request, $items, $address) {
             $quotation = QuotationRequest::create([
                 // Penawaran selalu melekat pada akun pembuatnya sehingga muncul
                 // di "Penawaran Saya" dan dapat disunting selama masih ditunggu
@@ -57,11 +77,24 @@ class QuotationRequestController extends Controller
 
                 'tracking_number' => $this->generateTrackingNumber(),
 
-                'name' => $request->string('name')->toString(),
-                'email' => $request->string('email')->toString(),
-                'whatsapp' => $request->string('whatsapp')->toString(),
-                'company' => $request->input('company'),
+                // Identitas pemohon dibaca dari akunnya, bukan dari kiriman
+                // formulir. Penawaran tetap menyimpan salinannya sebagai
+                // catatan pada saat permintaan dibuat — itulah yang dilihat
+                // admin dan tercetak pada dokumen penawaran.
+                'name' => $request->user()->name,
+                'email' => $request->user()->email,
+                'whatsapp' => (string) $request->user()->phone,
+                // Nama perusahaan tidak ikut dikirim formulir: untuk akun
+                // Business dibaca dari profil perusahaannya sehingga selalu
+                // sesuai dengan perusahaan pemilik akun, dan akun Personal
+                // memang tidak memilikinya.
+                'company' => $request->user()->isBusiness()
+                    ? $request->user()->businessProfile?->company_name
+                    : null,
                 'notes' => $request->input('notes'),
+
+                'address_id' => $address?->id,
+                'shipping_address' => $address?->toSnapshot(),
 
                 // Kolom ringkasan penawaran: berkas & pilihan produksi diisi dari
                 // model pertama, sedangkan angka estimasi merupakan penjumlahan
@@ -83,6 +116,19 @@ class QuotationRequestController extends Controller
             $items->count() > 1
                 ? 'Permintaan penawaran berisi '.$items->count().' model berhasil dikirim.'
                 : 'Permintaan penawaran berhasil dikirim.'
+        );
+
+        $this->activity->log(
+            action: ActivityAction::QUOTATION_CREATE,
+            description: 'Membuat penawaran '.$quotation->tracking_number.' berisi '.$items->count().' model.',
+            subject: $quotation,
+            new: [
+                'tracking_number' => $quotation->tracking_number,
+                'model_count' => $items->count(),
+                'status' => QuotationStatus::label($quotation->status),
+                'estimated_cost' => $quotation->estimated_cost,
+            ],
+            actor: $request->user(),
         );
 
         // Seluruh admin diberi tahu supaya penawaran baru langsung terlihat di
@@ -226,19 +272,9 @@ class QuotationRequestController extends Controller
         ];
     }
 
-    /**
-     * Nomor tracking berformat QTN-YYYYMMDD-XXXXXX.
-     *
-     * Enam karakter acak di akhir dipakai alih-alih nomor urut: halaman tracking
-     * dapat diakses tanpa login, jadi nomor yang berurutan akan membuat data
-     * permintaan pelanggan lain mudah ditebak satu per satu.
-     */
+    /** Nomor tracking; aturannya ada pada App\Models\QuotationRequest. */
     private function generateTrackingNumber(): string
     {
-        do {
-            $number = 'QTN-'.now()->format('Ymd').'-'.strtoupper(Str::random(6));
-        } while (QuotationRequest::where('tracking_number', $number)->exists());
-
-        return $number;
+        return QuotationRequest::generateTrackingNumber();
     }
 }

@@ -95,7 +95,7 @@
                                     @else
                                         <p class="font-semibold text-ink-900">{{ $quotation->name }}</p>
                                     @endif
-                                    <p class="text-xs text-ink-400">{{ $quotation->company ?: '—' }}</p>
+                                    <p class="text-xs text-ink-400">{{ $quotation->company ?: '-' }}</p>
                                     <p class="mt-1 font-mono text-[0.65rem] text-brand-600">{{ $quotation->tracking_number }}</p>
                                 </td>
                                 <td class="px-5 py-4">
@@ -125,7 +125,7 @@
                                 </td>
                                 <td class="px-5 py-4">
                                     <p class="font-semibold text-ink-900">Rp{{ number_format((float) $quotation->estimated_cost, 0, ',', '.') }}</p>
-                                    <p class="text-xs text-ink-400">{{ $quotation->estimated_duration ?? '—' }}</p>
+                                    <p class="text-xs text-ink-400">{{ $quotation->estimated_duration ?? '-' }}</p>
                                 </td>
                                 <td class="px-5 py-4">
                                     <span class="rounded-full border border-ink-200 bg-ink-50 px-3 py-1 text-xs font-semibold text-ink-600">

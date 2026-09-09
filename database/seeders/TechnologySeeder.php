@@ -84,11 +84,11 @@ class TechnologySeeder extends Seeder
                 'code' => 'MJF',
                 'name' => 'Multi Jet Fusion',
                 'tagline' => 'Produksi batch dengan kekuatan merata ke segala arah',
-                'description' => 'MJF menyemprotkan fusing dan detailing agent ke atas hamparan serbuk nylon, lalu memanaskannya dengan lampu inframerah sehingga serbuk melebur menjadi part padat. Seluruh area dicetak sekaligus, bukan titik demi titik, sehingga prosesnya jauh lebih cepat. Part tersangga oleh serbuk di sekelilingnya sehingga tidak memerlukan struktur penyangga — geometri kompleks, engsel hidup, dan rakitan dalam sekali cetak menjadi mungkin.',
+                'description' => 'MJF menyemprotkan fusing dan detailing agent ke atas hamparan serbuk nylon, lalu memanaskannya dengan lampu inframerah sehingga serbuk melebur menjadi part padat. Seluruh area dicetak sekaligus, bukan titik demi titik, sehingga prosesnya jauh lebih cepat. Part tersangga oleh serbuk di sekelilingnya sehingga tidak memerlukan struktur penyangga. Geometri kompleks, engsel hidup, dan rakitan dalam sekali cetak menjadi mungkin.',
                 'image' => 'images/technologies/mjf.svg',
                 'advantages' => [
                     'Tanpa support, bebas merancang geometri kompleks',
-                    'Sifat mekanis isotropik — kuat merata ke semua arah',
+                    'Sifat mekanis isotropik, kuat merata ke semua arah',
                     'Efisien untuk produksi batch puluhan hingga ratusan part',
                     'Permukaan seragam dan dapat langsung diwarnai (dyeing)',
                 ],

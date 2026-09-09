@@ -35,7 +35,7 @@
                     Satu akun untuk seluruh penawaran Anda.
                 </h2>
                 <p class="mt-4 text-sm leading-relaxed text-white/70">
-                    Unggah model, simulasikan pengaturan cetak, lalu kirim penawaran — seluruh riwayat, status
+                    Unggah model, simulasikan pengaturan cetak, lalu kirim penawaran. Seluruh riwayat, status
                     produksi, dan notifikasinya tersimpan rapi di dashboard Anda.
                 </p>
 
@@ -60,7 +60,10 @@
 
         {{-- Formulir --}}
         <main class="flex items-center justify-center px-5 py-12 sm:px-8">
-            <div class="w-full max-w-lg">
+            {{-- Lebar panel dapat dilebarkan halaman yang memuatnya; formulir
+                 pendaftaran bertahap memakainya agar pilihan jawaban tidak
+                 berdesakan. Halaman lain tetap memakai lebar semula. --}}
+            <div class="w-full @yield('panelWidth', 'max-w-lg')">
 
                 <a href="{{ route('home') }}" class="mb-8 flex items-center gap-3 lg:hidden">
                     <x-logo-mark class="h-10 w-10 shrink-0" />
@@ -92,6 +95,8 @@
             </div>
         </main>
     </div>
+
+    @stack('scripts')
 
 </body>
 </html>

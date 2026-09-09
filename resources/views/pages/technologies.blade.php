@@ -1,7 +1,7 @@
 @extends('layouts.app')
 
 @section('title', 'Technologies')
-@section('description', 'Teknologi 3D printing yang kami operasikan: FDM, SLA, MJF, dan SLM — lengkap dengan kelebihan, material, spesifikasi, serta contoh aplikasinya.')
+@section('description', 'Teknologi 3D printing yang kami operasikan: FDM, SLA, MJF, dan SLM, lengkap dengan kelebihan, material, spesifikasi, serta contoh aplikasinya.')
 
 @section('content')
 
@@ -28,7 +28,7 @@
                        class="inline-flex items-center gap-2.5 rounded-full border border-ink-200 bg-white px-4 py-2.5 text-sm font-semibold text-ink-700 transition-all duration-300 hover:-translate-y-0.5 hover:border-brand-300 hover:text-brand-600">
                         <span class="inline-block h-2.5 w-2.5 rounded-full" style="background-color: {{ $technology->accent_color }}"></span>
                         {{ $technology->code }}
-                        <span class="hidden text-ink-400 sm:inline">&mdash; {{ $technology->name }}</span>
+                        <span class="hidden text-ink-400 sm:inline">({{ $technology->name }})</span>
                     </a>
                 @endforeach
             </div>
@@ -74,10 +74,10 @@
                                         <span class="font-semibold text-ink-900">{{ $technology->name }}</span>
                                     </span>
                                 </th>
-                                <td class="px-6 py-5 text-ink-600">{{ $technology->specs['Ketebalan Layer'] ?? '—' }}</td>
-                                <td class="px-6 py-5 text-ink-600">{{ $technology->specs['Toleransi Dimensi'] ?? '—' }}</td>
-                                <td class="px-6 py-5 text-ink-600">{{ $technology->specs['Build Volume'] ?? '—' }}</td>
-                                <td class="px-6 py-5 text-ink-600">{{ $technology->applications[0] ?? '—' }}</td>
+                                <td class="px-6 py-5 text-ink-600">{{ $technology->specs['Ketebalan Layer'] ?? '-' }}</td>
+                                <td class="px-6 py-5 text-ink-600">{{ $technology->specs['Toleransi Dimensi'] ?? '-' }}</td>
+                                <td class="px-6 py-5 text-ink-600">{{ $technology->specs['Build Volume'] ?? '-' }}</td>
+                                <td class="px-6 py-5 text-ink-600">{{ $technology->applications[0] ?? '-' }}</td>
                             </tr>
                         @endforeach
                     </tbody>
@@ -85,7 +85,7 @@
             </div>
 
             <p class="mt-6 text-center text-sm text-ink-400" data-aos="fade-up">
-                Masih ragu? Kirimkan file Anda &mdash; kami bantu pilihkan teknologi yang paling ekonomis untuk kebutuhan tersebut.
+                Masih ragu? Kirimkan file Anda dan kami bantu pilihkan teknologi yang paling ekonomis untuk kebutuhan tersebut.
             </p>
         </div>
     </section>

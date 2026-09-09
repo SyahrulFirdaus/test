@@ -104,7 +104,10 @@ class PagesTest extends TestCase
             ->assertSee('data-printer-template', false)
             ->assertSee('data-headless-host', false)
             ->assertSee('data-card-canvas', false)
-            ->assertSee('accept=".stl,.obj', false);
+            // Kelima format yang diterima ikut dipasang pada dialog pemilih berkas.
+            ->assertSee('accept=".stl,.stp,.step,.obj,.3mf"', false)
+            ->assertSee('File Types:')
+            ->assertSee('STL, STP, STEP, OBJ, 3MF');
     }
 
     public function test_menu_lama_cek_barang_diarahkan_ke_3d_models(): void
@@ -182,8 +185,13 @@ class PagesTest extends TestCase
         // Yang tetap tersedia: unggah, pratinjau, dan ringkasan teknis.
         $response->assertSee('data-dropzone', false)
             ->assertSee('data-model-list', false)
-            ->assertSee('Total Berat')
-            ->assertSee('Total Estimasi Waktu');
+            ->assertSee('Total Model')
+            ->assertSee('Estimasi Lead Time');
+
+        // Ringkasan penawaran tidak lagi memuat kolom mesin & material; berat
+        // hanya tersisa pada estimasi per model, tempat materialnya dipilih.
+        $response->assertDontSee('Mesin &amp; Material', false)
+            ->assertDontSee('Total Estimasi Waktu');
 
         // Yang ditahan: seluruh angka dan tombol yang bersifat komersial.
         $response->assertDontSee('Total Estimasi Biaya')

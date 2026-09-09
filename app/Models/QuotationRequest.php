@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
@@ -37,6 +38,8 @@ class QuotationRequest extends Model
         'file_format',
         'file_size',
         'model_stats',
+        'address_id',
+        'shipping_address',
         'analysis_status',
         'analysis',
         'technology',
@@ -64,6 +67,13 @@ class QuotationRequest extends Model
         'status',
         'admin_note',
 
+        'payment_due_at',
+        'payment_proof_path',
+        'payment_proof_name',
+        'payment_proof_uploaded_at',
+        'payment_verified_at',
+        'payment_rejection_reason',
+
         'cancellation_reason',
         'status_before_cancellation',
         'cancellation_requested_at',
@@ -77,6 +87,7 @@ class QuotationRequest extends Model
             'model_stats' => 'array',
             'analysis' => 'array',
             'build_volume' => 'array',
+            'shipping_address' => 'array',
             'cost_breakdown' => 'array',
             'quantity' => 'integer',
             'file_size' => 'integer',
@@ -93,6 +104,9 @@ class QuotationRequest extends Model
             'estimated_finish' => 'date',
             'cancellation_requested_at' => 'datetime',
             'cancellation_resolved_at' => 'datetime',
+            'payment_due_at' => 'datetime',
+            'payment_proof_uploaded_at' => 'datetime',
+            'payment_verified_at' => 'datetime',
         ];
     }
 
@@ -167,6 +181,18 @@ class QuotationRequest extends Model
         return $this->hasMany(QuotationHistory::class)->latest();
     }
 
+    /**
+     * Skema pembayaran bertahap, hanya untuk penawaran milik akun Business.
+     *
+     * Penawaran pelanggan Personal tidak pernah punya baris ini, sehingga
+     * seluruh pemeriksaan pembayaran bertahap di bawah otomatis tidak berlaku
+     * bagi mereka.
+     */
+    public function paymentTerm(): HasOne
+    {
+        return $this->hasOne(PaymentTerm::class);
+    }
+
     /** Riwayat urut maju, dipakai tabel riwayat pada halaman tracking. */
     public function timelineHistories(): HasMany
     {
@@ -188,6 +214,22 @@ class QuotationRequest extends Model
         ]);
     }
 
+    /**
+     * Nomor tracking berformat QTN-YYYYMMDD-XXXXXX.
+     *
+     * Enam karakter acak di akhir dipakai alih-alih nomor urut: halaman tracking
+     * dapat diakses tanpa login, jadi nomor yang berurutan akan membuat data
+     * permintaan pelanggan lain mudah ditebak satu per satu.
+     */
+    public static function generateTrackingNumber(): string
+    {
+        do {
+            $number = 'QTN-'.now()->format('Ymd').'-'.strtoupper(Str::random(6));
+        } while (static::where('tracking_number', $number)->exists());
+
+        return $number;
+    }
+
     /** Label status permintaan sesuai config/printing.php. */
     public function getStatusLabelAttribute(): string
     {
@@ -197,12 +239,11 @@ class QuotationRequest extends Model
     /** Langkah-langkah timeline beserta keadaannya terhadap status sekarang. */
     public function getTimelineAttribute(): array
     {
-        // Saat pembatalan sedang diajukan, timeline tetap memperlihatkan tahap
-        // terakhir yang benar-benar dijalani penawaran.
+        // Status di luar alur maju — pengajuan pembatalan maupun bukti
+        // pembayaran yang ditolak — tetap memperlihatkan tahap terakhir yang
+        // benar-benar dijalani penawaran.
         return QuotationStatus::timeline(
-            QuotationStatus::isCancellation($this->status)
-                ? ($this->status_before_cancellation ?? $this->status)
-                : $this->status
+            QuotationStatus::timelineAnchor($this->status, $this->status_before_cancellation)
         );
     }
 
@@ -246,6 +287,98 @@ class QuotationRequest extends Model
     public function isClosed(): bool
     {
         return QuotationStatus::isClosed($this->status);
+    }
+
+    /* ------------------------------------------------------- pembayaran --- */
+
+    /**
+     * Penawaran sedang berada pada tahap pembayaran.
+     *
+     * Mencakup tiga keadaan yang seluruhnya dilayani halaman pembayaran:
+     * menunggu transfer, bukti sedang diperiksa admin, dan bukti yang ditolak
+     * sehingga perlu diunggah ulang.
+     */
+    public function isPaymentStage(): bool
+    {
+        return in_array($this->status, [
+            QuotationStatus::AWAITING_PAYMENT,
+            QuotationStatus::PAYMENT_REVIEW,
+            QuotationStatus::PAYMENT_REJECTED,
+        ], true);
+    }
+
+    /** Bukti pembayaran masih ditunggu — belum diunggah atau ditolak admin. */
+    public function needsPaymentProof(): bool
+    {
+        return in_array($this->status, [
+            QuotationStatus::AWAITING_PAYMENT,
+            QuotationStatus::PAYMENT_REJECTED,
+        ], true);
+    }
+
+    public function hasPaymentProof(): bool
+    {
+        return filled($this->payment_proof_path);
+    }
+
+    public function paymentProofExists(): bool
+    {
+        return $this->hasPaymentProof() && Storage::disk('local')->exists($this->payment_proof_path);
+    }
+
+    /**
+     * Batas waktu pembayaran sudah terlewati.
+     *
+     * Hanya berlaku selama buktinya belum diunggah: begitu bukti masuk,
+     * penawaran menunggu admin dan tidak lagi dibatalkan otomatis meski
+     * pengecekannya melewati batas 24 jam.
+     *
+     * Penawaran yang berjalan dengan pembayaran bertahap dikecualikan: jendela
+     * 24 jam tidak berlaku baginya karena tiap termin punya jatuh temponya
+     * sendiri, dan terlambat membayar termin tidak membatalkan penawaran.
+     */
+    public function paymentExpired(): bool
+    {
+        return ! $this->usesInstallments()
+            && $this->needsPaymentProof()
+            && $this->payment_due_at !== null
+            && $this->payment_due_at->isPast();
+    }
+
+    /* -------------------------------------------- pembayaran bertahap --- */
+
+    /**
+     * Pembayaran penawaran ini berjalan dengan jadwal termin.
+     *
+     * Hanya berlaku setelah skemanya disetujui admin dan jumlah terminnya lebih
+     * dari satu; pengajuan yang masih menunggu keputusan belum mengubah apa pun
+     * pada alur pembayaran.
+     */
+    public function usesInstallments(): bool
+    {
+        return (bool) $this->paymentTerm?->hasSchedule();
+    }
+
+    /** Ada pengajuan payment term yang menunggu keputusan admin. */
+    public function hasPendingPaymentTerm(): bool
+    {
+        return (bool) $this->paymentTerm?->isPending();
+    }
+
+    /** Sisa waktu pembayaran dalam detik; 0 bila sudah lewat atau tanpa batas. */
+    public function paymentSecondsLeft(): int
+    {
+        if ($this->payment_due_at === null) {
+            return 0;
+        }
+
+        return max(0, now()->diffInSeconds($this->payment_due_at, false));
+    }
+
+    /** Total tagihan yang harus dibayar pelanggan. */
+    public function getPaymentAmountAttribute(): float
+    {
+        return (float) $this->display_price;
     }
 
     /**
@@ -463,6 +596,16 @@ class QuotationRequest extends Model
             if ($quotation->fileExists()) {
                 Storage::disk('local')->delete($quotation->file_path);
             }
+
+            if ($quotation->paymentProofExists()) {
+                Storage::disk('local')->delete($quotation->payment_proof_path);
+            }
+
+            // Termin dan buktinya terhapus lewat foreign key cascade yang tidak
+            // memicu event model, jadi berkas buktinya dibereskan di sini.
+            $quotation->paymentTerm?->installments->each(
+                fn (PaymentInstallment $installment) => $installment->proofs->each->delete()
+            );
 
             collect([$quotation->production_photo, $quotation->result_photo])
                 ->filter()

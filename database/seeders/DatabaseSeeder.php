@@ -18,6 +18,11 @@ class DatabaseSeeder extends Seeder
             ClientSeeder::class,
             TestimonialSeeder::class,
             AdminUserSeeder::class,
+            // Wilayah Indonesia 4 tingkat untuk dropdown alamat.
+            WilayahSeeder::class,
+            // Dijalankan setelah TechnologySeeder: pertanyaan teknologi pada
+            // pendaftaran perusahaan membaca daftar teknologi yang tersedia.
+            RegistrationQuestionSeeder::class,
         ]);
     }
 }

@@ -2,12 +2,15 @@
 
 namespace App\Models;
 
+use App\Support\CustomerType;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
 
 class User extends Authenticatable
@@ -30,6 +33,7 @@ class User extends Authenticatable
         'name',
         'email',
         'role',
+        'customer_type',
         'phone',
         'city',
         'postal_code',
@@ -64,6 +68,85 @@ class User extends Authenticatable
     public function quotationRequests(): HasMany
     {
         return $this->hasMany(QuotationRequest::class)->orderByDesc('created_at');
+    }
+
+    /** Buku alamat pengiriman, alamat utama di urutan pertama. */
+    public function addresses(): HasMany
+    {
+        return $this->hasMany(Address::class)->defaultFirst();
+    }
+
+    /** Alamat yang terpilih lebih dulu saat meminta penawaran. */
+    public function defaultAddress(): HasOne
+    {
+        return $this->hasOne(Address::class)->where('is_default', true);
+    }
+
+    /**
+     * Profil perusahaan; hanya dimiliki akun Business.
+     *
+     * Dibaca admin sebelum memproses penawaran sehingga pelanggan tidak perlu
+     * mengisi ulang data perusahaannya pada setiap permintaan.
+     */
+    public function businessProfile(): HasOne
+    {
+        return $this->hasOne(BusinessProfile::class);
+    }
+
+    /**
+     * Jawaban yang diisi pemiliknya saat mendaftar.
+     *
+     * Diurutkan mengikuti urutan pertanyaannya supaya halaman detail pelanggan
+     * di dashboard admin membacanya persis seperti urutan formulir.
+     */
+    public function customerAnswers(): HasMany
+    {
+        return $this->hasMany(CustomerAnswer::class);
+    }
+
+    public function isBusiness(): bool
+    {
+        return $this->customer_type === CustomerType::BUSINESS;
+    }
+
+    /** Label tipe pelanggan siap tampil, mis. "Business". */
+    public function getCustomerTypeLabelAttribute(): string
+    {
+        return CustomerType::label($this->customer_type);
+    }
+
+    public function scopeOfCustomerType(Builder $query, ?string $type): Builder
+    {
+        return $query->when(
+            CustomerType::exists($type),
+            fn (Builder $q) => $q->where('customer_type', $type),
+        );
+    }
+
+    /**
+     * Jawaban pendaftaran yang sudah dirangkum: satu baris per pertanyaan,
+     * jawaban ganda digabung menjadi satu tulisan.
+     *
+     * @return Collection<int, array<string, mixed>>
+     */
+    public function registrationSummary(): Collection
+    {
+        return $this->customerAnswers()
+            ->with('question')
+            ->get()
+            ->filter(fn (CustomerAnswer $answer) => $answer->question !== null)
+            ->sortBy([
+                fn (CustomerAnswer $answer) => $answer->question->step,
+                fn (CustomerAnswer $answer) => $answer->question->sort_order,
+                fn (CustomerAnswer $answer) => $answer->question->id,
+            ])
+            ->groupBy(fn (CustomerAnswer $answer) => $answer->question_id)
+            ->map(fn ($answers) => [
+                'question' => $answers->first()->question->question,
+                'step_label' => $answers->first()->question->step_label,
+                'answer' => $answers->pluck('answer')->implode(', '),
+            ])
+            ->values();
     }
 
     public function isAdmin(): bool

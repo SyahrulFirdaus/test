@@ -20,15 +20,21 @@
                 <div class="min-w-0">
                     <h2 class="truncate font-display text-lg font-bold text-ink-900">{{ $user->name }}</h2>
                     <p class="truncate text-sm text-ink-500">{{ $user->email }}</p>
+
+                    <span @class([
+                        'mt-2 inline-flex rounded-full px-2.5 py-1 text-[0.65rem] font-bold uppercase tracking-[0.1em]',
+                        'bg-brand-50 text-brand-700' => $user->isBusiness(),
+                        'bg-ink-100 text-ink-600' => ! $user->isBusiness(),
+                    ])>{{ $user->customer_type_label }}</span>
                 </div>
             </div>
 
             <dl class="mt-6 space-y-4">
                 @foreach ([
-                    'Nomor Telepon' => $user->phone ?: '—',
-                    'Kota Asal' => $user->city ?: '—',
-                    'Kode Pos' => $user->postal_code ?: '—',
-                    'Alamat Lengkap' => $user->address ?: '—',
+                    'Nomor Telepon' => $user->phone ?: '-',
+                    'Kota Asal' => $user->city ?: '-',
+                    'Kode Pos' => $user->postal_code ?: '-',
+                    'Alamat Lengkap' => $user->address ?: '-',
                     'Terdaftar Sejak' => $user->created_at->translatedFormat('d F Y'),
                 ] as $label => $value)
                     <div>
@@ -61,6 +67,35 @@
                     </div>
                 @endforeach
             </div>
+
+            {{-- Jawaban yang diisi pemiliknya saat mendaftar. Akun lama yang
+                 dibuat sebelum pertanyaan ini ada tidak punya jawaban, jadi
+                 bagiannya hanya muncul bila memang terisi. --}}
+            @if ($registration->isNotEmpty())
+                <section class="overflow-hidden rounded-2xl border border-ink-100 bg-white shadow-card">
+                    <div class="border-b border-ink-100 px-6 py-5">
+                        <h2 class="font-display text-base font-bold text-ink-900">Informasi Pendaftaran</h2>
+                        <p class="mt-1 text-sm text-ink-500">Jawaban yang diisi saat mendaftar sebagai pelanggan {{ $user->customer_type_label }}.</p>
+                    </div>
+
+                    @foreach ($registration as $stepLabel => $items)
+                        <div class="border-b border-ink-100 last:border-0">
+                            @if ($stepLabel)
+                                <p class="bg-ink-50/70 px-6 py-2.5 text-[0.65rem] font-bold uppercase tracking-[0.14em] text-ink-500">{{ $stepLabel }}</p>
+                            @endif
+
+                            <dl class="divide-y divide-ink-100">
+                                @foreach ($items as $item)
+                                    <div class="flex flex-wrap items-start justify-between gap-3 px-6 py-3">
+                                        <dt class="max-w-[55%] text-xs font-semibold text-ink-500">{{ $item['question'] }}</dt>
+                                        <dd class="max-w-[45%] text-right text-sm font-semibold text-ink-800">{{ $item['answer'] }}</dd>
+                                    </div>
+                                @endforeach
+                            </dl>
+                        </div>
+                    @endforeach
+                </section>
+            @endif
 
             <section class="overflow-hidden rounded-2xl border border-ink-100 bg-white shadow-card">
                 <div class="border-b border-ink-100 px-6 py-5">

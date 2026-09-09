@@ -33,7 +33,7 @@ class ServiceSeeder extends Seeder
                 'image' => 'images/services/3d-printing.svg',
                 'highlights' => [
                     'Review file gratis sebelum produksi',
-                    'Material teknik & food-safe tersedia',
+                    'Beragam material standar dan industrial tersedia.',
                     'Lead time mulai 1 hari kerja',
                 ],
             ],

@@ -21,6 +21,7 @@ class SitemapController extends Controller
             ['url' => route('services'), 'priority' => '0.9', 'changefreq' => 'monthly'],
             ['url' => route('technologies'), 'priority' => '0.9', 'changefreq' => 'monthly'],
             ['url' => route('models'), 'priority' => '0.8', 'changefreq' => 'monthly'],
+            ['url' => route('models.guide'), 'priority' => '0.7', 'changefreq' => 'monthly'],
             ['url' => route('about'), 'priority' => '0.7', 'changefreq' => 'yearly'],
             // Hanya formulir pencariannya yang diindeks; halaman tracking milik
             // masing-masing pelanggan sengaja ditandai noindex.

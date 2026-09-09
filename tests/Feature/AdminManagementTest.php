@@ -96,6 +96,73 @@ class AdminManagementTest extends TestCase
             ->assertSee('Rp500.000', false);
     }
 
+    /* --------------------------------------------- filter status dashboard --- */
+
+    public function test_dashboard_dapat_disaring_per_status(): void
+    {
+        $selesai = $this->quotation(['status' => QuotationStatus::COMPLETED, 'name' => 'Pelanggan Selesai']);
+        $produksi = $this->quotation(['status' => 'production', 'name' => 'Pelanggan Produksi']);
+
+        // Tanpa filter, keduanya tampil.
+        $this->actingAs($this->admin)
+            ->get(route('admin.dashboard'))
+            ->assertOk()
+            ->assertSee($selesai->tracking_number)
+            ->assertSee($produksi->tracking_number);
+
+        // Dengan filter, hanya yang berstatus tersebut.
+        $this->actingAs($this->admin)
+            ->get(route('admin.dashboard', ['status' => 'production']))
+            ->assertOk()
+            ->assertSee($produksi->tracking_number)
+            ->assertDontSee($selesai->tracking_number);
+    }
+
+    public function test_filter_status_tidak_mengubah_kartu_statistik(): void
+    {
+        $this->quotation(['status' => QuotationStatus::COMPLETED, 'estimated_price' => 400000]);
+        $this->quotation(['status' => 'production']);
+
+        // Kartu statistik memotret keseluruhan, jadi menyaring daftar penawaran
+        // tidak boleh ikut menggeser angka pendapatan maupun total penawaran.
+        $this->actingAs($this->admin)
+            ->get(route('admin.dashboard', ['status' => 'production']))
+            ->assertOk()
+            ->assertSee('Rp400.000', false)
+            ->assertSee('Total Penawaran');
+    }
+
+    public function test_status_yang_tidak_dikenal_diabaikan(): void
+    {
+        $quotation = $this->quotation();
+
+        $this->actingAs($this->admin)
+            ->get(route('admin.dashboard', ['status' => 'status-karangan']))
+            ->assertOk()
+            ->assertSee($quotation->tracking_number)
+            ->assertSee('Seluruh status');
+    }
+
+    public function test_sebaran_status_menautkan_ke_filternya(): void
+    {
+        $this->quotation(['status' => 'production']);
+
+        $this->actingAs($this->admin)
+            ->get(route('admin.dashboard'))
+            ->assertOk()
+            ->assertSee(route('admin.dashboard', ['status' => 'production']).'#penawaran-terbaru', false);
+    }
+
+    public function test_tautan_lihat_semua_membawa_filter_ke_halaman_penawaran(): void
+    {
+        $this->quotation(['status' => 'production']);
+
+        $this->actingAs($this->admin)
+            ->get(route('admin.dashboard', ['status' => 'production']))
+            ->assertOk()
+            ->assertSee(route('admin.quotations.index', ['status' => 'production']), false);
+    }
+
     public function test_pendapatan_hanya_menghitung_penawaran_yang_selesai(): void
     {
         $this->quotation(['status' => QuotationStatus::COMPLETED, 'estimated_price' => 400000]);

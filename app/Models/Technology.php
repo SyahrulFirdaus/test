@@ -43,7 +43,7 @@ class Technology extends Model
     /** Nama lengkap beserta singkatannya, mis. "FDM — Fused Deposition Modeling". */
     public function getFullNameAttribute(): string
     {
-        return "{$this->code} — {$this->name}";
+        return "{$this->code} ({$this->name})";
     }
 
     public function scopeActive(Builder $query): Builder

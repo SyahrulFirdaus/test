@@ -14,8 +14,12 @@ export default function initNavbar() {
     const iconOpen = navbar.querySelector('[data-icon-open]');
     const iconClose = navbar.querySelector('[data-icon-close]');
 
+    // Halaman tanpa hero gelap meminta latar solid sejak awal; keadaannya tidak
+    // boleh ikut dilepas ketika halaman digulir kembali ke atas.
+    const alwaysSolid = navbar.hasAttribute('data-navbar-solid');
+
     const applyScrollState = () => {
-        navbar.classList.toggle('is-scrolled', window.scrollY > 24);
+        navbar.classList.toggle('is-scrolled', alwaysSolid || window.scrollY > 24);
     };
 
     applyScrollState();

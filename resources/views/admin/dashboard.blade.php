@@ -83,7 +83,7 @@
 
                         <div class="flex h-full flex-1 flex-col justify-end">
                             <div class="flex h-full items-end justify-center gap-1"
-                                 title="{{ $month['label'] }} — {{ $month['incoming'] }} masuk, {{ $month['completed'] }} selesai, {{ $rupiah($month['revenue']) }}">
+                                 title="{{ $month['label'] }}: {{ $month['incoming'] }} masuk, {{ $month['completed'] }} selesai, {{ $rupiah($month['revenue']) }}">
                                 <span class="w-2.5 rounded-t bg-brand-600 transition-all" style="height: {{ max($incomingHeight, 1) }}%"></span>
                                 <span class="w-2.5 rounded-t bg-emerald-500 transition-all" style="height: {{ max($completedHeight, 1) }}%"></span>
                                 <span class="w-2.5 rounded-t bg-accent-500 transition-all" style="height: {{ max($revenueHeight, 1) }}%"></span>
@@ -118,20 +118,38 @@
         </section>
 
         {{-- ================= SEBARAN STATUS ================= --}}
+        {{-- Tiap baris sekaligus menjadi tombol filter: mengeklik status
+             menyaring daftar Penawaran Terbaru di bawah, mengeklik status yang
+             sedang aktif melepas filternya kembali. --}}
         <section class="rounded-2xl border border-ink-100 bg-white p-6 shadow-card lg:col-span-4">
             <h2 class="font-display text-base font-bold text-ink-900">Sebaran Status</h2>
+            <p class="mt-1 text-xs text-ink-400">Pilih salah satu untuk menyaring daftar penawaran di bawah.</p>
 
-            <ul class="mt-5 space-y-3">
+            <ul class="mt-5 space-y-1">
                 @foreach ($status_breakdown as $status)
+                    @php $isActive = $filters['status'] === $status['key']; @endphp
+
                     <li>
-                        <div class="flex items-center justify-between gap-3 text-sm">
-                            <span class="truncate text-ink-600">{{ $status['label'] }}</span>
-                            <span class="font-bold text-ink-900">{{ $status['total'] }}</span>
-                        </div>
-                        <div class="mt-1.5 h-1.5 overflow-hidden rounded-full bg-ink-100">
-                            <span class="block h-full rounded-full bg-brand-600"
-                                  style="width: {{ $summary['quotations'] > 0 ? round(($status['total'] / $summary['quotations']) * 100, 1) : 0 }}%"></span>
-                        </div>
+                        <a href="{{ route('admin.dashboard', $isActive ? [] : ['status' => $status['key']]) }}#penawaran-terbaru"
+                           @class([
+                               'block rounded-xl px-3 py-2 transition-colors',
+                               'bg-brand-50' => $isActive,
+                               'hover:bg-ink-50' => ! $isActive,
+                           ])
+                           @if ($isActive) aria-current="true" @endif>
+                            <span class="flex items-center justify-between gap-3 text-sm">
+                                <span @class(['truncate', 'font-semibold text-brand-700' => $isActive, 'text-ink-600' => ! $isActive])>
+                                    {{ $status['label'] }}
+                                </span>
+                                <span @class(['font-bold', 'text-brand-700' => $isActive, 'text-ink-900' => ! $isActive])>
+                                    {{ $status['total'] }}
+                                </span>
+                            </span>
+                            <span class="mt-1.5 block h-1.5 overflow-hidden rounded-full bg-ink-100">
+                                <span @class(['block h-full rounded-full', 'bg-brand-700' => $isActive, 'bg-brand-600' => ! $isActive])
+                                      style="width: {{ $summary['quotations'] > 0 ? round(($status['total'] / $summary['quotations']) * 100, 1) : 0 }}%"></span>
+                            </span>
+                        </a>
                     </li>
                 @endforeach
             </ul>
@@ -139,10 +157,47 @@
     </div>
 
     {{-- ================= PENAWARAN TERBARU ================= --}}
-    <section class="mt-6 overflow-hidden rounded-2xl border border-ink-100 bg-white shadow-card">
-        <div class="flex flex-wrap items-center justify-between gap-3 border-b border-ink-100 px-6 py-5">
-            <h2 class="font-display text-base font-bold text-ink-900">Penawaran Terbaru</h2>
-            <a href="{{ route('admin.quotations.index') }}" class="text-sm font-semibold text-brand-600 hover:text-brand-700">Lihat semua &rarr;</a>
+    <section id="penawaran-terbaru" class="mt-6 scroll-mt-24 overflow-hidden rounded-2xl border border-ink-100 bg-white shadow-card">
+        <div class="border-b border-ink-100 px-6 py-5">
+            <div class="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                    <h2 class="font-display text-base font-bold text-ink-900">Penawaran Terbaru</h2>
+                    <p class="mt-1 text-xs text-ink-400">
+                        @if ($filters['status'])
+                            {{ number_format($recent_total, 0, ',', '.') }} penawaran berstatus
+                            &ldquo;{{ $statuses[$filters['status']] }}&rdquo;{{ $recent_total > $recent->count() ? ', menampilkan '.$recent->count().' terbaru' : '' }}.
+                        @else
+                            Seluruh status. Pilih status tertentu untuk menyaring daftar ini.
+                        @endif
+                    </p>
+                </div>
+
+                {{-- Filter dikirim lewat GET biasa: hasilnya tersimpan di URL,
+                     jadi dapat ditandai atau dibagikan, dan tetap berfungsi
+                     tanpa JavaScript. --}}
+                <form method="GET" action="{{ route('admin.dashboard') }}" class="flex flex-wrap items-end gap-2">
+                    <div>
+                        <label for="status" class="sr-only">Filter status</label>
+                        <select id="status" name="status" class="field-input mt-0 py-2.5 text-xs">
+                            <option value="">Semua status</option>
+                            @foreach ($statuses as $key => $label)
+                                <option value="{{ $key }}" @selected($filters['status'] === $key)>{{ $label }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+
+                    <button type="submit" class="btn-primary px-5 py-2.5 text-xs">Terapkan</button>
+
+                    @if ($filters['status'])
+                        <a href="{{ route('admin.dashboard') }}" class="btn-outline px-5 py-2.5 text-xs">Reset</a>
+                    @endif
+                </form>
+            </div>
+
+            <a href="{{ route('admin.quotations.index', array_filter(['status' => $filters['status']])) }}"
+               class="mt-3 inline-block text-sm font-semibold text-brand-600 hover:text-brand-700">
+                Lihat semua di halaman Penawaran &rarr;
+            </a>
         </div>
 
         <div class="overflow-x-auto">
@@ -177,7 +232,14 @@
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="6" class="px-6 py-12 text-center text-sm text-ink-400">Belum ada penawaran yang masuk.</td>
+                            <td colspan="6" class="px-6 py-12 text-center text-sm text-ink-400">
+                                @if ($filters['status'])
+                                    Belum ada penawaran berstatus &ldquo;{{ $statuses[$filters['status']] }}&rdquo;.
+                                    <a href="{{ route('admin.dashboard') }}" class="font-semibold text-brand-600 hover:text-brand-700">Tampilkan semua status</a>
+                                @else
+                                    Belum ada penawaran yang masuk.
+                                @endif
+                            </td>
                         </tr>
                     @endforelse
                 </tbody>

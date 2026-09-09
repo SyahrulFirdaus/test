@@ -39,6 +39,16 @@ class UpdateProfileRequest extends FormRequest
                     $rules[$field]
                 );
             }
+
+            return $rules;
+        }
+
+        // Alamat pelanggan diurus di menu Alamat, bukan di sini: kolom `city`,
+        // `postal_code`, dan `address` pada akun kini hanya cerminan alamat
+        // utamanya (lihat App\Services\AddressBook). Membiarkannya dapat
+        // dikirim lewat formulir profil akan membuat keduanya saling menimpa.
+        foreach (['city', 'postal_code', 'address'] as $field) {
+            unset($rules[$field]);
         }
 
         return $rules;

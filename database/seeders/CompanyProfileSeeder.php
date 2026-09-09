@@ -15,10 +15,10 @@ class CompanyProfileSeeder extends Seeder
                 'name' => 'NUSAMA3D',
                 'legal_name' => 'PT. Nusantara Additic Manufaktur',
                 'tagline' => '3D Printing Service & Engineering Solutions',
-                'founded_year' => 2015,
-                'short_description' => 'NUSAMA3D adalah penyedia layanan additive manufacturing yang membantu industri, startup, dan institusi pendidikan mewujudkan ide menjadi produk nyata — mulai dari desain, pemindaian, pencetakan, hingga finishing.',
-                'about' => 'NUSAMA3D berdiri pada tahun 2015 dari satu unit mesin FDM di sebuah workshop kecil, berawal dari keyakinan sederhana: proses membuat sesuatu seharusnya tidak menjadi penghalang bagi ide yang baik. Sejak saat itu kami tumbuh menjadi service bureau dengan lini teknologi lengkap — FDM, SLA, MJF, hingga SLM logam — yang melayani lebih dari 800 klien di berbagai sektor. Kami mendampingi tim R&D perusahaan manufaktur memangkas siklus pengembangan produk, membantu praktisi medis menyiapkan model bedah yang presisi, serta menghidupkan kembali sparepart yang sudah tidak lagi diproduksi. Yang membedakan kami bukan sekadar mesin, melainkan tim engineer yang meninjau setiap file sebelum masuk produksi, memberi masukan desain yang jujur, dan bertanggung jawab atas kualitas hingga part sampai di tangan Anda.',
-                'vision' => 'Menjadi mitra additive manufacturing paling tepercaya di Indonesia, yang membuat teknologi manufaktur canggih dapat dijangkau oleh setiap pencipta — dari industri besar hingga inovator perorangan.',
+                'founded_year' => 2020,
+                'short_description' => 'NUSAMA3D adalah penyedia layanan additive manufacturing yang membantu industri, startup, dan institusi pendidikan mewujudkan ide menjadi produk nyata, mulai dari desain, pemindaian, pencetakan, hingga finishing.',
+                'about' => 'NUSAMA3D berdiri sejak tahun 2020 dari satu unit mesin FDM di sebuah workshop kecil, berawal dari keyakinan sederhana: proses membuat sesuatu seharusnya tidak menjadi penghalang bagi ide yang baik. Sejak saat itu kami tumbuh menjadi service bureau dengan lini teknologi lengkap (FDM, SLA, MJF, hingga SLM logam) yang melayani lebih dari 400 customer di berbagai sektor. Kami mendampingi tim R&D perusahaan manufaktur memangkas siklus pengembangan produk, membantu praktisi medis menyiapkan model bedah yang presisi, serta menghidupkan kembali sparepart yang sudah tidak lagi diproduksi. Yang membedakan kami bukan sekadar mesin, melainkan tim engineer yang meninjau setiap file sebelum masuk produksi, memberi masukan desain yang jujur, dan bertanggung jawab atas kualitas hingga part sampai di tangan Anda.',
+                'vision' => 'Menjadi mitra additive manufacturing paling tepercaya di Indonesia, yang membuat teknologi manufaktur canggih dapat dijangkau oleh setiap pencipta, dari industri besar hingga inovator perorangan.',
                 'missions' => [
                     'Menghadirkan layanan cetak 3D berkualitas industri dengan harga yang wajar dan transparan.',
                     'Mendampingi klien sejak tahap ide hingga produk siap diproduksi melalui konsultasi teknis yang jujur.',
@@ -30,7 +30,7 @@ class CompanyProfileSeeder extends Seeder
                     [
                         'icon' => 'layers',
                         'title' => 'Teknologi Lengkap dalam Satu Atap',
-                        'description' => 'FDM, SLA, MJF, dan SLM tersedia di satu tempat, sehingga kami dapat memilih proses yang paling tepat untuk part Anda — bukan memaksakan proses yang kebetulan kami miliki.',
+                        'description' => 'FDM, SLA, MJF, dan SLM tersedia di satu tempat, sehingga kami dapat memilih proses yang paling tepat untuk part Anda, bukan memaksakan proses yang kebetulan kami miliki.',
                     ],
                     [
                         'icon' => 'users',
@@ -59,8 +59,8 @@ class CompanyProfileSeeder extends Seeder
                     ],
                 ],
                 'stats' => [
-                    ['value' => 10, 'suffix' => '+', 'label' => 'Tahun Pengalaman'],
-                    ['value' => 800, 'suffix' => '+', 'label' => 'Klien Terlayani'],
+                    ['value' => 6, 'suffix' => '+', 'label' => 'Tahun Pengalaman'],
+                    ['value' => 400, 'suffix' => '+', 'label' => 'Customer'],
                     ['value' => 25000, 'suffix' => '+', 'label' => 'Part Diproduksi'],
                     ['value' => 4, 'suffix' => '', 'label' => 'Teknologi Cetak'],
                 ],

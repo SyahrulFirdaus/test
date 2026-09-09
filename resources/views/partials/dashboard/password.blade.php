@@ -18,7 +18,8 @@
 
         <div>
             <label for="password" class="field-label">Password Baru <span class="text-brand-600">*</span></label>
-            <input type="password" id="password" name="password" required autocomplete="new-password" class="field-input" placeholder="Minimal 8 karakter">
+            <input type="password" id="password" name="password" required autocomplete="new-password" class="field-input" placeholder="Contoh: Nusama3D!">
+            <p class="mt-1.5 text-xs leading-relaxed text-ink-400">{{ \App\Support\PasswordPolicy::hint() }}</p>
             @error('password') <p class="field-error">{{ $message }}</p> @enderror
         </div>
 

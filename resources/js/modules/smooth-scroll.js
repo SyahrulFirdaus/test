@@ -28,6 +28,29 @@ export default function initSmoothScroll() {
         });
     });
 
+    // Tautan yang datang dari halaman lain membawa anchor di URL-nya — misalnya
+    // tombol "Learn More" pada Edit Specification yang menuju material tertentu
+    // di halaman panduan. Lompatan bawaan browser terjadi sebelum AOS selesai
+    // menata halaman sehingga posisinya meleset, jadi diulang sekali setelah
+    // seluruh isi halaman siap.
+    const scrollToHash = () => {
+        if (! window.location.hash) {
+            return;
+        }
+
+        let target = null;
+
+        try {
+            target = document.querySelector(window.location.hash);
+        } catch {
+            return;
+        }
+
+        target?.scrollIntoView({ block: 'start' });
+    };
+
+    window.addEventListener('load', () => window.setTimeout(scrollToHash, 150));
+
     const toTop = document.querySelector('[data-scroll-top]');
 
     if (!toTop) {

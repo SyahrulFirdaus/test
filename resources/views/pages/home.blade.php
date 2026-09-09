@@ -89,7 +89,7 @@
                         <span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-brand-400 opacity-75"></span>
                         <span class="relative inline-flex h-2 w-2 rounded-full bg-brand-500"></span>
                     </span>
-                    Menerima order harian &mdash; {{ $company->city }}
+                    Menerima order harian di {{ $company->city }}
                 </span>
 
                 <h1 class="mt-6 text-4xl font-bold leading-[1.08] tracking-tight text-white drop-shadow-lg sm:text-5xl lg:text-6xl">
@@ -104,7 +104,7 @@
                 {{-- Keterangan slide yang sedang tampil --}}
                 <p class="mt-5 flex items-start gap-2.5 text-sm text-white/75">
                     <span class="mt-1.5 inline-block h-1.5 w-1.5 shrink-0 rounded-full bg-brand-400"></span>
-                    <span data-hero-caption>{{ $heroSlides[0]['label'] }} &mdash; {{ $heroSlides[0]['caption'] }}</span>
+                    <span data-hero-caption>{{ $heroSlides[0]['label'] }}: {{ $heroSlides[0]['caption'] }}</span>
                 </p>
 
                 <div class="mt-8 flex flex-col gap-3 sm:flex-row">
@@ -175,7 +175,7 @@
                                  terlihat menyatu tanpa mengalahkan warna brand. --}}
                             <img src="{{ asset($client->logo) }}"
                                  alt="Logo {{ $client->name }}"
-                                 title="{{ $client->name }}{{ $client->industry ? ' — '.$client->industry : '' }}"
+                                 title="{{ $client->name }}{{ $client->industry ? ' ('.$client->industry.')' : '' }}"
                                  loading="lazy" decoding="async"
                                  class="max-h-12 w-auto max-w-[150px] object-contain opacity-60 grayscale transition-all duration-500 ease-out hover:opacity-100 hover:grayscale-0 sm:max-h-14">
                         </li>
@@ -289,7 +289,7 @@
                         @foreach ([
                             ['icon' => 'cube', 'title' => 'Viewer 3D interaktif', 'text' => 'Putar, zoom, dan geser model. Lengkap dengan mode wireframe serta tujuh preset sudut pandang.'],
                             ['icon' => 'shield', 'title' => 'Analisis kelayakan otomatis', 'text' => 'Mesh tertutup, lubang, non-manifold edge, arah normal, ukuran, dan kesesuaian area cetak.'],
-                            ['icon' => 'spark', 'title' => 'Estimasi waktu & biaya', 'text' => 'Pilih teknologi dan material, angka berat, durasi, serta biayanya langsung dihitung.'],
+                            ['icon' => 'spark', 'title' => 'Estimasi lead time & biaya', 'text' => 'Pilih teknologi dan material, angka berat, lead time pengerjaan, serta biayanya langsung dihitung.'],
                         ] as $feature)
                             <li class="flex gap-4">
                                 <span class="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-brand-600/20 text-brand-300">
@@ -355,7 +355,7 @@
                                     ['pass', 'Mesh tertutup (watertight)'],
                                     ['pass', 'Tidak ada lubang pada permukaan'],
                                     ['pass', 'Tidak ada non-manifold edge'],
-                                    ['warn', 'Sisi tertipis 1,4 mm — rawan pada FDM'],
+                                    ['warn', 'Sisi tertipis 1,4 mm, rawan pada FDM'],
                                 ] as [$state, $label])
                                     <div class="flex items-center gap-3 rounded-xl border border-white/5 bg-white/5 px-4 py-2.5">
                                         <span class="h-2 w-2 shrink-0 rounded-full {{ $state === 'pass' ? 'bg-emerald-400' : 'bg-amber-400' }}"></span>
@@ -367,12 +367,12 @@
                             <div class="border-t border-white/10 bg-gradient-to-br from-brand-700/80 to-brand-900/80 px-5 py-5">
                                 <div class="flex items-end justify-between gap-4">
                                     <div>
-                                        <p class="text-[0.6rem] font-semibold uppercase tracking-[0.14em] text-white/60">Estimasi &mdash; FDM / PLA</p>
+                                        <p class="text-[0.6rem] font-semibold uppercase tracking-[0.14em] text-white/60">Estimasi untuk FDM / PLA</p>
                                         <p class="mt-1 font-display text-2xl font-bold text-white">Rp 68.000</p>
                                     </div>
                                     <div class="text-right">
-                                        <p class="text-[0.6rem] font-semibold uppercase tracking-[0.14em] text-white/60">Waktu</p>
-                                        <p class="mt-1 font-display text-sm font-bold text-white">1 jam 26 menit</p>
+                                        <p class="text-[0.6rem] font-semibold uppercase tracking-[0.14em] text-white/60">Estimasi Lead Time</p>
+                                        <p class="mt-1 font-display text-sm font-bold text-white">3–5 Hari Kerja</p>
                                     </div>
                                 </div>
                             </div>
@@ -393,7 +393,7 @@
             <x-section-heading
                 eyebrow="Layanan Kami"
                 title='Enam layanan yang saling melengkapi'
-                description="Mulai dari mendigitalkan objek nyata sampai part siap pakai dengan hasil akhir rapi — seluruhnya dikerjakan satu tim di satu tempat." />
+                description="Mulai dari mendigitalkan objek nyata sampai part siap pakai dengan hasil akhir rapi, seluruhnya dikerjakan satu tim di satu tempat." />
 
             <div class="mt-14 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
                 @foreach ($services as $service)
@@ -413,55 +413,29 @@
         </div>
     </section>
 
-    {{-- ===================== PITA FOTO WORKSHOP ===================== --}}
+    {{-- ===================== AJAKAN KUNJUNGAN ===================== --}}
     {{-- Full-bleed, tanpa kartu — sengaja memotong ritme grid di atas dan di bawahnya. --}}
-    <section aria-labelledby="workshop-heading" class="relative">
+    <section aria-labelledby="workshop-heading" class="relative overflow-hidden bg-brand-600">
         <h2 id="workshop-heading" class="sr-only">Di dalam workshop kami</h2>
 
-        <div class="grid sm:grid-cols-3">
-            @foreach ([
-                ['file' => 'workshop-02.jpg', 'label' => 'Produksi', 'caption' => 'Mesin berjalan setiap hari kerja', 'alt' => 'Mesin cetak 3D beroperasi di depan dinding perkakas workshop'],
-                ['file' => 'detail-02.jpg', 'label' => 'Presisi', 'caption' => 'Layer 0,025 – 0,30 mm', 'alt' => 'Detail extruder saat mencetak lapisan tipis'],
-            ] as $shot)
-                <figure class="group relative h-72 overflow-hidden md:h-80" data-aos="fade-up" data-aos-delay="{{ $loop->index * 90 }}">
-                    <img src="{{ asset('images/photos/'.$shot['file']) }}"
-                         alt="{{ $shot['alt'] }}"
-                         loading="lazy" decoding="async" width="900" height="675"
-                         class="h-full w-full object-cover transition-transform duration-700 ease-out group-hover:scale-105">
+        <div class="blueprint-grid-dark absolute inset-0" aria-hidden="true"></div>
 
-                    {{-- Overlay bertema brand menyatukan warna ketiga foto --}}
-                    <span class="absolute inset-0 bg-gradient-to-t from-ink-950/85 via-ink-950/25 to-transparent" aria-hidden="true"></span>
-                    <span class="absolute inset-0 bg-brand-900/25 mix-blend-multiply transition-opacity duration-500 group-hover:opacity-0" aria-hidden="true"></span>
+        <div class="container-page relative py-14 md:py-16">
+            <div class="max-w-2xl" data-aos="fade-up">
+                <span class="text-[0.65rem] font-bold uppercase tracking-[0.2em] text-white/70">Di dalam workshop kami</span>
+                <p class="mt-3 font-display text-xl font-bold leading-snug text-white sm:text-2xl">
+                    Ingin diskusi teknis project atau lihat sample?
+                </p>
+                <p class="mt-2.5 text-sm leading-relaxed text-white/80">
+                    Workshop kami terbuka untuk kunjungan pada jam kerja. Hubungi lebih dulu agar
+                    tim dapat menyiapkan waktu khusus untuk Anda.
+                </p>
 
-                    <figcaption class="absolute inset-x-0 bottom-0 p-6">
-                        <span class="text-[0.65rem] font-bold uppercase tracking-[0.2em] text-brand-300">{{ $shot['label'] }}</span>
-                        <p class="mt-1.5 font-display text-lg font-bold leading-snug text-white">{{ $shot['caption'] }}</p>
-                    </figcaption>
-                </figure>
-            @endforeach
-
-            {{-- Sel ketiga bukan foto, tapi ajakan bertindak — sekaligus menghindari
-                 memakai foto yang sama dua kali dalam satu halaman. --}}
-            <div class="relative flex h-72 flex-col justify-center overflow-hidden bg-brand-600 p-8 md:h-80"
-                 data-aos="fade-up" data-aos-delay="180">
-                <div class="blueprint-grid-dark absolute inset-0" aria-hidden="true"></div>
-
-                <div class="relative">
-                    <span class="text-[0.65rem] font-bold uppercase tracking-[0.2em] text-white/70">Di dalam workshop kami</span>
-                    <p class="mt-3 font-display text-xl font-bold leading-snug text-white">
-                        Ingin melihat prosesnya langsung?
-                    </p>
-                    <p class="mt-2.5 text-sm leading-relaxed text-white/80">
-                        Workshop kami terbuka untuk kunjungan pada jam kerja. Hubungi lebih dulu agar
-                        tim dapat menyiapkan waktu khusus untuk Anda.
-                    </p>
-
-                    <a href="{{ route('about') }}#kontak"
-                       class="mt-5 inline-flex items-center gap-2 text-sm font-bold text-white transition-colors hover:text-brand-100">
-                        Jadwalkan kunjungan
-                        <x-icons.arrow-right class="h-4 w-4" />
-                    </a>
-                </div>
+                <a href="{{ route('about') }}#kontak"
+                   class="mt-5 inline-flex items-center gap-2 text-sm font-bold text-white transition-colors hover:text-brand-100">
+                    Jadwalkan kunjungan
+                    <x-icons.arrow-right class="h-4 w-4" />
+                </a>
             </div>
         </div>
     </section>
@@ -472,7 +446,7 @@
             <x-section-heading
                 eyebrow="Teknologi"
                 title='Empat teknologi cetak, satu standar kualitas'
-                description="Setiap part punya kebutuhan berbeda. Kami memilihkan proses yang paling sesuai — bukan memaksakan satu-satunya mesin yang tersedia." />
+                description="Setiap part punya kebutuhan berbeda. Kami memilihkan proses yang paling sesuai, bukan memaksakan satu-satunya mesin yang tersedia." />
 
             <div class="mt-14 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
                 @foreach ($technologies as $technology)
@@ -518,7 +492,7 @@
 
                 <ol class="relative grid gap-10 lg:grid-cols-4 lg:gap-8">
                     @foreach ([
-                        ['step' => '01', 'title' => 'Kirim File & Kebutuhan', 'text' => 'Kirimkan file 3D beserta kebutuhan fungsi, jumlah, dan tenggat waktu Anda — atau cek sendiri lebih dulu di halaman 3D Models.'],
+                        ['step' => '01', 'title' => 'Kirim File & Kebutuhan', 'text' => 'Kirimkan file 3D beserta kebutuhan fungsi, jumlah, dan tenggat waktu Anda, atau cek sendiri lebih dulu di halaman 3D Models.'],
                         ['step' => '02', 'title' => 'Review & Penawaran', 'text' => 'Engineer kami meninjau file, menyarankan teknologi dan material, lalu mengirim penawaran.'],
                         ['step' => '03', 'title' => 'Produksi & Kontrol Mutu', 'text' => 'Part diproduksi lalu diperiksa dimensi dan tampilannya sebelum lanjut ke tahap akhir.'],
                         ['step' => '04', 'title' => 'Finishing & Pengiriman', 'text' => 'Post-processing sesuai permintaan, dikemas aman, lalu dikirim ke lokasi Anda.'],

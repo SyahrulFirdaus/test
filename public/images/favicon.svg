@@ -1,13 +1,9 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100">
-  <defs>
-    <clipPath id="hex">
-      <path d="M50 12 83 31 83 69 50 88 17 69 17 31Z"/>
-    </clipPath>
-  </defs>
-  <rect width="100" height="100" rx="22" fill="#95271D"/>
-  <path fill-rule="evenodd" clip-rule="evenodd" fill="#ffffff"
-        d="M50 12 83 31 83 69 50 88 17 69 17 31Z M50 20.5 25 35.2 25 64.8 50 79.5 75 64.8 75 35.2Z"/>
-  <g clip-path="url(#hex)">
-    <path fill="#ffffff" d="M21.7 22.8 87.7 60.8 78.3 77.2 12.3 39.2Z"/>
+  <rect width="100" height="100" rx="22" fill="#A50505"/>
+  <g transform="translate(50 49.7) scale(.84) translate(-50 -49.7)">
+    <path d="M50 6.5 87 28.2v43L50 92.9 13 71.2v-43Z" fill="none" stroke="#ffffff" stroke-width="3.4"/>
+    <path fill="#ffffff" d="M20.45 29.9 79.55 56.74V69.5L20.45 42.66Z"/>
+    <path fill="#ffffff" d="M79.55 32.02v19.94L64.37 42Z"/>
+    <path fill="#ffffff" d="M20.45 67.38V47.44L35.63 57.4Z"/>
   </g>
 </svg>

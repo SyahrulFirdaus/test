@@ -3,6 +3,7 @@
 namespace App\Models\Concerns;
 
 use App\Support\AnalysisStatus;
+use App\Support\LeadTime;
 use App\Support\Printer;
 use App\Support\PrintResolution;
 use Illuminate\Support\Facades\Storage;
@@ -42,6 +43,22 @@ trait DescribesPrintJob
         $format = fn ($value) => rtrim(rtrim(number_format((float) $value, 1, ',', '.'), '0'), ',');
 
         return $name.' ('.$format($volume['x'] ?? 0).' × '.$format($volume['y'] ?? 0).' × '.$format($volume['z'] ?? 0).' mm)';
+    }
+
+    /**
+     * Lead time pengerjaan, mis. "3–5 Hari Kerja".
+     *
+     * Inilah angka yang ditampilkan kepada pelanggan: bukan lama mesin
+     * berputar, melainkan perkiraan kapan pesanannya selesai — sudah termasuk
+     * antrean produksi, post-processing, dan quality control. Jam mesinnya
+     * sendiri tetap tersimpan dan dipakai halaman admin lewat
+     * `estimated_duration`.
+     */
+    public function getLeadTimeAttribute(): ?string
+    {
+        return blank($this->estimated_minutes)
+            ? null
+            : LeadTime::label((float) $this->estimated_minutes);
     }
 
     /**

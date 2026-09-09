@@ -103,10 +103,6 @@
 
         <div class="flex flex-col items-center justify-between gap-4 border-t border-white/10 py-7 text-xs text-ink-500 sm:flex-row">
             <p>&copy; {{ now()->year }} {{ $company->legal_name ?: $company->name }}. Seluruh hak cipta dilindungi.</p>
-            <p class="flex items-center gap-2">
-                <span class="inline-block h-1.5 w-1.5 rounded-full bg-brand-500"></span>
-                Dibangun dengan Laravel {{ \Illuminate\Foundation\Application::VERSION }}
-            </p>
         </div>
     </div>
 </footer>

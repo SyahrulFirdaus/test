@@ -3,29 +3,46 @@ import PrinterCard from './printer-card';
 import { createModelChannel, createModelId, modelStore } from './model-store';
 import { toRecord } from './model-record';
 import {
+    extensionOf,
+    isSupported,
+    needsTessellation,
+    SUPPORTED_EXTENSIONS,
+    SUPPORTED_LABEL,
+    tessellateStep,
+} from './model-formats';
+import {
     allowsHollow,
     allowsSupport,
     applySpecification,
     colorOptions,
     finishingOptions,
-    materialOptions,
+    materialCatalog,
+    materialInfo,
     specificationOf,
     supportNoteFor,
     technologyOptions,
+    validateModelSize,
 } from './model-spec';
 import {
+    configureLeadTime,
     formatCount,
     formatCurrency,
-    formatDuration,
+    formatLeadTime,
     formatNumber,
 } from './print-estimator';
 
-const SUPPORTED_EXTENSIONS = ['stl', 'obj'];
 const MAX_FILE_SIZE = 60 * 1024 * 1024; // 60 MB
 const DEFAULT_MAX_MODELS = 25;
 
 const show = (el, display = 'flex') => el && (el.style.display = display);
 const hide = (el) => el && (el.style.display = 'none');
+
+/** Ukuran ditulis "250 × 250 × 300 mm"; pecahannya dibulatkan satu desimal. */
+const sizeFormatter = new Intl.NumberFormat('id-ID', { maximumFractionDigits: 1 });
+const sizeText = (size) =>
+    size
+        ? `${sizeFormatter.format(size.x)} × ${sizeFormatter.format(size.y)} × ${sizeFormatter.format(size.z)} mm`
+        : '-';
 
 /**
  * Halaman "3D Models" — daftar model yang diunggah.
@@ -97,7 +114,13 @@ export default class ModelWorkspace {
         const el = this.root.querySelector('[data-printing-config]');
 
         try {
-            return JSON.parse(el?.textContent ?? '{}');
+            const config = JSON.parse(el?.textContent ?? '{}');
+
+            // Tingkatan lead time dipasang sekali di sini agar seluruh modul
+            // yang menampilkan estimasi memakai rentang hari yang sama.
+            configureLeadTime(config.leadTime);
+
+            return config;
         } catch {
             return { technologies: {}, limits: {} };
         }
@@ -200,12 +223,29 @@ export default class ModelWorkspace {
 
                 const buffer = await this.readFile(file);
 
+                // Berkas CAD (STEP/STP) berisi permukaan matematis, bukan
+                // segitiga, jadi ditesselasi lebih dulu menjadi mesh. Berkas
+                // aslinya tetap yang dikirim ke server.
+                let geometry = buffer;
+                let bufferFormat = null;
+
+                if (needsTessellation(file.name)) {
+                    this.showLoading(`Mengonversi geometri CAD ${file.name}${progress}…`);
+                    await this.nextFrame();
+
+                    geometry = await tessellateStep(buffer);
+                    bufferFormat = 'stl';
+                }
+
                 this.showLoading(`Menganalisis ${file.name}${progress}…`);
                 // Beri kesempatan browser menggambar indikator loading sebelum
                 // parsing yang berat mengunci thread utama.
-                await new Promise((resolve) => setTimeout(resolve, 24));
+                await this.nextFrame();
 
-                const record = this.buildRecord(file, buffer, this.records.length + 1);
+                const record = this.buildRecord(file, buffer, this.records.length + 1, {
+                    geometry,
+                    bufferFormat,
+                });
 
                 await modelStore.put(record);
                 this.records.push(record);
@@ -233,10 +273,10 @@ export default class ModelWorkspace {
     }
 
     validateFile(file) {
-        const extension = file.name.split('.').pop()?.toLowerCase() ?? '';
+        const extension = extensionOf(file.name);
 
-        if (!SUPPORTED_EXTENSIONS.includes(extension)) {
-            return `Format “.${extension || 'tanpa ekstensi'}” belum didukung. Viewer ini hanya dapat membaca file .stl dan .obj.`;
+        if (!isSupported(file.name)) {
+            return `Format “.${extension || 'tanpa ekstensi'}” belum didukung. Viewer ini dapat membaca file ${SUPPORTED_LABEL}.`;
         }
 
         if (file.size === 0) {
@@ -259,6 +299,11 @@ export default class ModelWorkspace {
         });
     }
 
+    /** Lepaskan thread utama sejenak agar indikator loading sempat tergambar. */
+    nextFrame() {
+        return new Promise((resolve) => setTimeout(resolve, 24));
+    }
+
     /* -------------------------------------------------------------- proses */
 
     /**
@@ -267,7 +312,7 @@ export default class ModelWorkspace {
      * Card yang sama persis dengan yang dipakai halaman viewer, jadi angka pada
      * daftar ini dan angka pada viewer tidak pernah berbeda.
      */
-    buildRecord(file, buffer, position) {
+    buildRecord(file, buffer, position, { geometry = null, bufferFormat = null } = {}) {
         const id = createModelId();
         const host = document.createElement('div');
 
@@ -282,7 +327,8 @@ export default class ModelWorkspace {
             card = new PrinterCard({
                 root: element,
                 file,
-                buffer,
+                buffer: geometry ?? buffer,
+                bufferFormat,
                 config: this.config,
                 renderer: this.renderer,
             });
@@ -290,6 +336,12 @@ export default class ModelWorkspace {
             return {
                 ...toRecord(card, { id, position, name: file.name, size: file.size }),
                 blob: new Blob([buffer], { type: file.type || 'application/octet-stream' }),
+
+                // Berkas CAD menyimpan hasil tesselasinya sekalian, supaya tab
+                // viewer tidak perlu menjalankan konversi yang berat itu lagi.
+                mesh: bufferFormat ? new Blob([geometry], { type: 'model/stl' }) : null,
+                meshFormat: bufferFormat,
+
                 createdAt: Date.now(),
             };
         } finally {
@@ -464,29 +516,36 @@ export default class ModelWorkspace {
         this.specHollowSettings = this.specModal.querySelector('[data-spec-hollow-settings]');
         this.specHollowWall = this.specModal.querySelector('[data-spec-hollow-wall]');
 
+        // Panel kiri: pratinjau model beserta keterangan material terpilih.
+        this.specThumbnail = this.specModal.querySelector('[data-spec-thumbnail]');
+        this.specThumbnailEmpty = this.specModal.querySelector('[data-spec-thumbnail-empty]');
+        this.specLearnMore = this.specModal.querySelector('[data-spec-learn-more]');
+
+        // Notice ukuran model, ditampilkan di atas modal ini saat penyimpanan
+        // ditolak karena modelnya di luar batas material.
+        this.bindSpecNotice();
+
         /** @type {object|null} model yang sedang disunting */
         this.editing = null;
 
         /** @type {object} spesifikasi sementara sebelum disimpan */
         this.draft = null;
 
-        // Pilihan teknologi dan finishing tetap sama untuk semua model, jadi
-        // cukup diisi sekali.
-        this.specTechnology.innerHTML = technologyOptions(this.config)
-            .map((option) => `<option value="${escapeAttribute(option.code)}">${escapeHtml(option.label)}</option>`)
-            .join('');
+        this.specTechnology.addEventListener('click', (event) => {
+            const option = event.target.closest('[data-spec-technology-option]');
 
-        this.specFinishing.innerHTML = finishingOptions(this.config)
-            .map((option) => `<option value="${escapeAttribute(option.key)}">${escapeHtml(option.label)}</option>`)
-            .join('');
+            if (!option) {
+                return;
+            }
 
-        this.specTechnology.addEventListener('change', () => {
-            this.draft.technology = this.specTechnology.value;
+            this.draft.technology = option.dataset.specTechnologyOption;
             // Material, warna, support, dan hollow mengikuti teknologi barunya.
-            this.draft.material = materialOptions(this.config, this.draft.technology)[0] ?? this.draft.material;
+            this.draft.material = materialCatalog(this.config, this.draft.technology)[0]?.name ?? this.draft.material;
+            this.renderSpecTechnologies();
             this.renderSpecMaterials();
             this.renderSpecColors();
             this.renderSpecExtras();
+            this.renderSpecInfo();
             this.previewSpec();
         });
 
@@ -509,9 +568,17 @@ export default class ModelWorkspace {
             this.previewSpec();
         });
 
-        this.specMaterial.addEventListener('change', () => {
-            this.draft.material = this.specMaterial.value;
+        this.specMaterial.addEventListener('click', (event) => {
+            const option = event.target.closest('[data-spec-material-option]');
+
+            if (!option) {
+                return;
+            }
+
+            this.draft.material = option.dataset.specMaterialOption;
+            this.renderSpecMaterials();
             this.renderSpecColors();
+            this.renderSpecInfo();
             this.previewSpec();
         });
 
@@ -527,8 +594,15 @@ export default class ModelWorkspace {
             this.previewSpec();
         });
 
-        this.specFinishing.addEventListener('change', () => {
-            this.draft.finishing = this.specFinishing.value;
+        this.specFinishing.addEventListener('click', (event) => {
+            const option = event.target.closest('[data-spec-finishing-option]');
+
+            if (!option) {
+                return;
+            }
+
+            this.draft.finishing = option.dataset.specFinishingOption;
+            this.renderSpecFinishings();
             this.renderSpecFinishingNote();
             this.previewSpec();
         });
@@ -557,7 +631,14 @@ export default class ModelWorkspace {
         });
 
         document.addEventListener('keydown', (event) => {
-            if (event.key === 'Escape' && this.specModal.style.display === 'flex') {
+            if (event.key !== 'Escape') {
+                return;
+            }
+
+            // Notice ditutup lebih dulu; modal pengaturannya tetap terbuka.
+            if (this.specNotice?.style.display === 'flex') {
+                this.closeSpecNotice();
+            } else if (this.specModal.style.display === 'flex') {
                 this.closeSpecModal();
             }
         });
@@ -565,10 +646,26 @@ export default class ModelWorkspace {
         this.specForm.addEventListener('submit', (event) => {
             event.preventDefault();
 
-            if (this.editing) {
-                this.updateSpecification(this.editing, { ...this.draft });
+            if (!this.editing) {
+                this.closeSpecModal();
+
+                return;
             }
 
+            // Ukuran model diperiksa terhadap batas material yang dipilih.
+            // Bila di luar batas, perubahannya tidak disimpan dan modal ini
+            // tetap terbuka di belakang notice.
+            const material = materialInfo(this.config, this.draft.technology, this.draft.material);
+            const dimensions = this.editing.summary?.dimensions ?? null;
+            const violation = validateModelSize(dimensions, material);
+
+            if (violation) {
+                this.showSpecNotice(violation, material, dimensions);
+
+                return;
+            }
+
+            this.updateSpecification(this.editing, { ...this.draft });
             this.closeSpecModal();
         });
     }
@@ -584,19 +681,20 @@ export default class ModelWorkspace {
         this.draft = specificationOf(record);
 
         this.specFile.textContent = record.name;
-        this.specTechnology.value = this.draft.technology;
-        this.specFinishing.value = this.draft.finishing;
         this.specQuantity.value = String(this.draft.quantity);
 
+        this.renderSpecTechnologies();
         this.renderSpecMaterials();
         this.renderSpecColors();
+        this.renderSpecFinishings();
         this.renderSpecFinishingNote();
         this.renderSpecExtras();
+        this.renderSpecInfo();
         this.previewSpec();
 
         this.specModal.style.display = 'flex';
         document.body.style.overflow = 'hidden';
-        this.specTechnology.focus();
+        this.specTechnology.querySelector('[data-spec-technology-option]')?.focus();
     }
 
     closeSpecModal() {
@@ -604,23 +702,151 @@ export default class ModelWorkspace {
             return;
         }
 
+        this.closeSpecNotice();
         this.specModal.style.display = 'none';
         document.body.style.overflow = '';
         this.editing = null;
     }
 
-    renderSpecMaterials() {
-        const materials = materialOptions(this.config, this.draft.technology);
+    /** Pilihan teknologi, labelnya mengikuti katalog (mis. "FDM (Plastic)"). */
+    renderSpecTechnologies() {
+        this.specTechnology.innerHTML = technologyOptions(this.config)
+            .map(
+                (option) => `
+                    <button type="button"
+                            class="spec-option"
+                            data-spec-technology-option="${escapeAttribute(option.code)}"
+                            aria-pressed="${option.code === this.draft.technology}">
+                        <span class="spec-option-title">${escapeHtml(option.label)}</span>
+                        <span class="spec-option-note">${escapeHtml(option.name)}</span>
+                    </button>
+                `
+            )
+            .join('');
+    }
 
-        if (!materials.includes(this.draft.material)) {
-            this.draft.material = materials[0] ?? this.draft.material;
+    renderSpecMaterials() {
+        const materials = materialCatalog(this.config, this.draft.technology);
+
+        if (!materials.some((material) => material.name === this.draft.material)) {
+            this.draft.material = materials[0]?.name ?? this.draft.material;
         }
 
         this.specMaterial.innerHTML = materials
-            .map((name) => `<option value="${escapeAttribute(name)}">${escapeHtml(name)}</option>`)
+            .map(
+                (material) => `
+                    <button type="button"
+                            class="spec-option"
+                            data-spec-material-option="${escapeAttribute(material.name)}"
+                            aria-pressed="${material.name === this.draft.material}">
+                        <span class="spec-option-title">${escapeHtml(material.name)}</span>
+                        <span class="spec-option-note">Maks. ${escapeHtml(sizeText(material.maxSize))}</span>
+                    </button>
+                `
+            )
             .join('');
+    }
 
-        this.specMaterial.value = this.draft.material;
+    /** Surface finish; daftar beserta keterangannya dibaca dari konfigurasi. */
+    renderSpecFinishings() {
+        this.specFinishing.innerHTML = finishingOptions(this.config)
+            .map(
+                (option) => `
+                    <button type="button"
+                            class="spec-option"
+                            data-spec-finishing-option="${escapeAttribute(option.key)}"
+                            aria-pressed="${option.key === this.draft.finishing}">
+                        <span class="spec-option-title">${escapeHtml(option.label)}</span>
+                    </button>
+                `
+            )
+            .join('');
+    }
+
+    /**
+     * Panel kiri: pratinjau model beserta keterangan material yang dipilih.
+     *
+     * Seluruh keterangannya berasal dari katalog yang sama dengan halaman
+     * 3D Printing Guide, jadi tidak ada data yang ditulis dua kali.
+     */
+    renderSpecInfo() {
+        const record = this.editing;
+
+        if (!record) {
+            return;
+        }
+
+        const summary = record.summary ?? {};
+        const material = materialInfo(this.config, this.draft.technology, this.draft.material);
+
+        if (this.specThumbnail) {
+            if (record.thumbnail) {
+                this.specThumbnail.src = record.thumbnail;
+                this.specThumbnail.alt = `Pratinjau model ${record.name}`;
+                this.specThumbnail.style.display = 'block';
+                hide(this.specThumbnailEmpty);
+            } else {
+                this.specThumbnail.style.display = 'none';
+                show(this.specThumbnailEmpty, 'flex');
+            }
+        }
+
+        const setText = (selector, value) => {
+            const el = this.specModal.querySelector(selector);
+
+            if (el) {
+                el.textContent = value;
+            }
+        };
+
+        setText('[data-spec-model="dimensions"]', sizeText(summary.dimensions));
+        setText('[data-spec-model="volume"]', `${formatNumber(summary.volumeCm3 ?? 0, 2)} cm³`);
+        setText('[data-spec-model="weight"]', `${formatNumber(summary.weightG ?? 0, 1)} gram`);
+
+        setText('[data-spec-material-name]', material?.name ?? '-');
+        setText('[data-spec-material-description]', material?.description ?? '');
+        setText('[data-spec-material-max]', sizeText(material?.maxSize));
+
+        const minimum = sizeText(material?.minSize);
+        setText(
+            '[data-spec-material-min]',
+            material?.minSizeSlender ? `${minimum} / ${sizeText(material.minSizeSlender)}` : minimum
+        );
+
+        const characteristics = this.specModal.querySelector('[data-spec-material-characteristics]');
+
+        if (characteristics) {
+            characteristics.innerHTML = Object.entries(material?.characteristics ?? {})
+                .map(
+                    ([label, value]) => `
+                        <div class="spec-info-row">
+                            <dt class="text-ink-400">${escapeHtml(label)}</dt>
+                            <dd class="text-right font-semibold text-ink-700">${escapeHtml(String(value))}</dd>
+                        </div>
+                    `
+                )
+                .join('');
+        }
+
+        const list = (selector, items, prefix) => {
+            const el = this.specModal.querySelector(selector);
+
+            if (el) {
+                el.innerHTML = (items ?? [])
+                    .map((item) => `<li class="text-xs leading-relaxed text-ink-600">${prefix} ${escapeHtml(item)}</li>`)
+                    .join('');
+            }
+        };
+
+        list('[data-spec-material-pros]', material?.pros, '+');
+        list('[data-spec-material-cons]', material?.cons, '−');
+
+        // "Learn More" menuju bagian material tersebut di halaman panduan.
+        if (this.specLearnMore && this.config.guideUrl) {
+            this.specLearnMore.href = material?.slug
+                ? `${this.config.guideUrl}#material-${material.slug}`
+                : this.config.guideUrl;
+        }
     }
 
     renderSpecColors() {
@@ -644,6 +870,71 @@ export default class ModelWorkspace {
                 `
             )
             .join('');
+    }
+
+    /* --------------------------------------------- notice ukuran model */
+
+    bindSpecNotice() {
+        this.specNotice = this.root.querySelector('[data-spec-notice]');
+
+        if (!this.specNotice) {
+            return;
+        }
+
+        this.specNotice.querySelector('[data-spec-notice-close]')?.addEventListener('click', () => {
+            this.closeSpecNotice();
+        });
+
+        this.specNotice.addEventListener('mousedown', (event) => {
+            if (!this.specNotice.querySelector('[data-spec-notice-dialog]').contains(event.target)) {
+                this.closeSpecNotice();
+            }
+        });
+    }
+
+    /**
+     * Jelaskan mengapa spesifikasi tidak dapat disimpan.
+     *
+     * Modal Edit Specification sengaja dibiarkan terbuka di belakang supaya
+     * pengguna tinggal memilih material atau teknologi lain.
+     */
+    showSpecNotice(violation, material, dimensions) {
+        if (!this.specNotice) {
+            return;
+        }
+
+        const tooLarge = violation.type === 'max';
+
+        const setText = (selector, value) => {
+            const el = this.specNotice.querySelector(selector);
+
+            if (el) {
+                el.textContent = value;
+            }
+        };
+
+        setText(
+            '[data-spec-notice-message]',
+            `Material "${material?.name ?? '-'}" tidak dapat digunakan untuk file "${this.editing?.name ?? ''}".`
+        );
+        setText('[data-spec-notice-model]', sizeText(dimensions));
+        setText('[data-spec-notice-limit-label]', tooLarge ? 'Ukuran maksimum material' : 'Ukuran minimum material');
+        setText('[data-spec-notice-limit]', sizeText(violation.limit));
+        setText(
+            '[data-spec-notice-hint]',
+            tooLarge
+                ? 'Silakan pilih teknologi atau material lain yang mendukung ukuran model tersebut.'
+                : 'Silakan pilih material lain atau ubah ukuran model agar sesuai dengan spesifikasi material.'
+        );
+
+        this.specNotice.style.display = 'flex';
+        this.specNotice.querySelector('[data-spec-notice-close]')?.focus();
+    }
+
+    closeSpecNotice() {
+        if (this.specNotice) {
+            this.specNotice.style.display = 'none';
+        }
     }
 
     renderSpecFinishingNote() {
@@ -717,13 +1008,13 @@ export default class ModelWorkspace {
         };
 
         if (!summary) {
-            ['weight', 'time', 'cost'].forEach((key) => set(key, '—'));
+            ['weight', 'time', 'cost'].forEach((key) => set(key, '-'));
 
             return;
         }
 
         set('weight', `${formatNumber(summary.weightG, 1)} gram`);
-        set('time', formatDuration(summary.minutes));
+        set('time', formatLeadTime(summary.minutes));
         set('cost', this.showsPrice ? formatCurrency(summary.cost) : 'Login dulu');
     }
 
@@ -751,151 +1042,120 @@ export default class ModelWorkspace {
         const url = `${this.viewerUrl}?model=${encodeURIComponent(record.id)}`;
         const dimensions = summary.dimensions
             ? `${formatNumber(summary.dimensions.x, 1)} × ${formatNumber(summary.dimensions.y, 1)} × ${formatNumber(summary.dimensions.z, 1)} mm`
-            : '—';
+            : '-';
 
         // Spesifikasi dibaca lewat specificationOf() supaya model yang tersimpan
-        // sebelum fitur ini ada tetap menampilkan warna dan finishingnya.
+        // sebelum fitur ini ada tetap memiliki jumlah yang sah. Rinciannya
+        // sendiri tidak lagi ditampilkan di kartu — cukup lewat Edit Specification.
         const spec = specificationOf(record);
-        const colors = this.config.materialColors?.options ?? {};
-        const finishings = this.config.finishing?.options ?? {};
-        const colorLabel = colors[spec.color]?.label ?? '—';
-        const colorHex = colors[spec.color]?.hex ?? '#8A817C';
-        const finishingLabel = finishings[spec.finishing]?.label ?? 'Tanpa Finishing';
 
+        // Berat sengaja tidak ikut: angkanya baru berarti setelah material
+        // dipilih, jadi ditampilkan pada Edit Specification saja.
         const rows = [
             ['Dimensi', dimensions],
             ['Volume', `${formatNumber(summary.volumeCm3 ?? 0, 2)} cm³`],
-            ['Berat', `${formatNumber(summary.weightG ?? 0, 1)} gram`],
         ];
 
-        // Ringkasan spesifikasi: pengguna dapat membacanya tanpa perlu membuka
-        // kembali Edit Specification.
-        const specs = [
-            ['Teknologi', escapeHtml(spec.technology ?? '')],
-            ['Material', escapeHtml(spec.material ?? '')],
-            [
-                'Warna',
-                `<span class="inline-flex items-center gap-1.5">
-                    <span class="inline-block h-3 w-3 shrink-0 rounded-full border border-ink-200" style="background: ${escapeAttribute(colorHex)}"></span>
-                    ${escapeHtml(colorLabel)}
-                </span>`,
-            ],
-            ['Finishing', escapeHtml(finishingLabel)],
-        ];
-
+        // Susunan mendatar: thumbnail kecil di kiri, seluruh keterangan di
+        // kanan. Satu kartu jadi kira-kira sepertiga tinggi versi sebelumnya,
+        // sehingga puluhan model tetap terbaca tanpa menggulir jauh.
         return `
             <article class="card overflow-hidden">
-                <a href="${escapeAttribute(url)}"
-                   target="_blank"
-                   rel="noopener"
-                   class="group relative block aspect-[4/3] overflow-hidden bg-ink-100"
-                   title="Buka viewer 3D ${escapeAttribute(record.name)}">
-                    ${record.thumbnail
-                        ? `<img src="${escapeAttribute(record.thumbnail)}" alt="Pratinjau model ${escapeAttribute(record.name)}" class="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.04]" loading="lazy">`
-                        : '<span class="flex h-full w-full items-center justify-center text-sm text-ink-400">Pratinjau tidak tersedia</span>'}
+                <div class="flex gap-3 p-3">
+                    <a href="${escapeAttribute(url)}"
+                       target="_blank"
+                       rel="noopener"
+                       class="group relative block h-20 w-20 shrink-0 overflow-hidden rounded-xl bg-ink-100"
+                       title="Buka viewer 3D ${escapeAttribute(record.name)}">
+                        ${record.thumbnail
+                            ? `<img src="${escapeAttribute(record.thumbnail)}" alt="Pratinjau model ${escapeAttribute(record.name)}" class="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.06]" loading="lazy">`
+                            : '<span class="flex h-full w-full items-center justify-center px-1 text-center text-[0.6rem] leading-tight text-ink-400">Pratinjau tidak tersedia</span>'}
 
-                    <span class="absolute inset-x-0 bottom-0 flex items-center justify-center gap-2 bg-ink-950/70 py-2.5 text-xs font-bold text-white opacity-0 transition-opacity duration-200 group-hover:opacity-100">
-                        Buka Viewer 3D
-                    </span>
-                </a>
+                        <span class="absolute inset-0 flex items-center justify-center bg-ink-950/65 text-[0.6rem] font-bold text-white opacity-0 transition-opacity duration-200 group-hover:opacity-100">
+                            Lihat 3D
+                        </span>
+                    </a>
 
-                <div class="flex flex-1 flex-col p-5">
-                    <p class="flex items-center gap-2">
-                        <span class="font-mono text-[0.65rem] text-ink-400">#${record.position}</span>
-                        <span class="truncate font-display text-sm font-bold text-ink-900" title="${escapeAttribute(record.name)}">${escapeHtml(record.name)}</span>
-                    </p>
-                    <p class="mt-0.5 text-[0.65rem] uppercase tracking-[0.12em] text-ink-400">
-                        ${escapeHtml(record.format)} · ${formatBytes(record.size)}
-                    </p>
+                    <div class="min-w-0 flex-1">
+                        <p class="flex items-baseline gap-1.5">
+                            <span class="font-mono text-[0.6rem] text-ink-400">#${record.position}</span>
+                            <span class="truncate font-display text-xs font-bold text-ink-900" title="${escapeAttribute(record.name)}">${escapeHtml(record.name)}</span>
+                        </p>
+                        <p class="mt-0.5 text-[0.6rem] uppercase tracking-[0.12em] text-ink-400">
+                            ${escapeHtml(record.format)} · ${formatBytes(record.size)}
+                        </p>
 
-                    <dl class="mt-4 space-y-1.5 text-xs">
-                        ${rows
-                            .map(
-                                ([label, value]) => `
-                                    <div class="flex items-start justify-between gap-3">
-                                        <dt class="text-ink-400">${label}</dt>
-                                        <dd class="text-right font-semibold text-ink-800">${value}</dd>
-                                    </div>
-                                `
-                            )
-                            .join('')}
-                    </dl>
-
-                    <div class="mt-4 rounded-xl bg-ink-50/80 p-3">
-                        <p class="text-[0.6rem] font-bold uppercase tracking-[0.14em] text-ink-400">Spesifikasi</p>
-                        <dl class="mt-2 space-y-1 text-xs">
-                            ${specs
+                        <dl class="mt-1.5 space-y-0.5 text-[0.7rem]">
+                            ${rows
                                 .map(
                                     ([label, value]) => `
-                                        <div class="flex items-start justify-between gap-3">
-                                            <dt class="text-ink-400">${label}</dt>
-                                            <dd class="text-right font-semibold text-ink-800">${value}</dd>
+                                        <div class="flex items-baseline justify-between gap-2">
+                                            <dt class="shrink-0 text-ink-400">${label}</dt>
+                                            <dd class="truncate text-right font-semibold text-ink-800">${value}</dd>
                                         </div>
                                     `
                                 )
                                 .join('')}
                         </dl>
                     </div>
+                </div>
 
-                    <div class="mt-4 flex items-center justify-between gap-3">
-                        <label class="text-xs font-semibold text-ink-600" for="qty-${escapeAttribute(record.id)}">Quantity</label>
+                <div class="flex items-center justify-between gap-2 border-t border-ink-100 px-3 py-2">
+                    <label class="text-[0.7rem] font-semibold text-ink-600" for="qty-${escapeAttribute(record.id)}">Qty</label>
 
-                        <div class="flex items-center gap-1.5">
-                            <button type="button"
-                                    class="qty-step"
-                                    data-model="${escapeAttribute(record.id)}"
-                                    data-qty-step="-1"
-                                    ${spec.quantity <= 1 ? 'disabled' : ''}
-                                    aria-label="Kurangi jumlah ${escapeAttribute(record.name)}">−</button>
+                    <div class="flex items-center gap-1">
+                        <button type="button"
+                                class="qty-step h-7 w-7 text-base"
+                                data-model="${escapeAttribute(record.id)}"
+                                data-qty-step="-1"
+                                ${spec.quantity <= 1 ? 'disabled' : ''}
+                                aria-label="Kurangi jumlah ${escapeAttribute(record.name)}">−</button>
 
-                            <input type="number"
-                                   id="qty-${escapeAttribute(record.id)}"
-                                   class="qty-input"
-                                   value="${spec.quantity}"
-                                   min="1"
-                                   max="10000"
-                                   step="1"
-                                   inputmode="numeric"
-                                   data-qty-input
-                                   data-model="${escapeAttribute(record.id)}">
+                        <input type="number"
+                               id="qty-${escapeAttribute(record.id)}"
+                               class="qty-input h-7 w-12 text-xs"
+                               value="${spec.quantity}"
+                               min="1"
+                               max="10000"
+                               step="1"
+                               inputmode="numeric"
+                               data-qty-input
+                               data-model="${escapeAttribute(record.id)}">
 
-                            <button type="button"
-                                    class="qty-step"
-                                    data-model="${escapeAttribute(record.id)}"
-                                    data-qty-step="1"
-                                    aria-label="Tambah jumlah ${escapeAttribute(record.name)}">+</button>
-
-                            <span class="ml-1 text-xs text-ink-400">pcs</span>
-                        </div>
+                        <button type="button"
+                                class="qty-step h-7 w-7 text-base"
+                                data-model="${escapeAttribute(record.id)}"
+                                data-qty-step="1"
+                                aria-label="Tambah jumlah ${escapeAttribute(record.name)}">+</button>
                     </div>
 
-                    <div class="mt-4 flex items-end justify-between gap-3 border-t border-ink-100 pt-4">
-                        <div>
-                            <p class="text-[0.6rem] font-semibold uppercase tracking-[0.14em] text-ink-400">Estimasi Harga</p>
-                            ${this.showsPrice
-                                ? `<p class="mt-0.5 font-display text-base font-bold text-brand-700">${formatCurrency(summary.cost ?? 0)}</p>`
-                                : '<p class="mt-0.5 text-xs font-semibold text-ink-400">Login untuk melihat harga</p>'}
-                        </div>
-                        <p class="text-right text-[0.65rem] text-ink-400">${formatDuration(summary.minutes ?? 0)}</p>
-                    </div>
+                    <span class="ml-auto text-right">
+                        ${this.showsPrice
+                            ? `<span class="block font-display text-sm font-bold text-brand-700">${formatCurrency(summary.cost ?? 0)}</span>`
+                            : '<span class="block text-[0.65rem] font-semibold text-ink-400">Login untuk harga</span>'}
+                        <span class="block text-[0.6rem] text-ink-400">${formatLeadTime(summary.minutes ?? 0)}</span>
+                    </span>
+                </div>
 
-                    ${summary.fits === false
-                        ? '<p class="mt-3 rounded-lg bg-brand-50 px-3 py-2 text-[0.7rem] font-semibold text-brand-700">⚠ Melewati area cetak mesin yang dipilih</p>'
-                        : ''}
+                ${summary.fits === false
+                    ? '<p class="border-t border-brand-100 bg-brand-50 px-3 py-1.5 text-[0.65rem] font-semibold text-brand-700">⚠ Melewati area cetak mesin yang dipilih</p>'
+                    : ''}
 
-                    <div class="mt-4 grid grid-cols-2 gap-2">
-                        <button type="button" class="btn-outline px-4 py-2.5 text-xs" data-edit-spec="${escapeAttribute(record.id)}">
-                            Edit Specification
-                        </button>
-                        <a href="${escapeAttribute(url)}" target="_blank" rel="noopener" class="btn-primary px-4 py-2.5 text-xs">
-                            Lihat 3D
-                        </a>
-                    </div>
+                <div class="flex items-center gap-2 border-t border-ink-100 px-3 py-2">
+                    <button type="button" class="btn-outline flex-1 px-3 py-1.5 text-[0.7rem]" data-edit-spec="${escapeAttribute(record.id)}">
+                        Edit Specification
+                    </button>
 
                     <button type="button"
-                            class="mt-2 text-xs font-semibold text-ink-400 transition-colors hover:text-brand-600"
+                            class="shrink-0 rounded-lg p-1.5 text-ink-300 transition-colors hover:bg-brand-50 hover:text-brand-600"
+                            title="Hapus model ini"
+                            aria-label="Hapus ${escapeAttribute(record.name)}"
                             data-remove-model="${escapeAttribute(record.id)}">
-                        Hapus model ini
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" class="h-4 w-4" aria-hidden="true">
+                            <path d="M4 7h16" /><path d="M10 11v6" /><path d="M14 11v6" />
+                            <path d="M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12" />
+                            <path d="M9 7V5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2" />
+                        </svg>
                     </button>
                 </div>
             </article>
@@ -953,24 +1213,23 @@ export default class ModelWorkspace {
                 const estimate = record.payload.estimate ?? {};
                 const scale = Math.round(record.payload.scale_percent ?? 100);
 
+                // Mesin, material, dan berat tidak lagi ikut di ringkasan:
+                // rinciannya sudah ada pada kartu model dan Edit Specification.
                 return `
                     <tr>
-                        <td class="py-3 pr-3 font-mono text-xs text-ink-400">${index + 1}</td>
-                        <td class="max-w-[200px] px-3 py-3">
-                            <p class="truncate font-semibold text-ink-900" title="${escapeAttribute(record.name)}">${escapeHtml(record.name)}</p>
+                        <td class="max-w-[160px] py-3 pr-3">
+                            <p class="truncate font-semibold text-ink-900" title="${escapeAttribute(record.name)}">
+                                <span class="font-mono text-[0.65rem] text-ink-400">#${index + 1}</span>
+                                ${escapeHtml(record.name)}
+                            </p>
                             <p class="text-[0.65rem] uppercase tracking-[0.1em] text-ink-400">
                                 ${escapeHtml(record.format)}${scale !== 100 ? ` &middot; skala ${scale}%` : ''}
                             </p>
                         </td>
-                        <td class="px-3 py-3">
-                            <p class="font-semibold text-ink-800">${escapeHtml(record.payload.printer_name ?? '')}</p>
-                            <p class="text-xs text-ink-400">${escapeHtml(summary.technology ?? '')} &middot; ${escapeHtml(summary.material ?? '')}</p>
-                        </td>
-                        <td class="px-3 py-3 text-right text-ink-700">${formatCount(summary.quantity ?? 1)} unit</td>
-                        <td class="px-3 py-3 text-right text-ink-700">${formatNumber(summary.weightG ?? 0, 1)} gr</td>
-                        <td class="px-3 py-3 text-right text-ink-700">${formatDuration(estimate.totalMinutes ?? 0)}</td>
+                        <td class="px-2 py-3 text-right text-ink-700">${formatCount(summary.quantity ?? 1)}</td>
+                        <td class="${this.showsPrice ? 'px-2' : 'pl-2'} py-3 text-right text-ink-700">${formatLeadTime(estimate.totalMinutes ?? 0)}</td>
                         ${this.showsPrice
-                            ? `<td class="py-3 pl-3 text-right font-display font-bold text-brand-700">${formatCurrency(estimate.totalCost ?? 0)}</td>`
+                            ? `<td class="py-3 pl-2 text-right font-display font-bold text-brand-700">${formatCurrency(estimate.totalCost ?? 0)}</td>`
                             : ''}
                     </tr>
                 `;
@@ -979,12 +1238,13 @@ export default class ModelWorkspace {
 
         const totals = this.totals();
 
-        this.setTotal('printers', `${formatCount(ready.length)} printer`);
         this.setTotal('models', `${formatCount(ready.length)} model`);
-        this.setTotal('weight', `${formatNumber(totals.weightG, 1)} gram`);
-        this.setTotal('time', formatDuration(totals.minutes));
-        this.setTotal('longest', formatDuration(totals.longestMinutes));
-        this.setTotal('cost', this.showsPrice ? formatCurrency(totals.cost) : '—');
+
+        // Tiap model dicetak pada mesinnya sendiri sehingga pengerjaannya
+        // berjalan bersamaan; lead time penawaran karena itu mengikuti mesin
+        // yang paling lama, bukan penjumlahan seluruh jam mesin.
+        this.setTotal('time', formatLeadTime(totals.longestMinutes));
+        this.setTotal('cost', this.showsPrice ? formatCurrency(totals.cost) : '-');
 
         hide(this.summaryPlaceholder);
         show(this.summaryPanel, 'block');

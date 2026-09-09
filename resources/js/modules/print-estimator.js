@@ -274,6 +274,47 @@ export function formatPercent(value, digits = 0) {
     return `${formatNumber(value * 100, digits)}%`;
 }
 
+/**
+ * Lead time pengerjaan.
+ *
+ * Pelanggan membutuhkan tanggal selesai, bukan lama mesin berputar, jadi menit
+ * mesin diterjemahkan menjadi rentang hari kerja. Tingkatannya dikirim server
+ * lewat `printingConfig.leadTime` (App\Support\LeadTime) agar angka di browser
+ * dan di server tidak pernah berbeda; nilai di bawah hanya cadangan bila
+ * konfigurasinya belum sempat dimuat.
+ */
+let leadTimeConfig = {
+    unit: 'Hari Kerja',
+    tiers: [
+        { maxMinutes: 480, minDays: 3, maxDays: 5 },
+        { maxMinutes: 1440, minDays: 5, maxDays: 7 },
+        { maxMinutes: 4320, minDays: 7, maxDays: 10 },
+        { maxMinutes: null, minDays: 10, maxDays: 14 },
+    ],
+};
+
+export function configureLeadTime(config) {
+    if (config?.tiers?.length) {
+        leadTimeConfig = { unit: config.unit ?? leadTimeConfig.unit, tiers: config.tiers };
+    }
+}
+
+/** @returns {{min:number, max:number}} rentang hari kerja untuk sekian menit mesin */
+export function leadTimeDays(minutes) {
+    const total = Math.max(0, Number(minutes) || 0);
+    const tiers = leadTimeConfig.tiers;
+    const tier = tiers.find((entry) => entry.maxMinutes === null || total <= entry.maxMinutes) ?? tiers[tiers.length - 1];
+
+    return { min: tier.minDays, max: tier.maxDays };
+}
+
+/** Label siap tampil, mis. "3–5 Hari Kerja". */
+export function formatLeadTime(minutes) {
+    const { min, max } = leadTimeDays(minutes);
+
+    return `${min === max ? min : `${min}–${max}`} ${leadTimeConfig.unit}`;
+}
+
 export function formatDuration(minutes) {
     const total = Math.max(1, Math.round(minutes));
     const days = Math.floor(total / 1440);

@@ -12,7 +12,7 @@
         eyebrow="Tracking Penawaran"
         current="Tracking"
         title='Perkembangan permintaan <span class="text-brand-400">penawaran Anda</span>'
-        :description="'Nomor tracking '.$quotation->tracking_number.' — diajukan '.$quotation->created_at->translatedFormat('d F Y, H:i').' WIB.'">
+        :description="'Nomor tracking '.$quotation->tracking_number.', diajukan '.$quotation->created_at->translatedFormat('d F Y, H:i').' WIB.'">
         <x-slot:actions>
             <a href="{{ route('tracking.document', $quotation->tracking_number) }}" class="btn-primary w-full sm:w-auto">
                 <x-icons.download class="h-4 w-4" />
@@ -110,7 +110,7 @@
                                                     <span class="mt-0.5 block text-[0.65rem] text-ink-400">oleh {{ $history->created_by }}</span>
                                                 @endif
                                             </td>
-                                            <td class="px-6 py-4 text-xs leading-relaxed text-ink-600">{{ $history->note ?: '—' }}</td>
+                                            <td class="px-6 py-4 text-xs leading-relaxed text-ink-600">{{ $history->note ?: '-' }}</td>
                                         </tr>
                                     @empty
                                         <tr>
@@ -133,7 +133,7 @@
                             @foreach ([
                                 'Nomor Tracking' => $quotation->tracking_number,
                                 'Nama Pelanggan' => $quotation->name,
-                                'Perusahaan' => $quotation->company ?: '—',
+                                'Perusahaan' => $quotation->company ?: '-',
                                 'Email' => $quotation->masked_email,
                                 'WhatsApp' => $quotation->masked_whatsapp,
                                 'Printer' => $quotation->printer_summary,
@@ -231,8 +231,8 @@
 
                         <dl class="mt-5 space-y-4">
                             <div class="flex items-start justify-between gap-4 border-b border-ink-100 pb-4">
-                                <dt class="text-xs font-semibold uppercase tracking-[0.12em] text-ink-400">Estimasi Waktu Cetak</dt>
-                                <dd class="text-right text-sm font-semibold text-ink-800">{{ $quotation->estimated_duration ?? 'Belum tersedia' }}</dd>
+                                <dt class="text-xs font-semibold uppercase tracking-[0.12em] text-ink-400">Estimasi Lead Time</dt>
+                                <dd class="text-right text-sm font-semibold text-ink-800">{{ $quotation->lead_time ?? 'Belum tersedia' }}</dd>
                             </div>
                             <div class="flex items-start justify-between gap-4">
                                 <dt class="text-xs font-semibold uppercase tracking-[0.12em] text-ink-400">Estimasi Penyelesaian</dt>

@@ -9,16 +9,37 @@ namespace App\Support;
  * sehingga timeline pada halaman tracking, pilihan status di dashboard admin, dan
  * riwayat perubahan selalu mengikuti satu sumber yang sama.
  *
- * Status terbagi dua grup:
+ * Status terbagi tiga grup:
  *  - `flow`         tahap normal yang berjalan maju dan membentuk timeline;
  *  - `cancellation` keadaan pembatalan yang berada di luar timeline dan hanya
- *                   dipasang lewat aksi pembatalan, bukan dropdown status.
+ *                   dipasang lewat aksi pembatalan, bukan dropdown status;
+ *  - `payment`      keadaan pembayaran yang menahan penawaran pada tahapnya
+ *                   sekarang (bukti ditolak) — penawaran tetap berjalan dan
+ *                   perpindahannya diatur aksi verifikasi pembayaran.
  */
 class QuotationStatus
 {
     public const RECEIVED = 'received';
 
     public const REVIEWING = 'reviewing';
+
+    public const AWAITING_APPROVAL = 'awaiting_approval';
+
+    public const AWAITING_PAYMENT = 'awaiting_payment';
+
+    public const PAYMENT_REVIEW = 'payment_review';
+
+    public const PAYMENT_RECEIVED = 'payment_received';
+
+    public const PAYMENT_REJECTED = 'payment_rejected';
+
+    public const PAYMENT_EXPIRED = 'payment_expired';
+
+    public const PRODUCTION = 'production';
+
+    public const QUALITY_CONTROL = 'quality_control';
+
+    public const READY_TO_SHIP = 'ready_to_ship';
 
     public const COMPLETED = 'completed';
 
@@ -126,7 +147,82 @@ class QuotationStatus
             self::COMPLETED,
             self::CANCELLED_BY_USER,
             self::CANCELLATION_APPROVED,
+            self::PAYMENT_EXPIRED,
         ], true);
+    }
+
+    /**
+     * Pengelompokan tahap untuk ringkasan dashboard.
+     *
+     * Dikumpulkan di sini — bukan disebar sebagai daftar status di tiap
+     * controller — supaya angka "pesanan aktif" pada dashboard, penyaringan
+     * daftar penawaran, dan pelacakan produksi selalu memakai batasan yang sama.
+     */
+
+    /** Penawaran yang berhenti, entah selesai atau dibatalkan. */
+    public static function closedKeys(): array
+    {
+        return [
+            self::COMPLETED,
+            self::CANCELLED_BY_USER,
+            self::CANCELLATION_APPROVED,
+            self::PAYMENT_EXPIRED,
+        ];
+    }
+
+    /** Pembatalan yang benar-benar menghentikan penawaran. */
+    public static function cancelledKeys(): array
+    {
+        return [
+            self::CANCELLED_BY_USER,
+            self::CANCELLATION_APPROVED,
+            self::PAYMENT_EXPIRED,
+        ];
+    }
+
+    /** Tahap pengerjaan setelah pembayaran diterima, sebelum diserahkan. */
+    public static function productionKeys(): array
+    {
+        return [
+            self::PAYMENT_RECEIVED,
+            self::PRODUCTION,
+            self::QUALITY_CONTROL,
+            self::READY_TO_SHIP,
+        ];
+    }
+
+    /** Tahap yang menunggu penyelesaian pembayaran dari pelanggan. */
+    public static function paymentKeys(): array
+    {
+        return [
+            self::AWAITING_PAYMENT,
+            self::PAYMENT_REVIEW,
+            self::PAYMENT_REJECTED,
+        ];
+    }
+
+    /** Penawaran yang masih berjalan — belum selesai dan belum dibatalkan. */
+    public static function openKeys(): array
+    {
+        return array_values(array_diff(self::keys(), self::closedKeys()));
+    }
+
+    /**
+     * Tahap alur yang mewakili status ini pada timeline.
+     *
+     * Status di luar alur maju tidak punya posisi sendiri, jadi timeline-nya
+     * memakai tahap terakhir yang benar-benar dijalani: pembatalan memakai
+     * `status_before_cancellation` (diteruskan pemanggil), sedangkan bukti
+     * pembayaran yang ditolak atau kedaluwarsa kembali ke tahap "Menunggu
+     * Pembayaran".
+     */
+    public static function timelineAnchor(?string $status, ?string $fallback = null): ?string
+    {
+        if (in_array($status, [self::PAYMENT_REJECTED, self::PAYMENT_EXPIRED], true)) {
+            return self::AWAITING_PAYMENT;
+        }
+
+        return self::isCancellation($status) ? ($fallback ?? $status) : $status;
     }
 
     /** Posisi tahap dalam alur; -1 bila status tidak dikenal atau di luar alur. */

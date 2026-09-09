@@ -130,7 +130,7 @@
             <x-section-heading
                 eyebrow="Keunggulan"
                 title='Alasan klien mempercayakan produksinya kepada kami'
-                description="Bukan sekadar daftar mesin — ini komitmen yang kami jaga pada setiap pesanan." />
+                description="Bukan sekadar daftar mesin, ini komitmen yang kami jaga pada setiap pesanan." />
 
             <div class="mt-14 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
                 @foreach ($company->advantages as $advantage)

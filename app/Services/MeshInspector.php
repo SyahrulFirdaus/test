@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Support\ZipReader;
 use RuntimeException;
 
 /**
@@ -37,7 +38,11 @@ class MeshInspector
         $result = match ($extension) {
             'stl' => $this->readStl($path),
             'obj' => $this->readObj($path),
-            default => throw new RuntimeException("Format {$extension} tidak dapat dibaca."),
+            '3mf' => $this->readThreeMf($path),
+            // STEP/STP berisi permukaan matematis, bukan segitiga. Menesselasinya
+            // menuntut kernel CAD yang tidak tersedia di sisi PHP — berkas itu
+            // diukur di browser pada halaman 3D Models.
+            default => throw new RuntimeException("Format {$extension} tidak dapat diukur di server."),
         };
 
         if ($result['triangles'] === 0) {
@@ -206,6 +211,65 @@ class MeshInspector
         }
 
         return $this->summarise($accumulator, count($vertices));
+    }
+
+    /**
+     * 3MF adalah arsip ZIP berisi XML model.
+     *
+     * Yang dibaca hanya `<vertices>` dan `<triangles>` pada tiap `<object>`;
+     * transformasi build item, warna, dan metadata lainnya diabaikan karena
+     * pengukuran ini hanya butuh volume, luas permukaan, dan dimensinya.
+     */
+    private function readThreeMf(string $path): array
+    {
+        $xml = ZipReader::firstEntryEndingWith($path, '.model');
+
+        if ($xml === null) {
+            throw new RuntimeException('Berkas 3MF tidak memuat model.');
+        }
+
+        // Namespace 3MF membuat XPath menuntut prefiks; dilepas lebih dulu agar
+        // pembacaannya sederhana dan tahan terhadap perbedaan versi skema.
+        $document = simplexml_load_string(preg_replace('/\sxmlns(:\w+)?="[^"]*"/', '', $xml, 1) ?? '');
+
+        if ($document === false) {
+            throw new RuntimeException('Isi berkas 3MF tidak dapat dibaca.');
+        }
+
+        $accumulator = $this->freshAccumulator();
+        $vertexCount = 0;
+
+        foreach ($document->xpath('//object/mesh') ?: [] as $mesh) {
+            $vertices = [];
+
+            foreach ($mesh->vertices->vertex ?? [] as $vertex) {
+                $vertices[] = [
+                    (float) $vertex['x'],
+                    (float) $vertex['y'],
+                    (float) $vertex['z'],
+                ];
+            }
+
+            $vertexCount += count($vertices);
+
+            foreach ($mesh->triangles->triangle ?? [] as $triangle) {
+                $corners = [];
+
+                foreach (['v1', 'v2', 'v3'] as $attribute) {
+                    $corner = $vertices[(int) $triangle[$attribute]] ?? null;
+
+                    if ($corner === null) {
+                        continue 2;
+                    }
+
+                    $corners[] = $corner;
+                }
+
+                $this->accumulate($accumulator, $corners);
+            }
+        }
+
+        return $this->summarise($accumulator, $vertexCount);
     }
 
     private function freshAccumulator(): object

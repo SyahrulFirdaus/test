@@ -85,7 +85,7 @@ export default function initHeroCarousel() {
         const active = dots[index];
 
         if (caption && active?.dataset.heroLabel) {
-            caption.textContent = `${active.dataset.heroLabel} — ${active.dataset.heroText ?? ''}`.trim();
+            caption.textContent = `${active.dataset.heroLabel}: ${active.dataset.heroText ?? ''}`.trim();
         }
 
         syncVideos();

@@ -173,7 +173,7 @@
                     ] as $key => $label)
                         <div>
                             <dt class="text-[0.6rem] font-semibold uppercase tracking-[0.12em] text-ink-400">{{ $label }}</dt>
-                            <dd class="mt-1 font-display text-sm font-bold text-ink-900" data-build="{{ $key }}">—</dd>
+                            <dd class="mt-1 font-display text-sm font-bold text-ink-900" data-build="{{ $key }}">-</dd>
                         </div>
                     @endforeach
                 </dl>
@@ -200,28 +200,28 @@
                     ] as $key => $label)
                         <div class="flex items-start justify-between gap-4 border-b border-ink-100 pb-2.5">
                             <dt class="text-[0.65rem] font-semibold uppercase tracking-[0.1em] text-ink-400">{{ $label }}</dt>
-                            <dd class="text-right text-xs font-semibold text-ink-800" data-estimate="{{ $key }}">—</dd>
+                            <dd class="text-right text-xs font-semibold text-ink-800" data-estimate="{{ $key }}">-</dd>
                         </div>
                     @endforeach
 
                     <div class="flex items-start justify-between gap-4">
                         <dt class="text-[0.65rem] font-semibold uppercase tracking-[0.1em] text-ink-400">Berat Model</dt>
-                        <dd class="text-right text-xs font-semibold text-ink-800" data-estimate="weight">—</dd>
+                        <dd class="text-right text-xs font-semibold text-ink-800" data-estimate="weight">-</dd>
                     </div>
 
                     <div class="flex items-start justify-between gap-4 transition-opacity duration-200" data-support-row>
                         <dt class="text-[0.65rem] font-semibold uppercase tracking-[0.1em] text-ink-400">Berat Support</dt>
-                        <dd class="text-right text-xs font-semibold text-ink-800" data-estimate="support-weight">—</dd>
+                        <dd class="text-right text-xs font-semibold text-ink-800" data-estimate="support-weight">-</dd>
                     </div>
 
                     <div class="flex items-start justify-between gap-4 rounded-xl bg-brand-50 px-4 py-2.5">
                         <dt class="text-[0.65rem] font-bold uppercase tracking-[0.1em] text-brand-700">Total Berat</dt>
-                        <dd class="text-right font-display text-sm font-bold text-brand-700" data-estimate="total-weight">—</dd>
+                        <dd class="text-right font-display text-sm font-bold text-brand-700" data-estimate="total-weight">-</dd>
                     </div>
 
                     <div class="flex items-start justify-between gap-4">
-                        <dt class="text-[0.65rem] font-semibold uppercase tracking-[0.1em] text-ink-400">Estimasi Waktu</dt>
-                        <dd class="text-right text-xs font-semibold text-ink-800" data-estimate="time">—</dd>
+                        <dt class="text-[0.65rem] font-semibold uppercase tracking-[0.1em] text-ink-400">Estimasi Lead Time</dt>
+                        <dd class="text-right text-xs font-semibold text-ink-800" data-estimate="time">-</dd>
                     </div>
                 </dl>
 
@@ -229,7 +229,7 @@
                 @auth
                     <div class="mt-4 rounded-xl bg-gradient-to-br from-brand-600 to-brand-800 p-4 text-white">
                         <p class="text-[0.6rem] font-semibold uppercase tracking-[0.14em] text-white/70">Estimasi Harga</p>
-                        <p class="mt-1 font-display text-2xl font-bold" data-estimate="cost">—</p>
+                        <p class="mt-1 font-display text-2xl font-bold" data-estimate="cost">-</p>
                     </div>
                 @else
                     <div class="mt-4 rounded-xl border border-brand-200 bg-brand-50 p-4">
@@ -266,13 +266,13 @@
                     ] as $stat => $label)
                         <div>
                             <dt class="text-[0.6rem] font-semibold uppercase tracking-[0.12em] text-ink-400">{{ $label }}</dt>
-                            <dd class="mt-1 break-words text-sm font-bold text-ink-900" data-stat="{{ $stat }}">—</dd>
+                            <dd class="mt-1 break-words text-sm font-bold text-ink-900" data-stat="{{ $stat }}">-</dd>
                         </div>
                     @endforeach
 
                     <div class="sm:col-span-2">
                         <dt class="text-[0.6rem] font-semibold uppercase tracking-[0.12em] text-ink-400">Bounding Box</dt>
-                        <dd class="mt-1 font-mono text-xs leading-relaxed text-ink-600" data-stat="bounding-box">—</dd>
+                        <dd class="mt-1 font-mono text-xs leading-relaxed text-ink-600" data-stat="bounding-box">-</dd>
                     </div>
                 </dl>
 
@@ -387,11 +387,11 @@
                                     'dimensions' => 'Dimensi',
                                     'volume' => 'Volume',
                                     'weight' => 'Total Berat',
-                                    'time' => 'Estimasi Waktu',
+                                    'time' => 'Estimasi Lead Time',
                                 ] as $key => $label)
                                     <div>
                                         <dt class="text-[0.6rem] font-semibold uppercase tracking-[0.1em] text-ink-400">{{ $label }}</dt>
-                                        <dd class="mt-0.5 font-display text-xs font-bold text-ink-900" data-scale-result="{{ $key }}">—</dd>
+                                        <dd class="mt-0.5 font-display text-xs font-bold text-ink-900" data-scale-result="{{ $key }}">-</dd>
                                     </div>
                                 @endforeach
                             </dl>

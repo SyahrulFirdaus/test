@@ -240,7 +240,7 @@
                         @if ($quotation->display_price !== null)
                             Rp{{ number_format($quotation->display_price, 0, ',', '.') }}
                         @else
-                            &mdash;
+                            -
                         @endif
                     </td>
                 </tr>
@@ -281,8 +281,8 @@
                             </td>
                         </tr>
                         <tr>
-                            <th>Estimasi Waktu Cetak</th>
-                            <td>{{ $quotation->estimated_duration ?? 'Belum tersedia' }}</td>
+                            <th>Estimasi Lead Time</th>
+                            <td>{{ $quotation->lead_time ?? 'Belum tersedia' }}</td>
                         </tr>
                         @if ($quotation->estimated_finish)
                             <tr class="alt">

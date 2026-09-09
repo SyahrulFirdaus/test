@@ -1022,7 +1022,7 @@ export default class ModelViewer {
             'model',
             item?.dimensions
                 ? `${formatNumber(item.dimensions.x, 0)} × ${formatNumber(item.dimensions.z, 0)} × ${formatNumber(item.dimensions.y, 0)} mm`
-                : '—'
+                : '-'
         );
 
         // Pemakaian dihitung dari kotak pembatas seluruh model yang berdiri di
@@ -1035,7 +1035,7 @@ export default class ModelViewer {
 
         const ratio = capacity > 0 ? used / capacity : 0;
 
-        this.setBuild('usage', this.items.length === 0 ? '—' : formatPercent(Math.min(ratio, 9.99), ratio < 0.1 ? 1 : 0));
+        this.setBuild('usage', this.items.length === 0 ? '-' : formatPercent(Math.min(ratio, 9.99), ratio < 0.1 ? 1 : 0));
 
         if (this.buildUsageBar) {
             this.buildUsageBar.style.width = `${Math.min(100, ratio * 100)}%`;
@@ -1437,7 +1437,7 @@ export default class ModelViewer {
         };
 
         if (!item?.dimensions || !item.estimate) {
-            ['dimensions', 'volume', 'weight', 'time'].forEach((name) => set(name, '—'));
+            ['dimensions', 'volume', 'weight', 'time'].forEach((name) => set(name, '-'));
 
             return;
         }
@@ -1788,9 +1788,9 @@ export default class ModelViewer {
 
             heading = 'Overhang Analysis';
             entries = [
-                [colors.safe ?? '#3FA45B', `Aman — di bawah ${safe}°`],
-                [colors.warn ?? '#E0A82E', `Mungkin perlu support — ${safe}°–${warn}°`],
-                [colors.critical ?? '#C0392B', `Wajib support — di atas ${warn}°`],
+                [colors.safe ?? '#3FA45B', `Aman: di bawah ${safe}°`],
+                [colors.warn ?? '#E0A82E', `Mungkin perlu support: ${safe}° sampai ${warn}°`],
+                [colors.critical ?? '#C0392B', `Wajib support: di atas ${warn}°`],
             ];
             footnote = 'Sudut diukur dari bidang tegak: dinding tegak 0°, langit-langit mendatar 90°.';
         } else {
@@ -1799,8 +1799,8 @@ export default class ModelViewer {
 
             heading = 'Wall Thickness Analysis';
             entries = [
-                [colors.safe ?? '#3FA45B', `Aman — ${formatNumber(minimum, 1)} mm ke atas`],
-                [colors.thin ?? '#C0392B', `Terlalu tipis — di bawah ${formatNumber(minimum, 1)} mm`],
+                [colors.safe ?? '#3FA45B', `Aman: ${formatNumber(minimum, 1)} mm ke atas`],
+                [colors.thin ?? '#C0392B', `Terlalu tipis: di bawah ${formatNumber(minimum, 1)} mm`],
             ];
 
             if (item?.painted?.skipped) {
@@ -1967,7 +1967,7 @@ export default class ModelViewer {
         );
         this.setStat(
             'bounding-box',
-            `min (${formatNumber(item.boundingBox.min.x, 1)}, ${formatNumber(item.boundingBox.min.y, 1)}, ${formatNumber(item.boundingBox.min.z, 1)}) — ` +
+            `min (${formatNumber(item.boundingBox.min.x, 1)}, ${formatNumber(item.boundingBox.min.y, 1)}, ${formatNumber(item.boundingBox.min.z, 1)}) sampai ` +
                 `max (${formatNumber(item.boundingBox.max.x, 1)}, ${formatNumber(item.boundingBox.max.y, 1)}, ${formatNumber(item.boundingBox.max.z, 1)}) mm`
         );
         this.setStat('surface-area', `${formatNumber((item.metrics.surfaceAreaMm2 / 100) * scale ** 2, 2)} cm²`);
@@ -2038,8 +2038,8 @@ export default class ModelViewer {
             .map((item, index) => {
                 const active = item.id === this.activeId;
                 const status = ANALYSIS_PRESENTATION[item.analysis?.status] ?? ANALYSIS_PRESENTATION.warning;
-                const weight = item.estimate ? `${formatNumber(item.estimate.totalWeightG, 1)} gram` : '—';
-                const cost = item.estimate ? formatCurrency(item.estimate.totalCost) : '—';
+                const weight = item.estimate ? `${formatNumber(item.estimate.totalWeightG, 1)} gram` : '-';
+                const cost = item.estimate ? formatCurrency(item.estimate.totalCost) : '-';
                 const scale = Math.round(item.settings.scale * 100);
 
                 return `
@@ -2793,7 +2793,7 @@ export default class ModelViewer {
         const codes = Object.keys(this.config.technologies ?? {});
 
         this.technologySelect.innerHTML = codes
-            .map((code) => `<option value="${code}">${code} — ${escapeHtml(this.config.technologies[code].name)}</option>`)
+            .map((code) => `<option value="${code}">${code} (${escapeHtml(this.config.technologies[code].name)})</option>`)
             .join('');
 
         this.populateMaterials();
@@ -2933,12 +2933,12 @@ export default class ModelViewer {
         const resolution = this.resolutionOf(item);
         const result = item.estimate;
 
-        this.setEstimate('technology', `${technology.code} — ${technology.name}`);
+        this.setEstimate('technology', `${technology.code} (${technology.name})`);
         this.setEstimate('material', item.settings.material);
         this.setEstimate('resolution', resolution
             ? `${formatNumber(resolution.layerHeight, 2)} mm (${resolution.name})`
-            : '—');
-        this.setEstimate('quality', resolution?.quality ?? '—');
+            : '-');
+        this.setEstimate('quality', resolution?.quality ?? '-');
         this.renderResolutionNotice();
         this.setEstimate('volume', `${formatNumber(result.totalMaterialVolumeCm3, 2)} cm³`);
         this.setEstimate('weight', `${formatNumber(result.weightG, 1)} gram`);

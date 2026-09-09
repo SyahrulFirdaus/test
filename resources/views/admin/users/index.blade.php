@@ -10,9 +10,11 @@
         </div>
     </div>
 
-    <div class="mt-8 grid gap-4 sm:grid-cols-3">
+    <div class="mt-8 grid gap-4 sm:grid-cols-3 xl:grid-cols-5">
         @foreach ([
             ['label' => 'Total User', 'value' => $summary['total']],
+            ['label' => 'Personal', 'value' => $summary['personal']],
+            ['label' => 'Business', 'value' => $summary['business']],
             ['label' => 'Pernah Membuat Penawaran', 'value' => $summary['with_quotations']],
             ['label' => 'Daftar Bulan Ini', 'value' => $summary['new_this_month']],
         ] as $card)
@@ -28,6 +30,15 @@
             <label for="q" class="field-label">Cari</label>
             <input type="search" id="q" name="q" value="{{ $filters['q'] }}" placeholder="Nama, email, telepon, atau kota" class="field-input">
         </div>
+        <div class="min-w-[180px]">
+            <label for="type" class="field-label">Tipe Customer</label>
+            <select id="type" name="type" class="field-input">
+                <option value="">Semua tipe</option>
+                @foreach ($customerTypes as $key => $label)
+                    <option value="{{ $key }}" @selected($filters['type'] === $key)>{{ $label }}</option>
+                @endforeach
+            </select>
+        </div>
         <div class="flex items-end">
             <button type="submit" class="btn-primary px-6 py-3">Cari</button>
         </div>
@@ -39,6 +50,7 @@
                 <thead>
                     <tr class="border-b border-ink-100 bg-ink-50/80 text-[0.65rem] uppercase tracking-[0.14em] text-ink-500">
                         <th scope="col" class="px-5 py-4 font-bold">Nama</th>
+                        <th scope="col" class="px-5 py-4 font-bold">Tipe Customer</th>
                         <th scope="col" class="px-5 py-4 font-bold">Kontak</th>
                         <th scope="col" class="px-5 py-4 font-bold">Kota</th>
                         <th scope="col" class="px-5 py-4 font-bold">Penawaran</th>
@@ -58,11 +70,18 @@
                                 </div>
                             </td>
                             <td class="px-5 py-4">
+                                <span @class([
+                                    'inline-flex rounded-full px-2.5 py-1 text-[0.65rem] font-bold uppercase tracking-[0.1em]',
+                                    'bg-brand-50 text-brand-700' => $user->isBusiness(),
+                                    'bg-ink-100 text-ink-600' => ! $user->isBusiness(),
+                                ])>{{ $user->customer_type_label }}</span>
+                            </td>
+                            <td class="px-5 py-4">
                                 <a href="mailto:{{ $user->email }}" class="block text-ink-700 transition-colors hover:text-brand-600">{{ $user->email }}</a>
-                                <span class="text-xs text-ink-400">{{ $user->phone ?: '—' }}</span>
+                                <span class="text-xs text-ink-400">{{ $user->phone ?: '-' }}</span>
                             </td>
                             <td class="px-5 py-4 text-ink-600">
-                                {{ $user->city ?: '—' }}
+                                {{ $user->city ?: '-' }}
                                 <span class="block text-xs text-ink-400">{{ $user->postal_code ?: '' }}</span>
                             </td>
                             <td class="px-5 py-4 font-semibold text-ink-800">{{ $user->quotation_requests_count }}</td>
@@ -78,7 +97,7 @@
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="6" class="px-5 py-16 text-center">
+                            <td colspan="7" class="px-5 py-16 text-center">
                                 <p class="font-semibold text-ink-700">Belum ada user terdaftar.</p>
                                 <p class="mt-1.5 text-sm text-ink-400">Akun akan muncul di sini setelah pengunjung mendaftar dari halaman Register.</p>
                             </td>

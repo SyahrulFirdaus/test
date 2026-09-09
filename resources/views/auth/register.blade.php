@@ -1,71 +1,51 @@
+{{--
+    Langkah pertama pendaftaran: memilih tipe akun.
+
+    Istilah yang dilihat pelanggan hanya "Personal" dan "Business" — penyebutan
+    B2C maupun B2B sengaja tidak pernah muncul. Nilai yang tersimpan di basis
+    data tetap `personal` dan `business`.
+
+    Kedua kartu adalah label untuk radio yang disembunyikan, jadi pemilihannya
+    berjalan tanpa JavaScript sama sekali.
+--}}
 @extends('layouts.auth')
 
 @section('title', 'Daftar')
+@section('panelWidth', 'max-w-2xl')
 @section('heading', 'Buat akun baru')
-@section('subheading', 'Data pengiriman di bawah ini akan mengisi otomatis setiap penawaran yang Anda buat.')
+@section('subheading', 'Pilih tipe akun Anda terlebih dahulu agar kami dapat menyesuaikan pertanyaan dengan kebutuhan Anda.')
 
 @section('form')
-    <form method="POST" action="{{ route('register.store') }}" class="mt-7 grid gap-5 sm:grid-cols-2">
+    <form method="POST" action="{{ route('register.type') }}" class="mt-7">
         @csrf
 
-        <div class="sm:col-span-2">
-            <label for="name" class="field-label">Nama Lengkap <span class="text-brand-600">*</span></label>
-            <input type="text" id="name" name="name" value="{{ old('name') }}" required autofocus
-                   autocomplete="name" maxlength="120" class="field-input" placeholder="Nama sesuai identitas">
-            @error('name') <p class="field-error">{{ $message }}</p> @enderror
-        </div>
+        <fieldset>
+            <legend class="field-label">Pilih tipe akun Anda <span class="text-brand-600">*</span></legend>
 
-        <div>
-            <label for="phone" class="field-label">Nomor Telepon <span class="text-brand-600">*</span></label>
-            <input type="tel" id="phone" name="phone" value="{{ old('phone') }}" required
-                   autocomplete="tel" maxlength="32" class="field-input" placeholder="0812 3456 7890">
-            @error('phone') <p class="field-error">{{ $message }}</p> @enderror
-        </div>
+            <div class="mt-4 grid gap-4 sm:grid-cols-2">
+                @foreach ($types as $key => $type)
+                    <div>
+                        <input type="radio" id="type-{{ $key }}" name="customer_type" value="{{ $key }}"
+                               class="peer sr-only"
+                               @checked(old('customer_type', $selected) === $key)>
 
-        <div>
-            <label for="city" class="field-label">Kota Asal <span class="text-brand-600">*</span></label>
-            <input type="text" id="city" name="city" value="{{ old('city') }}" required
-                   autocomplete="address-level2" maxlength="120" class="field-input" placeholder="Bandung">
-            @error('city') <p class="field-error">{{ $message }}</p> @enderror
-        </div>
+                        <label for="type-{{ $key }}" class="type-card">
+                            <span class="inline-flex h-12 w-12 items-center justify-center rounded-xl bg-brand-600 text-white">
+                                <x-dynamic-component :component="'icons.'.$type['icon']" class="h-6 w-6" />
+                            </span>
 
-        <div>
-            <label for="postal_code" class="field-label">Kode Pos <span class="text-brand-600">*</span></label>
-            <input type="text" id="postal_code" name="postal_code" value="{{ old('postal_code') }}" required
-                   inputmode="numeric" autocomplete="postal-code" maxlength="12" class="field-input" placeholder="40123">
-            @error('postal_code') <p class="field-error">{{ $message }}</p> @enderror
-        </div>
+                            <span class="mt-4 font-display text-lg font-bold text-ink-900">{{ $type['label'] }}</span>
+                            <span class="mt-1 text-xs font-semibold uppercase tracking-[0.12em] text-brand-600">{{ $type['tagline'] }}</span>
+                            <span class="mt-3 text-sm leading-relaxed text-ink-500">{{ $type['description'] }}</span>
+                        </label>
+                    </div>
+                @endforeach
+            </div>
 
-        <div>
-            <label for="email" class="field-label">Email <span class="text-brand-600">*</span></label>
-            <input type="email" id="email" name="email" value="{{ old('email') }}" required
-                   autocomplete="email" maxlength="160" class="field-input" placeholder="nama@email.com">
-            @error('email') <p class="field-error">{{ $message }}</p> @enderror
-        </div>
+            @error('customer_type') <p class="field-error">{{ $message }}</p> @enderror
+        </fieldset>
 
-        <div class="sm:col-span-2">
-            <label for="address" class="field-label">Alamat Lengkap <span class="text-brand-600">*</span></label>
-            <textarea id="address" name="address" rows="3" required autocomplete="street-address" maxlength="500"
-                      class="field-input" placeholder="Nama jalan, nomor, RT/RW, kelurahan, kecamatan">{{ old('address') }}</textarea>
-            @error('address') <p class="field-error">{{ $message }}</p> @enderror
-        </div>
-
-        <div>
-            <label for="password" class="field-label">Password <span class="text-brand-600">*</span></label>
-            <input type="password" id="password" name="password" required autocomplete="new-password"
-                   class="field-input" placeholder="Minimal 8 karakter">
-            @error('password') <p class="field-error">{{ $message }}</p> @enderror
-        </div>
-
-        <div>
-            <label for="password_confirmation" class="field-label">Konfirmasi Password <span class="text-brand-600">*</span></label>
-            <input type="password" id="password_confirmation" name="password_confirmation" required
-                   autocomplete="new-password" class="field-input" placeholder="Ulangi kata sandi">
-        </div>
-
-        <div class="sm:col-span-2">
-            <button type="submit" class="btn-primary w-full">Daftar</button>
-        </div>
+        <button type="submit" class="btn-primary mt-7 w-full">Lanjut &rarr;</button>
     </form>
 
     <p class="mt-7 border-t border-ink-100 pt-6 text-center text-sm text-ink-500">

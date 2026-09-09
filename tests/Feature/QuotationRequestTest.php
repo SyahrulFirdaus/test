@@ -26,7 +26,14 @@ class QuotationRequestTest extends TestCase
         // Permintaan penawaran kini hanya dapat dikirim dari akun pelanggan
         // yang sudah masuk; halaman 3D Models beserta simulasinya tetap
         // terbuka untuk siapa saja.
-        $this->customer = User::factory()->create();
+        //
+        // Nama, email, dan nomor WhatsApp penawaran dibaca dari akun ini —
+        // bukan dari kiriman formulir — sejak ketiganya dikunci pada modal.
+        $this->customer = User::factory()->create([
+            'name' => 'Rangga Prasetya',
+            'email' => 'rangga@contoh.test',
+            'phone' => '0812 3456 7890',
+        ]);
         $this->actingAs($this->customer);
     }
 
@@ -396,9 +403,40 @@ class QuotationRequestTest extends TestCase
 
     public function test_field_wajib_divalidasi(): void
     {
+        // Nama, email, dan nomor WhatsApp tidak lagi divalidasi di sini karena
+        // bukan isian pelanggan — nilainya dibaca dari akun yang sedang masuk.
         $this->postJson(route('quotations.store'), [])
             ->assertStatus(422)
-            ->assertJsonValidationErrors(['name', 'email', 'whatsapp', 'items']);
+            ->assertJsonValidationErrors('items')
+            ->assertJsonMissingValidationErrors(['name', 'email', 'whatsapp']);
+    }
+
+    public function test_identitas_pemohon_diambil_dari_akun_bukan_dari_kiriman(): void
+    {
+        // Kiriman yang mencoba memakai identitas lain harus diabaikan.
+        $this->postJson(route('quotations.store'), $this->payload([
+            'name' => 'Orang Lain',
+            'email' => 'penyusup@contoh.test',
+            'whatsapp' => '080000000000',
+        ]))->assertCreated();
+
+        $quotation = QuotationRequest::sole();
+
+        $this->assertSame($this->customer->name, $quotation->name);
+        $this->assertSame($this->customer->email, $quotation->email);
+        $this->assertSame($this->customer->phone, $quotation->whatsapp);
+    }
+
+    public function test_profil_yang_diperbarui_dipakai_penawaran_berikutnya(): void
+    {
+        $this->customer->update(['name' => 'Nama Baru', 'phone' => '081200001111']);
+
+        $this->postJson(route('quotations.store'), $this->payload())->assertCreated();
+
+        $quotation = QuotationRequest::sole();
+
+        $this->assertSame('Nama Baru', $quotation->name);
+        $this->assertSame('081200001111', $quotation->whatsapp);
     }
 
     /* ------------------------------------------------ beberapa model ------ */

@@ -25,9 +25,19 @@ class DashboardController extends Controller
     /** Banyaknya bulan yang ditampilkan pada grafik. */
     private const CHART_MONTHS = 12;
 
+    /** Banyaknya penawaran terbaru yang ditampilkan di bawah dashboard. */
+    private const RECENT_LIMIT = 8;
+
     public function index(Request $request): View
     {
         $completed = QuotationRequest::query()->where('status', QuotationStatus::COMPLETED);
+
+        // Filter status hanya menyaring daftar penawaran di bawah. Kartu
+        // statistik, grafik, dan sebaran status tetap memotret keseluruhan —
+        // angka seperti Total Pendapatan kehilangan artinya bila ikut disaring
+        // (pendapatan hanya berasal dari penawaran yang selesai).
+        $status = $request->query('status');
+        $status = is_string($status) && QuotationStatus::exists($status) ? $status : null;
 
         return view('admin.dashboard', [
             'summary' => [
@@ -50,11 +60,19 @@ class DashboardController extends Controller
             'status_breakdown' => $this->statusBreakdown(),
             'chart' => $this->monthlyChart(),
 
+            'statuses' => QuotationStatus::options(),
+            'filters' => ['status' => $status],
+
             'recent' => QuotationRequest::query()
                 ->withCount('items')
+                ->status($status)
                 ->latestFirst()
-                ->limit(8)
+                ->limit(self::RECENT_LIMIT)
                 ->get(),
+
+            // Banyaknya penawaran yang cocok dengan filter, supaya admin tahu
+            // daftar di bawah masih terpotong atau memang sudah seluruhnya.
+            'recent_total' => QuotationRequest::query()->status($status)->count(),
         ]);
     }
 

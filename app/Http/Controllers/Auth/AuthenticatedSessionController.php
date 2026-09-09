@@ -3,6 +3,10 @@
 namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
+use App\Models\User;
+use App\Services\ActivityLogger;
+use App\Support\ActivityAction;
+use App\Support\ActorType;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -19,6 +23,8 @@ use Illuminate\Validation\ValidationException;
  */
 class AuthenticatedSessionController extends Controller
 {
+    public function __construct(private readonly ActivityLogger $activity) {}
+
     public function create(): View
     {
         return view('auth.login');
@@ -47,6 +53,25 @@ class AuthenticatedSessionController extends Controller
         if (! Auth::attempt($credentials, $request->boolean('remember'))) {
             RateLimiter::hit($throttleKey, 60);
 
+            /*
+             * Percobaan yang ditolak justru yang paling perlu terbaca pada
+             * jejak audit. Yang dicatat hanya emailnya — kata sandi tidak
+             * pernah ikut, benar maupun salah.
+             *
+             * Tipe akunnya dicari dari email yang diketik: percobaan terhadap
+             * akun yang benar-benar ada tampil dengan tipe sebenarnya,
+             * sehingga admin dapat melihat akun mana yang sedang disasar.
+             */
+            $target = User::where('email', $credentials['email'])->first();
+
+            $this->activity->logFailure(
+                action: ActivityAction::LOGIN_FAILED,
+                description: 'Percobaan masuk ditolak untuk email '.$credentials['email'].'.',
+                new: ['email' => $credentials['email']],
+                userName: $target?->name ?? $credentials['email'],
+                userType: ActorType::forUser($target),
+            );
+
             throw ValidationException::withMessages([
                 'email' => 'Email atau kata sandi tidak cocok.',
             ]);
@@ -55,11 +80,25 @@ class AuthenticatedSessionController extends Controller
         RateLimiter::clear($throttleKey);
         $request->session()->regenerate();
 
+        $this->activity->log(
+            action: ActivityAction::LOGIN,
+            description: 'Berhasil masuk ke akun.',
+            actor: $request->user(),
+        );
+
         return redirect()->intended($this->homeFor($request));
     }
 
     public function destroy(Request $request): RedirectResponse
     {
+        // Pelakunya dicatat sebelum sesi ditutup; setelah logout tidak ada
+        // lagi akun yang dapat dikenali.
+        $this->activity->log(
+            action: ActivityAction::LOGOUT,
+            description: 'Keluar dari akun.',
+            actor: $request->user(),
+        );
+
         Auth::logout();
         $request->session()->invalidate();
         $request->session()->regenerateToken();

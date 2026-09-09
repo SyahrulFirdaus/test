@@ -4,7 +4,7 @@
     $metaTitle = trim(html_entity_decode($__env->yieldContent('title'), ENT_QUOTES));
     $pageTitle = $metaTitle !== ''
         ? $metaTitle.' | '.$company->name
-        : $company->name.' — '.$company->tagline;
+        : $company->name.' | '.$company->tagline;
 
     $metaDescription = trim(html_entity_decode($__env->yieldContent('description'), ENT_QUOTES));
     $metaDescription = $metaDescription !== ''

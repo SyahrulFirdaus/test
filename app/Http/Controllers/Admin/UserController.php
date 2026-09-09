@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\QuotationRequest;
 use App\Models\User;
+use App\Support\CustomerType;
 use App\Support\QuotationStatus;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\Request;
@@ -20,9 +21,12 @@ class UserController extends Controller
 {
     public function index(Request $request): View
     {
+        $type = $request->query('type');
+
         $users = User::query()
             ->customers()
             ->search($request->query('q'))
+            ->ofCustomerType($type)
             ->withCount('quotationRequests')
             ->orderByDesc('created_at')
             ->paginate(15)
@@ -30,11 +34,17 @@ class UserController extends Controller
 
         return view('admin.users.index', [
             'users' => $users,
-            'filters' => ['q' => $request->query('q')],
+            'filters' => [
+                'q' => $request->query('q'),
+                'type' => CustomerType::exists($type) ? $type : null,
+            ],
+            'customerTypes' => CustomerType::options(),
             'summary' => [
                 'total' => User::customers()->count(),
                 'with_quotations' => User::customers()->has('quotationRequests')->count(),
                 'new_this_month' => User::customers()->where('created_at', '>=', now()->startOfMonth())->count(),
+                'personal' => User::customers()->where('customer_type', CustomerType::PERSONAL)->count(),
+                'business' => User::customers()->where('customer_type', CustomerType::BUSINESS)->count(),
             ],
         ]);
     }
@@ -50,6 +60,9 @@ class UserController extends Controller
         return view('admin.users.show', [
             'user' => $user,
             'quotations' => $quotations,
+            // Jawaban yang diisi pemiliknya saat mendaftar, sudah dirangkum
+            // satu baris per pertanyaan dan dikelompokkan per langkah.
+            'registration' => $user->registrationSummary()->groupBy('step_label'),
             'summary' => [
                 'total' => $user->quotationRequests()->count(),
                 'completed' => $user->quotationRequests()->where('status', QuotationStatus::COMPLETED)->count(),

@@ -37,9 +37,8 @@ trait ValidatesProfileFields
             'email.required' => 'Email wajib diisi.',
             'email.email' => 'Format email belum benar.',
             'email.unique' => 'Email tersebut sudah terdaftar. Silakan masuk atau gunakan email lain.',
-            'password.required' => 'Kata sandi wajib diisi.',
-            'password.confirmed' => 'Konfirmasi kata sandi belum sama.',
-            'password.min' => 'Kata sandi minimal 8 karakter.',
+            // Pesan kata sandi datang dari App\Support\PasswordPolicy agar
+            // ketentuannya tidak tertulis di dua tempat.
         ];
     }
 }

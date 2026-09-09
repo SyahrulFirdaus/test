@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Support\Finishing;
 use App\Support\InfillPattern;
+use App\Support\MaterialCatalog;
 use App\Support\Printer;
 use App\Support\PrintResolution;
 use InvalidArgumentException;
@@ -71,6 +72,12 @@ class PrintEstimator
         foreach ($this->technologies() as $code => $technology) {
             $payload[$code] = [
                 'name' => $technology['name'],
+                // Label pilihan teknologi pada Edit Specification, mis.
+                // "FDM (Plastic)". Sumbernya sama dengan halaman panduan.
+                'family' => $technology['family'] ?? null,
+                'label' => isset($technology['family'])
+                    ? $code.' ('.$technology['family'].')'
+                    : $code,
                 'description' => $technology['description'],
                 'buildVolume' => $technology['build_volume'],
                 'shellRatio' => $technology['shell_ratio'],
@@ -94,6 +101,18 @@ class PrintEstimator
                         // Warna yang tersedia untuk material ini; kosong berarti
                         // seluruh warna boleh dipakai.
                         'colors' => array_values((array) ($material['colors'] ?? [])),
+
+                        // Keterangan dan batas ukuran yang ditampilkan panduan
+                        // maupun panel kiri Edit Specification. Keduanya membaca
+                        // katalog yang sama, jadi tidak ada data kembar.
+                        'slug' => MaterialCatalog::slug($code, $name),
+                        'description' => $material['description'] ?? null,
+                        'characteristics' => (object) ($material['characteristics'] ?? []),
+                        'pros' => array_values((array) ($material['pros'] ?? [])),
+                        'cons' => array_values((array) ($material['cons'] ?? [])),
+                        'maxSize' => $material['max_size'] ?? null,
+                        'minSize' => $material['min_size'] ?? null,
+                        'minSizeSlender' => $material['min_size_slender'] ?? null,
                     ])
                     ->values()
                     ->all(),
@@ -407,7 +426,7 @@ class PrintEstimator
         return min($max, max($min, (float) $value));
     }
 
-    /** Biaya dibulatkan ke kelipatan yang diatur di config agar enak dibaca. */
+    /** Biaya dibulatkan ke atas pada kelipatan yang diatur di config agar enak dibaca. */
     private function roundCost(float $value): float
     {
         $step = (float) config('printing.cost.rounding', 500);

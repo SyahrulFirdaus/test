@@ -1,6 +1,13 @@
 @php
-    // Halaman 3D Models tidak lagi menjadi butir menu tersendiri — tombol
+    // Halaman 3D Models tidak lagi menjadi butir menu tersendiri, tombol
     // "Order Now" di kanan navbar sudah menuju ke sana.
+
+    // Navbar tampil transparan di atas hero gelap dan baru memadat setelah
+    // digulir. Halaman yang tidak memakai hero meminta tampilan solid sejak
+    // awal lewat @section('navbar-style', 'solid'), supaya menunya tetap
+    // terbaca di atas latar terang.
+    $navbarSolid = trim($__env->yieldContent('navbar-style')) === 'solid';
+
     $menu = [
         ['label' => 'Home', 'route' => 'home'],
         ['label' => 'Services', 'route' => 'services'],
@@ -51,7 +58,9 @@
     ])->filter(fn (array $contact) => filled($contact['value']));
 @endphp
 
-<header class="site-header" data-navbar>
+<header class="site-header {{ $navbarSolid ? 'is-scrolled' : '' }}"
+        data-navbar
+        @if ($navbarSolid) data-navbar-solid @endif>
 
     {{-- ================= TOP BAR =================
          Slogan perusahaan, satu tingkat lebih kecil daripada menu navbar.
@@ -82,7 +91,7 @@
 
             {{-- Kiri: logo + menu --}}
             <div class="flex min-w-0 items-center gap-6 xl:gap-8">
-                <a href="{{ route('home') }}" class="flex shrink-0 items-center gap-3" aria-label="{{ $company->name }} — kembali ke beranda">
+                <a href="{{ route('home') }}" class="flex shrink-0 items-center gap-3" aria-label="{{ $company->name }}, kembali ke beranda">
                     <x-logo-mark class="h-11 w-11 shrink-0" />
                     <span class="brand-name font-display text-xl font-bold tracking-tight">{{ $company->name }}</span>
                 </a>
@@ -99,12 +108,11 @@
                     {{-- Support Us: dropdown berisi kontak perusahaan --}}
                     <div class="relative" data-support-menu>
                         <button type="button"
-                                class="nav-link inline-flex items-center gap-1.5"
+                                class="nav-link"
                                 data-support-toggle
                                 aria-expanded="false"
                                 aria-haspopup="true">
                             Support Us
-                            <x-icons.arrow-down class="h-3.5 w-3.5 transition-transform duration-200" data-support-caret />
                         </button>
 
                         <div class="absolute left-0 top-full z-50 mt-2 hidden w-80 overflow-hidden rounded-2xl border border-ink-100 bg-white shadow-card-hover"
@@ -190,7 +198,6 @@
                 <details class="mt-1 rounded-xl">
                     <summary class="nav-link-mobile cursor-pointer list-none">
                         Support Us
-                        <x-icons.arrow-down class="h-4 w-4 opacity-50" />
                     </summary>
 
                     <ul class="mb-2 space-y-1 px-2 pb-1">

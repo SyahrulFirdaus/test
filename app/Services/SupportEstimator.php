@@ -41,7 +41,7 @@ class SupportEstimator
             return null;
         }
 
-        return 'Teknologi '.strtoupper($technology).' tidak memerlukan support — part tertopang serbuk di sekelilingnya sepanjang proses cetak.';
+        return 'Teknologi '.strtoupper($technology).' tidak memerlukan support karena part tertopang serbuk di sekelilingnya sepanjang proses cetak.';
     }
 
     /**

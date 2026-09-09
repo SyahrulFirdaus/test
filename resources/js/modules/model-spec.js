@@ -14,17 +14,79 @@ import { estimateSupport } from './support-estimator';
  * jadi angka pada daftar, viewer, dan penawaran tidak pernah berbeda.
  */
 
-/** Teknologi yang tersedia beserta labelnya. */
+/** Selisih yang masih dianggap sama saat membandingkan ukuran, dalam mm. */
+const SIZE_TOLERANCE_MM = 0.01;
+
+/** Teknologi yang tersedia beserta labelnya, mis. "FDM (Plastic)". */
 export function technologyOptions(config) {
     return Object.entries(config.technologies ?? {}).map(([code, technology]) => ({
         code,
-        label: `${code} — ${technology.name}`,
+        label: technology.label ?? code,
+        name: technology.name,
+        description: technology.description ?? null,
     }));
 }
 
 /** Material yang tersedia untuk satu teknologi. */
 export function materialOptions(config, technology) {
     return (config.technologies?.[technology]?.materials ?? []).map((material) => material.name);
+}
+
+/** Katalog lengkap satu teknologi: material beserta keterangan dan batas ukurannya. */
+export function materialCatalog(config, technology) {
+    return config.technologies?.[technology]?.materials ?? [];
+}
+
+/** Keterangan satu material dari katalog, atau null bila tidak dikenal. */
+export function materialInfo(config, technology, material) {
+    return materialCatalog(config, technology).find((item) => item.name === material) ?? null;
+}
+
+/** Tiga sisi diurutkan dari yang terpanjang, supaya perbandingan tidak bergantung orientasi. */
+function sidesOf(size) {
+    return [Number(size?.x ?? 0), Number(size?.y ?? 0), Number(size?.z ?? 0)].sort((a, b) => b - a);
+}
+
+/**
+ * Periksa ukuran model terhadap batas material yang dipilih.
+ *
+ * Perbandingan dilakukan sisi-terpanjang-lawan-sisi-terpanjang sehingga model
+ * yang sebenarnya muat setelah diputar tidak ikut ditolak. Batas minimum boleh
+ * dipenuhi lewat `minSize` maupun `minSizeSlender` — yang kedua mengakomodasi
+ * part memanjang seperti batang atau pin.
+ *
+ * @returns {null|{type: 'min'|'max', limit: {x: number, y: number, z: number}}}
+ */
+export function validateModelSize(dimensions, material) {
+    if (!dimensions || !material) {
+        return null;
+    }
+
+    const model = sidesOf(dimensions);
+
+    if (material.maxSize) {
+        const max = sidesOf(material.maxSize);
+
+        if (model.some((side, index) => side > max[index] + SIZE_TOLERANCE_MM)) {
+            return { type: 'max', limit: material.maxSize };
+        }
+    }
+
+    const minimums = [material.minSize, material.minSizeSlender].filter(Boolean);
+
+    if (minimums.length) {
+        const fits = minimums.some((minimum) => {
+            const min = sidesOf(minimum);
+
+            return model.every((side, index) => side + SIZE_TOLERANCE_MM >= min[index]);
+        });
+
+        if (!fits) {
+            return { type: 'min', limit: material.minSize ?? minimums[0] };
+        }
+    }
+
+    return null;
 }
 
 /**

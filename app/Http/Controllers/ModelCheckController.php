@@ -2,10 +2,14 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Address;
 use App\Services\PrintEstimator;
 use App\Support\Finishing;
 use App\Support\InfillPattern;
+use App\Support\LeadTime;
+use App\Support\MaterialCatalog;
 use App\Support\MaterialColor;
+use App\Support\ModelFormat;
 use App\Support\Printer;
 use App\Support\PrintResolution;
 use App\Support\UploadLimit;
@@ -48,7 +52,7 @@ class ModelCheckController extends Controller
         $user = auth()->user();
 
         return view('pages.model-check', [
-            'supportedFormats' => ['STL', 'OBJ'],
+            'supportedFormats' => ModelFormat::display(),
             'previewMaxFileSizeMb' => 60,
             'maxModels' => $maxModels,
 
@@ -62,9 +66,62 @@ class ModelCheckController extends Controller
                 'name' => $user->name,
                 'email' => $user->email,
                 'whatsapp' => $user->phone,
+
+                // Nama perusahaan dibaca dari profil perusahaan yang diisi saat
+                // pendaftaran Business, bukan diketik ulang tiap kali meminta
+                // penawaran. Kosong untuk akun Personal — kolomnya memang tidak
+                // ditampilkan bagi mereka.
+                'company' => $user->isBusiness()
+                    ? $user->businessProfile?->company_name
+                    : null,
             ] : null,
 
+            'quotationIsBusiness' => (bool) $user?->isCustomer() && $user->isBusiness(),
+
+            // Buku alamat pemilik akun, untuk memilih tujuan pengiriman tanpa
+            // mengetik ulang. Kosong bila belum ada alamat tersimpan — penawaran
+            // tetap dapat dikirim dan alamatnya ditanyakan admin saat review.
+            'quotationAddresses' => $user && $user->isCustomer()
+                ? $user->addresses()->with(Address::REGION_RELATIONS)->get()
+                : collect(),
+
             'printingConfig' => $this->browserConfig(),
+        ]);
+    }
+
+    /**
+     * Halaman "3D Printing Guide".
+     *
+     * Panduan menyiapkan model sebelum diunggah. Seluruh angkanya — batas
+     * ukuran, tebal dinding minimum, sudut overhang, dan area cetak tiap
+     * teknologi — dibaca dari config/printing.php yang sama dengan yang dipakai
+     * analisis di browser, jadi panduannya tidak pernah bertolak belakang
+     * dengan hasil pemeriksaan yang dilihat pengguna.
+     */
+    public function guide(): View
+    {
+        // Katalog yang sama dipakai modal Edit Specification, jadi daftar
+        // teknologi, material, warna, keterangan, dan batas ukurannya tidak
+        // pernah ditulis dua kali.
+        $technologies = MaterialCatalog::technologies();
+
+        return view('pages.printing-guide', [
+            'supportedFormats' => ModelFormat::display(),
+            'previewMaxFileSizeMb' => 60,
+            'maxFileSizeMb' => UploadLimit::maxMegabytes(),
+            'maxModels' => UploadLimit::maxFiles((int) config('printing.limits.max_models_per_quotation', 10)),
+
+            'technologies' => $technologies,
+            // Pilihan "Custom" dilewati: ukurannya diisi sendiri oleh pengguna,
+            // jadi tidak mewakili mesin yang benar-benar tersedia.
+            'printers' => collect(Printer::browserPayload())
+                ->reject(fn (array $printer) => $printer['custom'])
+                ->values()
+                ->all(),
+            'limits' => config('printing.limits'),
+            'overhang' => config('printing.analysis.overhang'),
+            'hollowWall' => config('printing.hollow.wall_thickness_mm'),
+            'supportAngleDeg' => config('printing.support.visual.overhang_angle_deg'),
         ]);
     }
 
@@ -89,7 +146,16 @@ class ModelCheckController extends Controller
             // dengan id model dititipkan lewat query string.
             'viewerUrl' => route('models.viewer'),
 
+            // Tombol "Learn More" pada Edit Specification menuju bagian
+            // material yang sedang dipilih di halaman panduan.
+            'guideUrl' => route('models.guide'),
+
             'technologies' => $this->estimator->browserPayload(),
+
+            // Jam mesin ditampilkan kepada pelanggan sebagai rentang hari kerja,
+            // memakai tingkatan yang sama dengan perhitungan di server.
+            'leadTime' => LeadTime::browserPayload(),
+
             'resolutions' => PrintResolution::browserPayload(),
             'defaultResolution' => PrintResolution::default(),
 

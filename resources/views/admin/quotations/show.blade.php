@@ -19,7 +19,7 @@
                     <div class="min-w-0 flex-1">
                         <h2 class="font-display text-base font-bold text-amber-900">Permintaan Pembatalan Menunggu Persetujuan</h2>
                         <p class="mt-1 text-sm text-amber-800">
-                            Diajukan {{ optional($quotation->cancellation_requested_at)->translatedFormat('d F Y, H:i') ?? '—' }} WIB
+                            Diajukan {{ optional($quotation->cancellation_requested_at)->translatedFormat('d F Y, H:i') ?? '-' }} WIB
                             @if ($quotation->status_before_cancellation)
                                 &middot; sebelumnya berstatus
                                 <span class="font-semibold">{{ \App\Support\QuotationStatus::label($quotation->status_before_cancellation) }}</span>
@@ -115,7 +115,7 @@
                         @foreach ([
                             'Email' => $quotation->email,
                             'WhatsApp' => $quotation->whatsapp,
-                            'Perusahaan' => $quotation->company ?: '—',
+                            'Perusahaan' => $quotation->company ?: '-',
                             'Total Jumlah Cetak' => $quotation->quantity.' unit dari '.$quotation->items->count().' model',
                         ] as $label => $value)
                             <div>
@@ -124,6 +124,33 @@
                             </div>
                         @endforeach
                     </dl>
+
+                    {{-- Alamat yang tercatat adalah salinan saat penawaran dibuat,
+                         jadi tetap utuh walaupun pelanggan mengubah atau menghapus
+                         alamatnya di kemudian hari. --}}
+                    <div class="mt-6 rounded-xl border border-ink-100 p-4">
+                        <p class="text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-ink-400">Alamat Pengiriman</p>
+
+                        @if ($shipping = $quotation->shipping_address)
+                            <p class="mt-2 text-sm font-semibold text-ink-800">
+                                {{ $shipping['recipient_name'] ?? '-' }}
+                                <span class="font-normal text-ink-400">&middot;</span>
+                                <span class="font-normal text-ink-600">{{ $shipping['recipient_phone'] ?? '-' }}</span>
+                                @if (! empty($shipping['label']))
+                                    <span class="ml-1 rounded-full bg-ink-100 px-2 py-0.5 text-[0.6rem] font-bold uppercase tracking-[0.1em] text-ink-500">{{ $shipping['label'] }}</span>
+                                @endif
+                            </p>
+                            <p class="mt-1 text-sm leading-relaxed text-ink-600">{{ $shipping['full'] ?? '-' }}</p>
+
+                            @if (! empty($shipping['note']))
+                                <p class="mt-1.5 text-xs text-ink-400">Catatan kurir: {{ $shipping['note'] }}</p>
+                            @endif
+                        @else
+                            <p class="mt-2 text-sm text-ink-500">
+                                Pelanggan belum memilih alamat pengiriman. Tanyakan saat menghubungi pelanggan.
+                            </p>
+                        @endif
+                    </div>
 
                     @if ($quotation->notes)
                         <div class="mt-6 rounded-xl bg-ink-50 p-4">
@@ -135,7 +162,7 @@
 
                 {{-- ============ DAFTAR MODEL DALAM SATU PENAWARAN ============ --}}
                 @php
-                    $fmt = fn ($value, $digits = 2) => is_numeric($value) ? number_format((float) $value, $digits, ',', '.') : '—';
+                    $fmt = fn ($value, $digits = 2) => is_numeric($value) ? number_format((float) $value, $digits, ',', '.') : '-';
                 @endphp
 
                 <section id="daftar-model" class="scroll-mt-24 rounded-2xl border border-ink-100 bg-white p-6 shadow-card sm:p-7">
@@ -263,7 +290,7 @@
                                     @if ($dimensions)
                                         {{ $fmt($dimensions['x']) }} × {{ $fmt($dimensions['y']) }} × {{ $fmt($dimensions['z']) }} mm
                                     @else
-                                        —
+                                        -
                                     @endif
                                 </dd>
                             </div>
@@ -292,7 +319,7 @@
                                 <div class="sm:col-span-2 lg:col-span-3">
                                     <dt class="text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-ink-400">Bounding Box</dt>
                                     <dd class="mt-1.5 font-mono text-xs text-ink-600">
-                                        min ({{ $fmt($box['min']['x'], 1) }}, {{ $fmt($box['min']['y'], 1) }}, {{ $fmt($box['min']['z'], 1) }}) —
+                                        min ({{ $fmt($box['min']['x'], 1) }}, {{ $fmt($box['min']['y'], 1) }}, {{ $fmt($box['min']['z'], 1) }}) sampai
                                         max ({{ $fmt($box['max']['x'], 1) }}, {{ $fmt($box['max']['y'], 1) }}, {{ $fmt($box['max']['z'], 1) }}) mm
                                     </dd>
                                 </div>
@@ -318,7 +345,7 @@
                                     'Berat Model' => $fmt($item->estimated_weight_g, 1).' gram',
                                     'Berat Support' => $fmt($item->support_weight_g, 1).' gram',
                                     'Total Berat / unit' => $fmt($item->total_weight_g, 1).' gram',
-                                    'Estimasi Waktu' => $item->estimated_duration ?? '—',
+                                    'Estimasi Waktu' => $item->estimated_duration ?? '-',
                                     'Estimasi Biaya Sistem' => 'Rp'.number_format((float) $item->estimated_cost, 0, ',', '.'),
                                 ] as $label => $value)
                                     <div>
@@ -390,7 +417,7 @@
                                         <li class="flex gap-3 rounded-xl border border-ink-100 bg-ink-50/60 p-4">
                                             <span class="mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full {{ $dot }}"></span>
                                             <div>
-                                                <p class="text-sm font-bold text-ink-900">{{ $check['label'] ?? '—' }}</p>
+                                                <p class="text-sm font-bold text-ink-900">{{ $check['label'] ?? '-' }}</p>
                                                 <p class="mt-1 text-xs leading-relaxed text-ink-500">{{ $check['message'] ?? '' }}</p>
                                             </div>
                                         </li>
@@ -455,7 +482,7 @@
                             'Berat Model' => number_format((float) $quotation->estimated_weight_g, 1, ',', '.').' gram',
                             'Berat Support' => number_format((float) $quotation->support_weight_g, 1, ',', '.').' gram',
                             'Total Berat' => number_format($quotation->items->sum(fn ($item) => $item->total_weight_g * $item->quantity), 1, ',', '.').' gram',
-                            'Estimasi Waktu' => $quotation->estimated_duration ?? '—',
+                            'Estimasi Waktu' => $quotation->estimated_duration ?? '-',
                         ] as $label => $value)
                             <div class="flex items-start justify-between gap-4 border-b border-ink-100 pb-4 last:border-0 last:pb-0">
                                 <dt class="text-xs font-semibold uppercase tracking-[0.12em] text-ink-400">{{ $label }}</dt>

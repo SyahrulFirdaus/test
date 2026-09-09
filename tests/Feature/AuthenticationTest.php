@@ -27,32 +27,50 @@ class AuthenticationTest extends TestCase
             'postal_code' => '40123',
             'address' => 'Jl. Merdeka No. 12, Sumur Bandung',
             'email' => 'andi@contoh.test',
-            'password' => 'rahasia123',
-            'password_confirmation' => 'rahasia123',
+            // Memenuhi App\Support\PasswordPolicy: huruf kapital, angka, simbol.
+            'password' => 'Rahasia123!',
+            'password_confirmation' => 'Rahasia123!',
         ], $overrides);
     }
 
     /* ------------------------------------------------------ pendaftaran --- */
 
-    public function test_pengunjung_dapat_mendaftar_dan_langsung_masuk(): void
+    /**
+     * Pendaftaran kini bertahap, jadi data akun dikirim ke langkah `account`.
+     * Alur lengkapnya sampai akun terbentuk diuji di RegistrationTest.
+     */
+    private function chooseType(string $type = 'personal'): void
     {
-        $this->post(route('register.store'), $this->registrationPayload())
-            ->assertRedirect(route('dashboard'));
+        $this->post(route('register.type'), ['customer_type' => $type])
+            ->assertRedirect(route('register.step', 'account'));
+    }
 
-        $user = User::sole();
+    public function test_pengunjung_harus_memilih_tipe_akun_lebih_dulu(): void
+    {
+        $this->get(route('register.step', 'account'))->assertRedirect(route('register'));
 
-        $this->assertSame('Andi Saputra', $user->name);
-        $this->assertSame('Bandung', $user->city);
-        $this->assertSame('40123', $user->postal_code);
-        $this->assertSame(User::ROLE_USER, $user->role);
-        $this->assertTrue(Hash::check('rahasia123', $user->password));
+        $this->post(route('register.type'), [])
+            ->assertSessionHasErrors('customer_type');
+    }
 
-        $this->assertAuthenticatedAs($user);
+    public function test_data_akun_yang_sah_membawa_ke_langkah_berikutnya(): void
+    {
+        $this->chooseType();
+
+        $this->post(route('register.step.store', 'account'), $this->registrationPayload())
+            ->assertSessionHasNoErrors()
+            ->assertRedirect();
+
+        // Akun belum dibuat: baru terbentuk setelah ringkasan disetujui.
+        $this->assertSame(0, User::count());
+        $this->assertGuest();
     }
 
     public function test_seluruh_data_pendaftaran_divalidasi(): void
     {
-        $this->post(route('register.store'), [])
+        $this->chooseType();
+
+        $this->post(route('register.step.store', 'account'), [])
             ->assertSessionHasErrors(['name', 'phone', 'city', 'postal_code', 'address', 'email', 'password']);
 
         $this->assertSame(0, User::count());
@@ -60,7 +78,9 @@ class AuthenticationTest extends TestCase
 
     public function test_kode_pos_dan_konfirmasi_password_diperiksa(): void
     {
-        $this->post(route('register.store'), $this->registrationPayload([
+        $this->chooseType();
+
+        $this->post(route('register.step.store', 'account'), $this->registrationPayload([
             'postal_code' => '40',
             'password_confirmation' => 'berbeda123',
         ]))->assertSessionHasErrors(['postal_code', 'password']);
@@ -72,10 +92,64 @@ class AuthenticationTest extends TestCase
     {
         User::factory()->create(['email' => 'andi@contoh.test']);
 
-        $this->post(route('register.store'), $this->registrationPayload())
+        $this->chooseType();
+
+        $this->post(route('register.step.store', 'account'), $this->registrationPayload())
             ->assertSessionHasErrors('email');
 
         $this->assertSame(1, User::count());
+    }
+
+    /**
+     * Kata sandi wajib memuat huruf kapital, angka, dan simbol.
+     *
+     * Ketentuannya tunggal untuk seluruh aplikasi (App\Support\PasswordPolicy),
+     * jadi yang diuji di sini adalah tiga bentuk kekurangan yang paling mungkin
+     * terjadi.
+     */
+    public function test_kata_sandi_lemah_ditolak_saat_mendaftar(): void
+    {
+        $this->chooseType();
+
+        foreach ([
+            'tanpa kapital' => 'rahasia123!',
+            'tanpa angka' => 'RahasiaKu!!',
+            'tanpa simbol' => 'Rahasia1234',
+            'terlalu pendek' => 'Ra1!',
+        ] as $payload) {
+            $this->post(route('register.step.store', 'account'), $this->registrationPayload([
+                'password' => $payload,
+                'password_confirmation' => $payload,
+            ]))->assertSessionHasErrors('password');
+        }
+
+        $this->assertSame(0, User::count());
+    }
+
+    public function test_kata_sandi_baru_lewat_reset_juga_harus_kuat(): void
+    {
+        $user = User::factory()->create(['email' => 'andi@contoh.test']);
+
+        $this->post(route('password.update'), [
+            'token' => Password::createToken($user),
+            'email' => 'andi@contoh.test',
+            'password' => 'rahasia123',
+            'password_confirmation' => 'rahasia123',
+        ])->assertSessionHasErrors('password');
+    }
+
+    public function test_kata_sandi_baru_lewat_dashboard_juga_harus_kuat(): void
+    {
+        $user = User::factory()->create(['password' => Hash::make('lama12345')]);
+
+        $this->actingAs($user)
+            ->put(route('dashboard.password.update'), [
+                'current_password' => 'lama12345',
+                'password' => 'rahasia123',
+                'password_confirmation' => 'rahasia123',
+            ])->assertSessionHasErrors('password');
+
+        $this->assertTrue(Hash::check('lama12345', $user->fresh()->password));
     }
 
     /* ------------------------------------------------------------ masuk --- */
@@ -212,11 +286,11 @@ class AuthenticationTest extends TestCase
         $this->post(route('password.update'), [
             'token' => $token,
             'email' => 'andi@contoh.test',
-            'password' => 'baru123456',
-            'password_confirmation' => 'baru123456',
+            'password' => 'Baru123456!',
+            'password_confirmation' => 'Baru123456!',
         ])->assertRedirect(route('login'));
 
-        $this->assertTrue(Hash::check('baru123456', $user->fresh()->password));
+        $this->assertTrue(Hash::check('Baru123456!', $user->fresh()->password));
     }
 
     public function test_token_reset_yang_tidak_sah_ditolak(): void
@@ -226,11 +300,11 @@ class AuthenticationTest extends TestCase
         $this->post(route('password.update'), [
             'token' => 'token-palsu',
             'email' => 'andi@contoh.test',
-            'password' => 'baru123456',
-            'password_confirmation' => 'baru123456',
+            'password' => 'Baru123456!',
+            'password_confirmation' => 'Baru123456!',
         ])->assertSessionHasErrors('email');
 
-        $this->assertFalse(Hash::check('baru123456', $user->fresh()->password));
+        $this->assertFalse(Hash::check('Baru123456!', $user->fresh()->password));
     }
 
     /* --------------------------------------------------- ganti password --- */
@@ -242,11 +316,11 @@ class AuthenticationTest extends TestCase
         $this->actingAs($user)
             ->put(route('dashboard.password.update'), [
                 'current_password' => 'lama12345',
-                'password' => 'baru123456',
-                'password_confirmation' => 'baru123456',
+                'password' => 'Baru123456!',
+                'password_confirmation' => 'Baru123456!',
             ])->assertSessionHas('status');
 
-        $this->assertTrue(Hash::check('baru123456', $user->fresh()->password));
+        $this->assertTrue(Hash::check('Baru123456!', $user->fresh()->password));
     }
 
     public function test_password_lama_yang_salah_ditolak(): void
@@ -256,8 +330,8 @@ class AuthenticationTest extends TestCase
         $this->actingAs($user)
             ->put(route('dashboard.password.update'), [
                 'current_password' => 'bukan-ini',
-                'password' => 'baru123456',
-                'password_confirmation' => 'baru123456',
+                'password' => 'Baru123456!',
+                'password_confirmation' => 'Baru123456!',
             ])->assertSessionHasErrors('current_password');
 
         $this->assertTrue(Hash::check('lama12345', $user->fresh()->password));
@@ -270,34 +344,40 @@ class AuthenticationTest extends TestCase
         $this->actingAs($admin)
             ->put(route('admin.password.update'), [
                 'current_password' => 'lama12345',
-                'password' => 'baru123456',
-                'password_confirmation' => 'baru123456',
+                'password' => 'Baru123456!',
+                'password_confirmation' => 'Baru123456!',
             ])->assertSessionHas('status');
 
-        $this->assertTrue(Hash::check('baru123456', $admin->fresh()->password));
+        $this->assertTrue(Hash::check('Baru123456!', $admin->fresh()->password));
     }
 
     /* ---------------------------------------------------------- profil --- */
 
+    /**
+     * Alamat pelanggan kini diurus di menu Alamat sendiri, jadi formulir profil
+     * hanya menyunting identitas dan kontaknya. Buku alamatnya diuji tersendiri
+     * di AddressBookTest.
+     */
     public function test_pelanggan_dapat_memperbarui_profilnya(): void
     {
-        $user = User::factory()->create();
+        $user = User::factory()->create(['city' => 'Bandung']);
 
         $this->actingAs($user)
             ->patch(route('dashboard.profile.update'), [
                 'name' => 'Andi Saputra',
                 'email' => 'andi.baru@contoh.test',
                 'phone' => '081298765432',
-                'city' => 'Cimahi',
-                'postal_code' => '40512',
-                'address' => 'Jl. Baru No. 5',
             ])->assertSessionHas('status');
 
         $user->refresh();
 
         $this->assertSame('Andi Saputra', $user->name);
         $this->assertSame('andi.baru@contoh.test', $user->email);
-        $this->assertSame('Cimahi', $user->city);
+        $this->assertSame('081298765432', $user->phone);
+
+        // Kolom alamat pada akun kini mencerminkan alamat utama di buku alamat,
+        // jadi formulir profil tidak boleh menyentuhnya.
+        $this->assertSame('Bandung', $user->city);
     }
 
     public function test_navbar_menampilkan_menu_sesuai_keadaan_masuk(): void

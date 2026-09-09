@@ -1,10 +1,12 @@
 /**
  * Perilaku dashboard admin & pelanggan.
  *
- * Tiga hal yang ditangani di sini:
+ * Yang ditangani di sini:
  *  1. sidebar yang dapat dibuka-tutup pada layar kecil;
  *  2. panel notifikasi di balik ikon lonceng;
- *  3. penarikan berkala notifikasi baru beserta popupnya.
+ *  3. penarikan berkala notifikasi baru beserta popupnya;
+ *  4. hitung mundur batas waktu pembayaran;
+ *  5. tombol salin (mis. nomor rekening).
  *
  * Notifikasi ditarik berkala (polling) alih-alih lewat WebSocket supaya
  * pemberitahuan terasa langsung tanpa menuntut server tambahan. Endpointnya
@@ -16,6 +18,8 @@ const POLL_INTERVAL_MS = 20000;
 
 initSidebar();
 initNotifications();
+initPaymentCountdown();
+initCopyButtons();
 
 /** Sidebar tersembunyi di layar kecil dan dibuka lewat tombol menu. */
 function initSidebar() {
@@ -170,6 +174,76 @@ function initNotifications() {
     };
 
     setInterval(poll, POLL_INTERVAL_MS);
+}
+
+/**
+ * Hitung mundur batas waktu pembayaran, mis. "23 Jam 45 Menit 10 Detik".
+ *
+ * Yang menentukan penawaran kedaluwarsa tetap server: begitu hitungannya
+ * habis, halaman dimuat ulang sekali agar status barunya datang dari sana,
+ * bukan diputuskan di browser.
+ */
+function initPaymentCountdown() {
+    const el = document.querySelector('[data-payment-countdown]');
+
+    if (!el) {
+        return;
+    }
+
+    const deadline = new Date(el.dataset.deadline ?? '').getTime();
+
+    if (!Number.isFinite(deadline)) {
+        return;
+    }
+
+    const expiredLabel = el.dataset.expiredLabel ?? 'Waktu pembayaran habis';
+    let reloaded = false;
+
+    const tick = () => {
+        const remaining = Math.floor((deadline - Date.now()) / 1000);
+
+        if (remaining <= 0) {
+            el.textContent = expiredLabel;
+            clearInterval(timer);
+
+            if (!reloaded) {
+                reloaded = true;
+                setTimeout(() => window.location.reload(), 1500);
+            }
+
+            return;
+        }
+
+        const hours = Math.floor(remaining / 3600);
+        const minutes = Math.floor((remaining % 3600) / 60);
+        const seconds = remaining % 60;
+
+        el.textContent = `${hours} Jam ${minutes} Menit ${seconds} Detik`;
+    };
+
+    const timer = setInterval(tick, 1000);
+    tick();
+}
+
+/** Tombol salin sederhana; labelnya kembali semula setelah dua detik. */
+function initCopyButtons() {
+    document.querySelectorAll('[data-copy]').forEach((button) => {
+        button.addEventListener('click', async () => {
+            const original = button.textContent;
+
+            try {
+                await navigator.clipboard.writeText(button.dataset.copy ?? '');
+                button.textContent = button.dataset.copyDone ?? 'Tersalin!';
+            } catch {
+                // Clipboard ditolak browser — nomornya tetap terbaca di halaman.
+                button.textContent = 'Salin manual';
+            }
+
+            setTimeout(() => {
+                button.textContent = original;
+            }, 2000);
+        });
+    });
 }
 
 function escapeHtml(value) {
