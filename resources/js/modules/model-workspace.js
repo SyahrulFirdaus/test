@@ -357,6 +357,14 @@ export default class ModelWorkspace {
 
     bindList() {
         this.listHost?.addEventListener('click', (event) => {
+            const duplicate = event.target.closest('[data-duplicate-model]');
+
+            if (duplicate) {
+                this.duplicateModel(duplicate.dataset.duplicateModel);
+
+                return;
+            }
+
             const remove = event.target.closest('[data-remove-model]');
 
             if (remove) {
@@ -455,6 +463,60 @@ export default class ModelWorkspace {
         } catch (error) {
             console.error(error);
         }
+    }
+
+    /**
+     * Gandakan satu object beserta seluruh spesifikasinya.
+     *
+     * Berkas 3D-nya TIDAK dibaca ulang: hasil analisis, thumbnail, dan Blob-nya
+     * disalin apa adanya, jadi menggandakan model 9 MB pun seketika dan tidak
+     * menjalankan parsing yang berat itu untuk kedua kalinya.
+     *
+     * Salinannya berdiri sendiri — id barunya sendiri, dan isinya disalin dalam
+     * sekali `structuredClone` supaya mengubah spesifikasi salah satunya tidak
+     * ikut menggeser yang lain. Namanya sengaja dibiarkan sama: berkasnya
+     * memang berkas yang sama, hanya baris penawarannya yang bertambah.
+     *
+     * Posisi setengah menempatkannya tepat di bawah aslinya; `reorder()`
+     * merapatkan kembali nomornya menjadi bilangan bulat berurutan.
+     */
+    async duplicateModel(id) {
+        const record = this.records.find((item) => item.id === id);
+
+        if (!record) {
+            return;
+        }
+
+        if (this.records.length >= this.maxModels) {
+            this.showFileProblems([
+                {
+                    name: record.name,
+                    message: `Batas ${this.maxModels} model per permintaan sudah tercapai. Hapus salah satu model lebih dulu.`,
+                },
+            ]);
+
+            return;
+        }
+
+        const copy = {
+            ...structuredClone(record),
+            id: createModelId(),
+            position: record.position + 0.5,
+            createdAt: Date.now(),
+        };
+
+        try {
+            await modelStore.put(copy);
+            this.records = await modelStore.reorder();
+        } catch (error) {
+            console.error(error);
+
+            return;
+        }
+
+        this.renderList();
+        this.renderSummary();
+        this.channel.post({ type: 'refreshed' });
     }
 
     async removeModel(id) {
@@ -1165,6 +1227,17 @@ export default class ModelWorkspace {
                 <div class="flex items-center gap-2 border-t border-ink-100 px-3 py-2">
                     <button type="button" class="btn-outline flex-1 px-3 py-1.5 text-[0.7rem]" data-edit-spec="${escapeAttribute(record.id)}">
                         Edit Specification
+                    </button>
+
+                    <button type="button"
+                            class="shrink-0 rounded-lg p-1.5 text-ink-300 transition-colors hover:bg-brand-50 hover:text-brand-600"
+                            title="Duplikat model ini"
+                            aria-label="Duplikat ${escapeAttribute(record.name)}"
+                            data-duplicate-model="${escapeAttribute(record.id)}">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" class="h-4 w-4" aria-hidden="true">
+                            <rect x="9" y="9" width="12" height="12" rx="2" />
+                            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+                        </svg>
                     </button>
 
                     <button type="button"

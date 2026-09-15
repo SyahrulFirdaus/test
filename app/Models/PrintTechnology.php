@@ -72,10 +72,16 @@ class PrintTechnology extends Model
         ];
     }
 
-    /** Material yang dijual untuk teknologi ini, urut menurut namanya. */
+    /**
+     * Material yang dijual untuk teknologi ini, urut menurut namanya.
+     *
+     * Mesinnya ikut dimuat karena batas ukuran cetak tiap material diturunkan
+     * dari volume cetak mesin itu — tanpa ini, menyusun katalog berarti satu
+     * kueri tambahan per material.
+     */
     public function materials(): HasMany
     {
-        return $this->hasMany(PrintMaterial::class)->orderBy('material');
+        return $this->hasMany(PrintMaterial::class)->with('machine')->orderBy('material');
     }
 
     /** Rumus & parameter simulasi Harga Jual miliknya pada tab Harga. */
@@ -223,7 +229,19 @@ class PrintTechnology extends Model
             'machine_rate_per_hour' => $this->machine_rate_per_hour,
             'allows_hollow' => $this->allows_hollow,
 
+            // Calculator mengenali material lewat NAMANYA — itulah yang
+            // tersimpan pada `quotation_items.material`. Sejak material dapat
+            // menunjuk mesin, satu nama boleh muncul di beberapa mesin, jadi
+            // yang berlaku di sini dipilih tegas: baris TERTUA. Dengan begitu
+            // menambahkan "PLA+" untuk mesin kedua tidak menggeser harga
+            // penawaran yang sudah berjalan.
             'materials' => $this->materials
+                // Urutan tampilnya tetap menurut nama material seperti semula;
+                // `sortBy('id')` hanya dipakai sesaat untuk menentukan baris
+                // mana yang menang ketika satu nama dipakai beberapa mesin.
+                ->sortBy('id')
+                ->unique('material')
+                ->sortBy('material')
                 ->keyBy('material')
                 ->map(fn (PrintMaterial $material) => $material->toEstimatorArray())
                 ->all(),

@@ -4,6 +4,7 @@ namespace App\Http\Controllers\SuperAdmin;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\StorePrintMaterialRequest;
+use App\Models\MachineCost;
 use App\Models\PrintMaterial;
 use App\Models\PrintTechnology;
 use App\Services\ActivityLogger;
@@ -33,10 +34,7 @@ class PriceListMaterialController extends Controller
 
     public function create(PrintTechnology $technology): View
     {
-        return view('superadmin.price-list.material.form', [
-            'technology' => $technology,
-            'material' => new PrintMaterial,
-        ]);
+        return $this->form($technology, new PrintMaterial);
     }
 
     public function store(StorePrintMaterialRequest $request, PrintTechnology $technology): RedirectResponse
@@ -57,9 +55,22 @@ class PriceListMaterialController extends Controller
 
     public function edit(PrintTechnology $technology, PrintMaterial $material): View
     {
+        return $this->form($technology, $this->guard($technology, $material));
+    }
+
+    /**
+     * Formulir tambah/ubah material.
+     *
+     * Pilihan mesinnya dibaca langsung dari Machine Cost — tidak ada daftar
+     * mesin kedua di mana pun, jadi mesin yang baru didaftarkan di sana
+     * langsung muncul di sini tanpa perubahan kode.
+     */
+    private function form(PrintTechnology $technology, PrintMaterial $material): View
+    {
         return view('superadmin.price-list.material.form', [
             'technology' => $technology,
-            'material' => $this->guard($technology, $material),
+            'material' => $material,
+            'machines' => MachineCost::with('technology')->orderBy('mesin')->get(),
         ]);
     }
 
@@ -166,6 +177,7 @@ class PriceListMaterialController extends Controller
     {
         return [
             'material' => $material->material,
+            'mesin' => $material->machine?->mesin,
             'brand' => $material->brand,
             'purchase_price' => (float) $material->purchase_price,
             'sale_price' => (float) $material->sale_price,

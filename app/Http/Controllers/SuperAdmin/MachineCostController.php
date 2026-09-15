@@ -5,6 +5,7 @@ namespace App\Http\Controllers\SuperAdmin;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\StoreMachineCostRequest;
 use App\Models\MachineCost;
+use App\Models\PrintTechnology;
 use App\Services\ActivityLogger;
 use App\Support\ActivityAction;
 use Illuminate\Contracts\View\View;
@@ -17,7 +18,7 @@ class MachineCostController extends Controller
 
     public function create(): View
     {
-        return view('superadmin.price-list.machine-cost.form', ['machineCost' => new MachineCost]);
+        return $this->form(new MachineCost);
     }
 
     public function store(StoreMachineCostRequest $request): RedirectResponse
@@ -39,7 +40,16 @@ class MachineCostController extends Controller
 
     public function edit(MachineCost $machineCost): View
     {
-        return view('superadmin.price-list.machine-cost.form', ['machineCost' => $machineCost]);
+        return $this->form($machineCost);
+    }
+
+    /** Formulir tambah/ubah beserta daftar teknologi tempat mesin dikelompokkan. */
+    private function form(MachineCost $machineCost): View
+    {
+        return view('superadmin.price-list.machine-cost.form', [
+            'machineCost' => $machineCost,
+            'technologies' => PrintTechnology::ordered()->get(),
+        ]);
     }
 
     public function update(StoreMachineCostRequest $request, MachineCost $machineCost): RedirectResponse
@@ -86,9 +96,15 @@ class MachineCostController extends Controller
     {
         return [
             'mesin' => $machine->mesin,
+            'teknologi' => $machine->technology?->code,
             'watt_kwh' => (float) $machine->watt_kwh,
             'harga_listrik' => (float) $machine->harga_listrik,
             'depresiasi' => (float) $machine->depresiasi,
+            'lebar_mm' => $machine->width_mm,
+            'kedalaman_mm' => $machine->depth_mm,
+            'tinggi_mm' => $machine->height_mm,
+            'berat_kg' => $machine->weight_kg,
+            'volume_cetak' => $machine->build_volume_label,
         ];
     }
 }

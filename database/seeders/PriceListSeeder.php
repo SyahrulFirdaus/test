@@ -4,6 +4,7 @@ namespace Database\Seeders;
 
 use App\Models\MachineCost;
 use App\Models\PackagingItem;
+use App\Models\PrintTechnology;
 use Illuminate\Database\Seeder;
 
 /**
@@ -45,16 +46,32 @@ class PriceListSeeder extends Seeder
         }
     }
 
+    /**
+     * Mesin beserta teknologi tempatnya dikelompokkan di Price List.
+     *
+     * Dimensi fisiknya sengaja TIDAK diseed: angka lebar/tinggi/berat tiap
+     * mesin bukan milik repositori ini, jadi dibiarkan kosong dan diisi
+     * Superadmin lewat Ubah Mesin. Yang kosong tampil "—" pada expand.
+     *
+     * Daftar teknologi yang sama dipakai migrasi
+     * `..._000046_add_machine_specs_to_machine_costs_table` untuk mengisi baris
+     * yang sudah terlanjur ada.
+     */
     private function seedMachineCosts(): void
     {
         $rows = [
-            ['mesin' => 'Elegoo Neptune Max 4', 'watt_kwh' => 0.55, 'harga_listrik' => 1700, 'depresiasi' => 5000],
-            ['mesin' => 'Ender 3 V2', 'watt_kwh' => 0.25, 'harga_listrik' => 1700, 'depresiasi' => 2100],
-            ['mesin' => 'Elegoo Saturn 4 12 K', 'watt_kwh' => 0.144, 'harga_listrik' => 1700, 'depresiasi' => 5100],
-            ['mesin' => 'Bambu Lab P1S', 'watt_kwh' => 0.35, 'harga_listrik' => 1700, 'depresiasi' => 5300],
+            ['mesin' => 'Elegoo Neptune Max 4', 'technology' => 'FDM', 'watt_kwh' => 0.55, 'harga_listrik' => 1700, 'depresiasi' => 5000],
+            ['mesin' => 'Ender 3 V2', 'technology' => 'FDM', 'watt_kwh' => 0.25, 'harga_listrik' => 1700, 'depresiasi' => 2100],
+            ['mesin' => 'Elegoo Saturn 4 12 K', 'technology' => 'SLA', 'watt_kwh' => 0.144, 'harga_listrik' => 1700, 'depresiasi' => 5100],
+            ['mesin' => 'Bambu Lab P1S', 'technology' => 'FDM', 'watt_kwh' => 0.35, 'harga_listrik' => 1700, 'depresiasi' => 5300],
         ];
 
         foreach ($rows as $row) {
+            $code = $row['technology'];
+            unset($row['technology']);
+
+            $row['print_technology_id'] = PrintTechnology::idFor($code);
+
             MachineCost::updateOrCreate(['mesin' => $row['mesin']], $row);
         }
     }

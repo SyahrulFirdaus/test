@@ -4,7 +4,7 @@
     "name": "model-record"
   },
   "resources/css/app.css": {
-    "file": "assets/app-DxpCVyUm.css",
+    "file": "assets/app-Bq8mboPQ.css",
     "src": "resources/css/app.css",
     "isEntry": true
   },
@@ -15,7 +15,7 @@
     "isEntry": true
   },
   "resources/js/dashboard.js": {
-    "file": "assets/dashboard-DPgNUh2k.js",
+    "file": "assets/dashboard-B39kbpog.js",
     "name": "dashboard",
     "src": "resources/js/dashboard.js",
     "isEntry": true
@@ -30,7 +30,7 @@
     ]
   },
   "resources/js/model-viewer.js": {
-    "file": "assets/model-viewer-BRZcBG1n.js",
+    "file": "assets/model-viewer-xtQwh4m6.js",
     "name": "model-viewer",
     "src": "resources/js/model-viewer.js",
     "isEntry": true,

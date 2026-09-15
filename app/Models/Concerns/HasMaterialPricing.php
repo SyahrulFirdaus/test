@@ -56,6 +56,30 @@ trait HasMaterialPricing
         }));
     }
 
+    /**
+     * Batas ukuran cetak material ini.
+     *
+     * Yang menentukan adalah MESIN tempat material dipakai: volume cetaknya
+     * pada Price List → Machine Cost. Karena diturunkan, mengganti mesin
+     * material atau mengubah volume cetak mesinnya langsung mengubah batas yang
+     * tampil — tidak ada angka kedua yang perlu ikut disunting.
+     *
+     * `technical_spec.maxSize` tetap dipakai sebagai cadangan bagi material
+     * yang mesinnya belum ditentukan — tanpa itu, material SLA/MJF/SLM yang
+     * batasnya sudah terkurasi akan berubah menjadi "-" begitu fitur ini
+     * berlaku. Keduanya sama-sama dari basis data, bukan angka di tampilan.
+     *
+     * Dipakai bersama App\Models\PrintMaterial, satu-satunya pemakai trait
+     * ini, jadi relasi `machine()` selalu tersedia.
+     *
+     * @param  array<string, mixed>  $spec
+     * @return array{x: int, y: int, z: int}|null
+     */
+    protected function maxSize(array $spec): ?array
+    {
+        return $this->machine?->build_volume ?? ($spec['maxSize'] ?? null);
+    }
+
     /** Harga modal per gram, dari Harga Beli dibagi asumsi berat spool. */
     public function getPricePerGramAttribute(): int
     {
@@ -92,7 +116,7 @@ trait HasMaterialPricing
             'characteristics' => $spec['characteristics'] ?? [],
             'pros' => $spec['pros'] ?? [],
             'cons' => $spec['cons'] ?? [],
-            'max_size' => $spec['maxSize'] ?? null,
+            'max_size' => $this->maxSize($spec),
             'min_size' => $spec['minSize'] ?? null,
             'min_size_slender' => $spec['minSizeSlender'] ?? null,
         ];

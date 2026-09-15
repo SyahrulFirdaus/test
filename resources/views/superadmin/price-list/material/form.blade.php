@@ -47,9 +47,40 @@
                 @error('brand') <p class="field-error">{{ $message }}</p> @enderror
             </div>
 
+            {{-- Pilihan mesin datang dari Price List → Machine Cost, bukan
+                 daftar yang ditulis di sini. Dikelompokkan per teknologi agar
+                 mesin yang relevan mudah ditemukan, namun SELURUH mesin tetap
+                 dapat dipilih. --}}
+            <div class="sm:col-span-2">
+                <label for="machine_cost_id" class="field-label">Nama Mesin</label>
+                <select id="machine_cost_id" name="machine_cost_id" class="field-input">
+                    <option value="">&mdash; Tanpa mesin &mdash;</option>
+
+                    @foreach ($machines->groupBy(fn ($machine) => $machine->technology?->code ?? 'Tanpa Teknologi') as $group => $rows)
+                        <optgroup label="{{ $group }}">
+                            @foreach ($rows as $machine)
+                                <option value="{{ $machine->id }}"
+                                        @selected((string) old('machine_cost_id', $material->machine_cost_id) === (string) $machine->id)>
+                                    {{ $machine->mesin }}
+                                </option>
+                            @endforeach
+                        </optgroup>
+                    @endforeach
+                </select>
+                <p class="mt-1.5 text-xs text-ink-400">
+                    Diambil dari <a href="{{ route('superadmin.price-list.index', ['tab' => 'machine-cost']) }}"
+                                    class="font-semibold text-brand-600 hover:text-brand-800">Machine Cost</a>;
+                    material dikelompokkan di bawah mesin ini pada Price List.
+                    @if ($machines->isEmpty())
+                        <span class="font-semibold text-brand-700">Belum ada mesin terdaftar.</span>
+                    @endif
+                </p>
+                @error('machine_cost_id') <p class="field-error">{{ $message }}</p> @enderror
+            </div>
+
             <div>
                 <label for="purchase_price" class="field-label">Harga Beli — Rp</label>
-                <input type="number" step="1" min="0" required id="purchase_price" name="purchase_price"
+                <input type="number" step="1" min="0" max="9999999999" required id="purchase_price" name="purchase_price"
                        value="{{ old('purchase_price', $material->purchase_price) }}" class="field-input">
                 <p class="mt-1.5 text-xs text-ink-400">Harga satu spool/botol. Harga per gram dihitung otomatis darinya.</p>
                 @error('purchase_price') <p class="field-error">{{ $message }}</p> @enderror
@@ -57,7 +88,7 @@
 
             <div>
                 <label for="sale_price" class="field-label">Harga Jual — Rp</label>
-                <input type="number" step="1" min="0" required id="sale_price" name="sale_price"
+                <input type="number" step="1" min="0" max="9999999999" required id="sale_price" name="sale_price"
                        value="{{ old('sale_price', $material->sale_price) }}" class="field-input">
                 <p class="mt-1.5 text-xs text-ink-400">Dibulatkan ke atas kelipatan seratus; itulah harga per gram yang dikutip ke pelanggan.</p>
                 @error('sale_price') <p class="field-error">{{ $message }}</p> @enderror

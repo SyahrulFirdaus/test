@@ -7,7 +7,13 @@
     Diharapkan:
       $technology  App\Models\PrintTechnology
       $materials   koleksi/paginator material milik teknologi itu
+      $numbers     [id material => nomor urut di dalam kelompok mesinnya]
       $rupiah      penata angka rupiah
+
+    Barisnya dikelompokkan per mesin (lihat App\Models\PrintMaterial::
+    scopeOrderedByMachine). Nomornya TIDAK dihitung di sini melainkan diterima
+    lewat $numbers, karena satu kelompok dapat terpotong paginasi — menghitung
+    dari halaman yang tampil akan mengulang dari 1 di halaman berikutnya.
 --}}
 @php
     $tab = $technology->tabKey();
@@ -79,7 +85,25 @@
             </thead>
 
             <tbody class="divide-y divide-ink-100">
-                @forelse ($materials as $index => $material)
+                @forelse ($materials->getCollection()->groupBy(fn ($material) => $material->machine_cost_id ?? 0) as $rows)
+                    @php $machine = $rows->first()->machine; @endphp
+
+                    <tr class="bg-ink-50/70">
+                        <th colspan="11" scope="colgroup" class="px-4 py-2.5 text-left">
+                            <span class="text-[0.7rem] font-bold uppercase tracking-[0.14em] text-ink-700">
+                                {{ $machine?->mesin ?? 'Tanpa Mesin' }}
+                            </span>
+                            <span class="ml-2 text-[0.65rem] font-medium normal-case tracking-normal text-ink-400">
+                                @if ($machine)
+                                    {{ $machine->technology?->code ?? 'Tanpa teknologi' }} &middot; {{ $rows->count() }} material
+                                @else
+                                    Belum ditentukan mesinnya &middot; {{ $rows->count() }} material
+                                @endif
+                            </span>
+                        </th>
+                    </tr>
+
+                    @foreach ($rows as $material)
                     <tr class="transition-colors hover:bg-brand-50/40" data-bulk-row="{{ $tab }}">
                         <td class="px-4 py-3">
                             <input type="checkbox" name="ids[]" value="{{ $material->id }}"
@@ -88,7 +112,7 @@
                                    data-bulk-item="{{ $tab }}"
                                    aria-label="Pilih {{ $material->material }}">
                         </td>
-                        <td class="px-4 py-3 text-ink-500">{{ $materials->firstItem() + $index }}</td>
+                        <td class="px-4 py-3 text-ink-500">{{ $numbers[$material->id] ?? $loop->iteration }}</td>
                         <td class="px-4 py-3 font-semibold text-ink-900">{{ $material->material }}</td>
                         <td class="px-4 py-3 text-ink-600">{{ $material->brand }}</td>
                         <td class="px-4 py-3 text-right text-ink-700">{{ $rupiah($material->purchase_price) }}</td>
@@ -109,6 +133,7 @@
                             </div>
                         </td>
                     </tr>
+                    @endforeach
                 @empty
                     <tr>
                         <td colspan="11" class="px-4 py-12 text-center text-ink-400">

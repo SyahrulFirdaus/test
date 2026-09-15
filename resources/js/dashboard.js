@@ -8,7 +8,8 @@
  *  4. hitung mundur batas waktu pembayaran;
  *  5. tombol salin (mis. nomor rekening);
  *  6. pengalih mode terang/gelap;
- *  7. penghapusan massal pada tabel Price List.
+ *  7. penghapusan massal pada tabel Price List;
+ *  8. expand detail mesin pada tabel Machine Cost.
  *
  * Notifikasi ditarik berkala (polling) alih-alih lewat WebSocket supaya
  * pemberitahuan terasa langsung tanpa menuntut server tambahan. Endpointnya
@@ -26,6 +27,7 @@ initCopyButtons();
 initPriceListTabs();
 initFormulaTabs();
 initBulkDelete();
+initMachineDetails();
 
 /**
  * Mode terang/gelap.
@@ -313,6 +315,41 @@ function initPaymentCountdown() {
  * (mis. setelah submit pencarian salah satu tabel) supaya reload halaman
  * tidak mengembalikan pengguna ke tab FDM.
  */
+/**
+ * Expand detail mesin pada tabel Machine Cost (Price List).
+ *
+ * Isinya sudah tergambar sejak halaman dimuat sebagai baris <tr> tersembunyi
+ * tepat di bawah mesinnya — tidak ada permintaan ke server saat dibuka, dan
+ * detailnya tetap terbaca pembaca layar maupun pencarian dalam halaman.
+ *
+ * Tiap mesin berdiri sendiri: membuka satu tidak menutup yang lain.
+ */
+function initMachineDetails() {
+    document.querySelectorAll('[data-machine-toggle]').forEach((toggle) => {
+        const id = toggle.dataset.machineToggle;
+        const detail = document.querySelector(`[data-machine-detail="${id}"]`);
+        const icon = toggle.querySelector('[data-machine-toggle-icon]');
+        const name = toggle.getAttribute('aria-label')?.replace(/^Buka detail mesin /, '') || 'mesin';
+
+        if (!detail) {
+            return;
+        }
+
+        toggle.addEventListener('click', () => {
+            const open = detail.classList.toggle('hidden') === false;
+
+            toggle.setAttribute('aria-expanded', String(open));
+            toggle.setAttribute('aria-label', `${open ? 'Tutup' : 'Buka'} detail mesin ${name}`);
+
+            if (icon) {
+                // Tanda minus memakai U+2212, bukan hubung, supaya sejajar
+                // dengan tanda tambah pada tombol yang sama.
+                icon.textContent = open ? '\u2212' : '+';
+            }
+        });
+    });
+}
+
 function initPriceListTabs() {
     const tabs = document.querySelectorAll('[data-price-list-tab]');
     const panels = document.querySelectorAll('[data-price-list-panel]');

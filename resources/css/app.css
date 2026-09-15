@@ -478,6 +478,18 @@
         @apply border-brand-600 text-brand-700;
     }
 
+    /* Tombol +/- pembuka detail mesin pada tabel Machine Cost. */
+    .machine-toggle {
+        @apply inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-lg border border-ink-200
+               bg-white text-sm font-bold leading-none text-ink-500 transition-colors
+               hover:border-brand-300 hover:text-brand-600
+               focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600;
+    }
+
+    .machine-toggle[aria-expanded='true'] {
+        @apply border-brand-600 bg-brand-600 text-white hover:text-white;
+    }
+
     .color-swatch {
         @apply relative inline-flex h-10 w-10 items-center justify-center rounded-full border-2
                border-ink-200 transition-all duration-200 hover:scale-105 hover:border-brand-400
