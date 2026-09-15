@@ -9,6 +9,7 @@ use App\Models\User;
 use App\Notifications\NewQuotationSubmitted;
 use App\Services\ActivityLogger;
 use App\Services\PrintEstimator;
+use App\Services\SellingPriceEstimator;
 use App\Support\ActivityAction;
 use App\Support\MaterialColor;
 use App\Support\Printer;
@@ -23,6 +24,7 @@ class QuotationRequestController extends Controller
 {
     public function __construct(
         private readonly PrintEstimator $estimator,
+        private readonly SellingPriceEstimator $sellingPrice,
         private readonly ActivityLogger $activity,
     ) {}
 
@@ -212,6 +214,16 @@ class QuotationRequestController extends Controller
             ],
         );
 
+        $pricing = $this->sellingPrice->calculate([
+            'technology' => (string) $item['technology'],
+            'material' => (string) $item['material'],
+            'printer_name' => Printer::name($printer),
+            'quantity' => (int) $item['quantity'],
+            'total_weight_g' => $estimate['total_weight_g'],
+            'minutes' => $estimate['total_minutes'],
+            'dimensions' => $dimensions ?: null,
+        ]);
+
         return [
             'position' => $position,
 
@@ -267,8 +279,13 @@ class QuotationRequestController extends Controller
             'estimated_weight_g' => $estimate['weight_g'],
             'support_weight_g' => $estimate['support_weight_g'],
             'estimated_minutes' => $estimate['total_minutes'],
-            'estimated_cost' => $estimate['total_cost'],
-            'cost_breakdown' => $estimate['breakdown'],
+
+            // Harga penawaran ditetapkan rumus Harga Jual Price List, dan
+            // seluruh perhitungannya ikut disimpan — bukan hanya hasilnya —
+            // supaya halaman admin dapat menjelaskan asal angkanya tanpa perlu
+            // menghitung ulang dengan parameter yang mungkin sudah berubah.
+            'estimated_cost' => $pricing['selling_price'],
+            'cost_breakdown' => $pricing,
         ];
     }
 

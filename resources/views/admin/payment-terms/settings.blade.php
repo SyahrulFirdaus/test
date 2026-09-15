@@ -5,7 +5,7 @@
 @section('content')
     @php $rupiah = fn ($value) => 'Rp'.number_format((float) $value, 0, ',', '.'); @endphp
 
-    <a href="{{ route('admin.payment-terms.index') }}" class="inline-flex items-center gap-2 text-sm font-semibold text-ink-500 transition-colors hover:text-brand-600">
+    <a href="{{ staff_route('payment-terms.index') }}" class="inline-flex items-center gap-2 text-sm font-semibold text-ink-500 transition-colors hover:text-brand-600">
         &larr; Kembali ke Payment Terms
     </a>
 
@@ -17,7 +17,7 @@
         </p>
     </div>
 
-    <form method="POST" action="{{ route('admin.payment-terms.settings.update') }}" class="mt-6">
+    <form method="POST" action="{{ staff_route('payment-terms.settings.update') }}" class="mt-6">
         @csrf
         @method('PATCH')
 

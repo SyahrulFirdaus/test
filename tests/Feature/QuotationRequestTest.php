@@ -6,6 +6,8 @@ use App\Models\QuotationItem;
 use App\Models\QuotationRequest;
 use App\Models\User;
 use App\Services\PrintEstimator;
+use App\Services\SellingPriceEstimator;
+use App\Support\Printer;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
@@ -35,6 +37,33 @@ class QuotationRequestTest extends TestCase
             'phone' => '0812 3456 7890',
         ]);
         $this->actingAs($this->customer);
+    }
+
+    /**
+     * Harga Jual sebuah estimasi — sekaligus Harga Estimasi yang dilihat
+     * pelanggan, karena keduanya angka yang sama.
+     *
+     * PrintEstimator tidak lagi menghitung harga sama sekali; berat dan waktunya
+     * dimasukkan ke satu-satunya rumus harga yang ada, App\Services\SellingPriceEstimator.
+     *
+     * @param  array<string, mixed>  $estimate
+     */
+    private function sellingPrice(
+        array $estimate,
+        string $technology = 'FDM',
+        string $material = 'PLA Plus Standart ESUN',
+        int $quantity = 1,
+        ?array $dimensions = null,
+    ): float {
+        return app(SellingPriceEstimator::class)->calculate([
+            'technology' => $technology,
+            'material' => $material,
+            'printer_name' => Printer::name(null),
+            'quantity' => $quantity,
+            'total_weight_g' => $estimate['total_weight_g'],
+            'minutes' => $estimate['total_minutes'],
+            'dimensions' => $dimensions,
+        ])['selling_price'];
     }
 
     public function test_tamu_tidak_dapat_mengirim_permintaan_penawaran(): void
@@ -84,7 +113,7 @@ class QuotationRequestTest extends TestCase
             'notes' => 'Mohon warna hitam doff.',
             'model' => UploadedFile::fake()->createWithContent('bracket.stl', 'solid test'),
             'technology' => 'FDM',
-            'material' => 'PLA',
+            'material' => 'PLA Plus Standart ESUN',
             'model_volume_cm3' => 120.5,
             'analysis_status' => QuotationRequest::ANALYSIS_READY,
             'analysis' => json_encode([
@@ -110,7 +139,7 @@ class QuotationRequestTest extends TestCase
             'model' => UploadedFile::fake()->createWithContent($fileName, 'solid test'),
             'quantity' => 1,
             'technology' => 'FDM',
-            'material' => 'PLA',
+            'material' => 'PLA Plus Standart ESUN',
             'model_volume_cm3' => 100,
             'analysis_status' => QuotationRequest::ANALYSIS_READY,
             'analysis' => json_encode([
@@ -153,31 +182,64 @@ class QuotationRequestTest extends TestCase
 
         $this->assertSame('Rangga Prasetya', $quotation->name);
         $this->assertSame('FDM', $quotation->technology);
-        $this->assertSame('PLA', $quotation->material);
+        $this->assertSame('PLA Plus Standart ESUN', $quotation->material);
         $this->assertSame(3, $quotation->quantity);
         $this->assertSame('STL', $quotation->file_format);
         $this->assertSame('bracket.stl', $quotation->file_name);
         $this->assertSame(12, $quotation->model_stats['triangles']);
-        $this->assertSame('received', $quotation->status);
+        $this->assertSame('reviewing', $quotation->status);
         $this->assertMatchesRegularExpression('/^QTN-\d{8}-[A-Z0-9]{6}$/', $quotation->tracking_number);
 
         Storage::disk('local')->assertExists($quotation->file_path);
 
         // Riwayat langsung terisi satu entri sejak permintaan masuk.
         $this->assertSame(1, $quotation->histories()->count());
-        $this->assertSame('received', $quotation->histories()->first()->status);
+        $this->assertSame('reviewing', $quotation->histories()->first()->status);
     }
 
     public function test_estimasi_dihitung_ulang_di_server_bukan_diambil_dari_klien(): void
     {
         $this->postJson(route('quotations.store'), $this->payload())->assertCreated();
 
-        $expected = app(PrintEstimator::class)->estimate('FDM', 'PLA', 120.5, 3);
+        $expected = app(PrintEstimator::class)->estimate('FDM', 'PLA Plus Standart ESUN', 120.5, 3);
         $quotation = QuotationRequest::sole();
 
         $this->assertEqualsWithDelta($expected['weight_g'], (float) $quotation->estimated_weight_g, 0.01);
         $this->assertSame($expected['total_minutes'], $quotation->estimated_minutes);
-        $this->assertEqualsWithDelta($expected['total_cost'], (float) $quotation->estimated_cost, 0.01);
+
+        // Harganya sendiri ditetapkan rumus Harga Jual Price List dari berat dan
+        // waktu di atas, bukan dari rincian biaya PrintEstimator.
+        $expectedPrice = app(SellingPriceEstimator::class)->calculate([
+            'technology' => 'FDM',
+            'material' => 'PLA Plus Standart ESUN',
+            'printer_name' => Printer::name(null),
+            'quantity' => 3,
+            'total_weight_g' => $expected['total_weight_g'],
+            'minutes' => $expected['total_minutes'],
+            'dimensions' => ['x' => 50, 'y' => 40, 'z' => 30],
+        ]);
+
+        $this->assertEqualsWithDelta($expectedPrice['selling_price'], (float) $quotation->estimated_cost, 0.01);
+    }
+
+    public function test_harga_penawaran_langsung_memakai_estimasi_sistem(): void
+    {
+        $this->postJson(route('quotations.store'), $this->multiPayload([
+            $this->item('gear.stl', ['quantity' => 2]),
+            $this->item('cover.obj', ['model_volume_cm3' => 80]),
+        ]))->assertCreated();
+
+        $quotation = QuotationRequest::sole();
+
+        // Harga penawaran ditetapkan sejak permintaan dikirim — admin tidak
+        // perlu mengisinya, jadi tidak ada selisih antara angka yang dilihat
+        // pelanggan pada Edit Specification dan yang tersimpan.
+        $this->assertNotNull($quotation->estimated_price);
+        $this->assertEqualsWithDelta((float) $quotation->estimated_cost, (float) $quotation->estimated_price, 0.01);
+        $this->assertEqualsWithDelta((float) $quotation->estimated_cost, $quotation->display_price, 0.01);
+
+        // Termasuk nilai yang ditagihkan pada tahap pembayaran.
+        $this->assertEqualsWithDelta((float) $quotation->estimated_cost, $quotation->payment_amount, 0.01);
     }
 
     public function test_tanpa_support_berat_support_nol(): void
@@ -236,12 +298,12 @@ class QuotationRequestTest extends TestCase
     {
         $estimator = app(PrintEstimator::class);
 
-        $pendek = $estimator->estimate('FDM', 'PLA', 100, 1, [
+        $pendek = $estimator->estimate('FDM', 'PLA Plus Standart ESUN', 100, 1, [
             'support' => true,
             'dimensions' => ['x' => 100, 'y' => 20, 'z' => 100],
         ]);
 
-        $langsing = $estimator->estimate('FDM', 'PLA', 100, 1, [
+        $langsing = $estimator->estimate('FDM', 'PLA Plus Standart ESUN', 100, 1, [
             'support' => true,
             'dimensions' => ['x' => 20, 'y' => 200, 'z' => 20],
         ]);
@@ -253,8 +315,8 @@ class QuotationRequestTest extends TestCase
     {
         $estimator = app(PrintEstimator::class);
 
-        $simulasi = $estimator->estimate('FDM', 'PLA', 100, 1, ['support' => true]);
-        $terukur = $estimator->estimate('FDM', 'PLA', 100, 1, [
+        $simulasi = $estimator->estimate('FDM', 'PLA Plus Standart ESUN', 100, 1, ['support' => true]);
+        $terukur = $estimator->estimate('FDM', 'PLA Plus Standart ESUN', 100, 1, [
             'support' => true,
             'support_volume_cm3' => 12.5,
         ]);
@@ -270,7 +332,7 @@ class QuotationRequestTest extends TestCase
     {
         // Pada orientasi tertentu tidak ada overhang yang perlu ditopang.
         // Nol yang terukur harus dipakai apa adanya, bukan diganti perkiraan.
-        $estimate = app(PrintEstimator::class)->estimate('FDM', 'PLA', 100, 1, [
+        $estimate = app(PrintEstimator::class)->estimate('FDM', 'PLA Plus Standart ESUN', 100, 1, [
             'support' => true,
             'support_volume_cm3' => 0,
         ]);
@@ -298,19 +360,19 @@ class QuotationRequestTest extends TestCase
     {
         $estimator = app(PrintEstimator::class);
 
-        $draft = $estimator->estimate('FDM', 'PLA', 100, 1, ['resolution' => '0.50']);
-        $normal = $estimator->estimate('FDM', 'PLA', 100, 1, ['resolution' => '0.25']);
-        $fine = $estimator->estimate('FDM', 'PLA', 100, 1, ['resolution' => '0.10']);
-        $ultra = $estimator->estimate('FDM', 'PLA', 100, 1, ['resolution' => '0.05']);
+        $draft = $estimator->estimate('FDM', 'PLA Plus Standart ESUN', 100, 1, ['resolution' => '0.50']);
+        $normal = $estimator->estimate('FDM', 'PLA Plus Standart ESUN', 100, 1, ['resolution' => '0.25']);
+        $fine = $estimator->estimate('FDM', 'PLA Plus Standart ESUN', 100, 1, ['resolution' => '0.10']);
+        $ultra = $estimator->estimate('FDM', 'PLA Plus Standart ESUN', 100, 1, ['resolution' => '0.05']);
 
         // Semakin tipis lapisannya, semakin lama dan semakin mahal.
         $this->assertGreaterThan($draft['total_minutes'], $normal['total_minutes']);
         $this->assertGreaterThan($normal['total_minutes'], $fine['total_minutes']);
         $this->assertGreaterThan($fine['total_minutes'], $ultra['total_minutes']);
 
-        $this->assertGreaterThan($draft['total_cost'], $normal['total_cost']);
-        $this->assertGreaterThan($normal['total_cost'], $fine['total_cost']);
-        $this->assertGreaterThan($fine['total_cost'], $ultra['total_cost']);
+        $this->assertGreaterThan($this->sellingPrice($draft), $this->sellingPrice($normal));
+        $this->assertGreaterThan($this->sellingPrice($normal), $this->sellingPrice($fine));
+        $this->assertGreaterThan($this->sellingPrice($fine), $this->sellingPrice($ultra));
 
         // Label kualitas ikut menyesuaikan.
         $this->assertSame('Draft', $draft['quality']);
@@ -323,8 +385,8 @@ class QuotationRequestTest extends TestCase
     {
         $estimator = app(PrintEstimator::class);
 
-        $normal = $estimator->estimate('FDM', 'PLA', 200, 1, ['resolution' => '0.25']);
-        $ultra = $estimator->estimate('FDM', 'PLA', 200, 1, ['resolution' => '0.05']);
+        $normal = $estimator->estimate('FDM', 'PLA Plus Standart ESUN', 200, 1, ['resolution' => '0.25']);
+        $ultra = $estimator->estimate('FDM', 'PLA Plus Standart ESUN', 200, 1, ['resolution' => '0.05']);
 
         $setupMinutes = config('printing.technologies.FDM.setup_hours') * 60;
 
@@ -378,7 +440,7 @@ class QuotationRequestTest extends TestCase
         $this->assertStringContainsString('0,08 mm', $mjf['resolution_notice']);
 
         // FDM 0,10 – 0,30 mm, jadi 0,25 mm masih di dalam rentang.
-        $fdm = $estimator->estimate('FDM', 'PLA', 100, 1, ['resolution' => '0.25']);
+        $fdm = $estimator->estimate('FDM', 'PLA Plus Standart ESUN', 100, 1, ['resolution' => '0.25']);
 
         $this->assertTrue($fdm['resolution_within_range']);
         $this->assertNull($fdm['resolution_notice']);
@@ -445,7 +507,7 @@ class QuotationRequestTest extends TestCase
     {
         $response = $this->postJson(route('quotations.store'), $this->multiPayload([
             $this->item('gear.stl', ['quantity' => 2, 'model_volume_cm3' => 120]),
-            $this->item('cover.obj', ['technology' => 'SLA', 'material' => 'Standard Resin', 'model_volume_cm3' => 80]),
+            $this->item('cover.obj', ['technology' => 'SLA', 'material' => 'Standard Resin Plus Sunlu', 'model_volume_cm3' => 80]),
             $this->item('bracket.stl', ['model_volume_cm3' => 60, 'resolution' => '0.10']),
         ]));
 
@@ -471,19 +533,19 @@ class QuotationRequestTest extends TestCase
     public function test_pengaturan_tiap_model_berdiri_sendiri(): void
     {
         $this->postJson(route('quotations.store'), $this->multiPayload([
-            $this->item('gear.stl', ['technology' => 'FDM', 'material' => 'PLA', 'resolution' => '0.50', 'quantity' => 2]),
-            $this->item('cover.obj', ['technology' => 'SLA', 'material' => 'Standard Resin', 'resolution' => '0.05', 'quantity' => 5]),
+            $this->item('gear.stl', ['technology' => 'FDM', 'material' => 'PLA Plus Standart ESUN', 'resolution' => '0.50', 'quantity' => 2]),
+            $this->item('cover.obj', ['technology' => 'SLA', 'material' => 'Standard Resin Plus Sunlu', 'resolution' => '0.05', 'quantity' => 5]),
         ]))->assertCreated();
 
         [$gear, $cover] = QuotationRequest::sole()->items->all();
 
         $this->assertSame('FDM', $gear->technology);
-        $this->assertSame('PLA', $gear->material);
+        $this->assertSame('PLA Plus Standart ESUN', $gear->material);
         $this->assertSame('0.50', $gear->resolution);
         $this->assertSame(2, $gear->quantity);
 
         $this->assertSame('SLA', $cover->technology);
-        $this->assertSame('Standard Resin', $cover->material);
+        $this->assertSame('Standard Resin Plus Sunlu', $cover->material);
         $this->assertSame('0.05', $cover->resolution);
         $this->assertSame(5, $cover->quantity);
     }
@@ -496,19 +558,32 @@ class QuotationRequestTest extends TestCase
         ]))->assertCreated();
 
         $estimator = app(PrintEstimator::class);
-        $gear = $estimator->estimate('FDM', 'PLA', 120, 2);
-        $cover = $estimator->estimate('FDM', 'PLA', 80, 1);
+        $gear = $estimator->estimate('FDM', 'PLA Plus Standart ESUN', 120, 2);
+        $cover = $estimator->estimate('FDM', 'PLA Plus Standart ESUN', 80, 1);
+
+        // Harganya sendiri ditetapkan rumus Harga Jual Price List dari berat dan
+        // waktu hasil estimasi di atas.
+        $pricing = app(SellingPriceEstimator::class);
+        $price = fn (array $estimate, int $quantity) => $pricing->calculate([
+            'technology' => 'FDM',
+            'material' => 'PLA Plus Standart ESUN',
+            'printer_name' => Printer::name(null),
+            'quantity' => $quantity,
+            'total_weight_g' => $estimate['total_weight_g'],
+            'minutes' => $estimate['total_minutes'],
+            'dimensions' => ['x' => 50, 'y' => 40, 'z' => 30],
+        ])['selling_price'];
 
         $quotation = QuotationRequest::sole();
         [$gearItem, $coverItem] = $quotation->items->all();
 
-        $this->assertEqualsWithDelta($gear['total_cost'], (float) $gearItem->estimated_cost, 0.01);
-        $this->assertEqualsWithDelta($cover['total_cost'], (float) $coverItem->estimated_cost, 0.01);
+        $this->assertEqualsWithDelta($price($gear, 2), (float) $gearItem->estimated_cost, 0.01);
+        $this->assertEqualsWithDelta($price($cover, 1), (float) $coverItem->estimated_cost, 0.01);
 
         // Baris penawaran menyimpan totalnya, sehingga daftar admin tidak perlu
         // memuat seluruh model hanya untuk menampilkan nilai permintaan.
         $this->assertEqualsWithDelta(
-            $gear['total_cost'] + $cover['total_cost'],
+            $price($gear, 2) + $price($cover, 1),
             (float) $quotation->estimated_cost,
             0.01
         );
@@ -704,8 +779,8 @@ class QuotationRequestTest extends TestCase
     {
         $estimator = app(PrintEstimator::class);
 
-        $ender = $estimator->estimate('FDM', 'PLA', 200, 1, ['printer' => 'ender3']);
-        $bambu = $estimator->estimate('FDM', 'PLA', 200, 1, ['printer' => 'bambu_x1c']);
+        $ender = $estimator->estimate('FDM', 'PLA Plus Standart ESUN', 200, 1, ['printer' => 'ender3']);
+        $bambu = $estimator->estimate('FDM', 'PLA Plus Standart ESUN', 200, 1, ['printer' => 'bambu_x1c']);
 
         // Ender 3 (0,85x) lebih lambat daripada Bambu X1C (1,75x).
         $this->assertGreaterThan($bambu['total_minutes'], $ender['total_minutes']);
@@ -715,13 +790,13 @@ class QuotationRequestTest extends TestCase
     {
         $estimator = app(PrintEstimator::class);
 
-        $asli = $estimator->estimate('FDM', 'PLA', 100, 1);
-        $duaKali = $estimator->estimate('FDM', 'PLA', 100, 1, ['scale' => 2.0]);
+        $asli = $estimator->estimate('FDM', 'PLA Plus Standart ESUN', 100, 1);
+        $duaKali = $estimator->estimate('FDM', 'PLA Plus Standart ESUN', 100, 1, ['scale' => 2.0]);
 
         $this->assertEqualsWithDelta(100, $asli['model_volume_cm3'], 0.001);
         $this->assertEqualsWithDelta(800, $duaKali['model_volume_cm3'], 0.001);
         $this->assertEqualsWithDelta($asli['weight_g'] * 8, $duaKali['weight_g'], 0.01);
-        $this->assertGreaterThan($asli['total_cost'], $duaKali['total_cost']);
+        $this->assertGreaterThan($this->sellingPrice($asli), $this->sellingPrice($duaKali));
     }
 
     public function test_skala_tersimpan_dan_estimasi_mengikutinya(): void
@@ -741,20 +816,20 @@ class QuotationRequestTest extends TestCase
     {
         $estimator = app(PrintEstimator::class);
 
-        $penuh = $estimator->estimate('FDM', 'PLA', 100, 1, ['infill_density' => 1.0]);
-        $ringan = $estimator->estimate('FDM', 'PLA', 100, 1, ['infill_density' => 0.10]);
+        $penuh = $estimator->estimate('FDM', 'PLA Plus Standart ESUN', 100, 1, ['infill_density' => 1.0]);
+        $ringan = $estimator->estimate('FDM', 'PLA Plus Standart ESUN', 100, 1, ['infill_density' => 0.10]);
 
         $this->assertGreaterThan($ringan['material_volume_cm3'], $penuh['material_volume_cm3']);
         $this->assertGreaterThan($ringan['weight_g'], $penuh['weight_g']);
         $this->assertGreaterThan($ringan['total_minutes'], $penuh['total_minutes']);
-        $this->assertGreaterThan($ringan['total_cost'], $penuh['total_cost']);
+        $this->assertGreaterThan($this->sellingPrice($ringan), $this->sellingPrice($penuh));
     }
 
     public function test_infill_bawaan_teknologi_setara_perhitungan_sebelumnya(): void
     {
         // FDM: shell 0,3125 + (1 - 0,3125) x 0,20 = 0,45 — sama seperti
         // fill factor yang dipakai sebelum infill dapat diatur.
-        $estimate = app(PrintEstimator::class)->estimate('FDM', 'PLA', 100, 1);
+        $estimate = app(PrintEstimator::class)->estimate('FDM', 'PLA Plus Standart ESUN', 100, 1);
 
         $this->assertEqualsWithDelta(0.45, $estimate['fill_factor'], 0.0001);
         $this->assertEqualsWithDelta(45.0, $estimate['material_volume_cm3'], 0.01);
@@ -764,8 +839,8 @@ class QuotationRequestTest extends TestCase
     {
         $estimator = app(PrintEstimator::class);
 
-        $grid = $estimator->estimate('FDM', 'PLA', 100, 1, ['infill_density' => 0.6, 'infill_pattern' => 'grid']);
-        $gyroid = $estimator->estimate('FDM', 'PLA', 100, 1, ['infill_density' => 0.6, 'infill_pattern' => 'gyroid']);
+        $grid = $estimator->estimate('FDM', 'PLA Plus Standart ESUN', 100, 1, ['infill_density' => 0.6, 'infill_pattern' => 'grid']);
+        $gyroid = $estimator->estimate('FDM', 'PLA Plus Standart ESUN', 100, 1, ['infill_density' => 0.6, 'infill_pattern' => 'gyroid']);
 
         $this->assertGreaterThan($grid['material_volume_cm3'], $gyroid['material_volume_cm3']);
         $this->assertGreaterThan($grid['total_minutes'], $gyroid['total_minutes']);
@@ -776,8 +851,8 @@ class QuotationRequestTest extends TestCase
         $estimator = app(PrintEstimator::class);
 
         // SLA shell_ratio 1,0 — resin mengeras padat, infill tidak berperan.
-        $penuh = $estimator->estimate('SLA', 'Standard Resin', 100, 1, ['infill_density' => 1.0]);
-        $ringan = $estimator->estimate('SLA', 'Standard Resin', 100, 1, ['infill_density' => 0.10]);
+        $penuh = $estimator->estimate('SLA', 'Standard Resin Plus Sunlu', 100, 1, ['infill_density' => 1.0]);
+        $ringan = $estimator->estimate('SLA', 'Standard Resin Plus Sunlu', 100, 1, ['infill_density' => 0.10]);
 
         $this->assertEqualsWithDelta($penuh['material_volume_cm3'], $ringan['material_volume_cm3'], 0.001);
     }
@@ -786,8 +861,8 @@ class QuotationRequestTest extends TestCase
     {
         $estimator = app(PrintEstimator::class);
 
-        $padat = $estimator->estimate('SLA', 'Standard Resin', 500, 1, ['surface_area_cm2' => 300]);
-        $kosong = $estimator->estimate('SLA', 'Standard Resin', 500, 1, [
+        $padat = $estimator->estimate('SLA', 'Standard Resin Plus Sunlu', 500, 1, ['surface_area_cm2' => 300]);
+        $kosong = $estimator->estimate('SLA', 'Standard Resin Plus Sunlu', 500, 1, [
             'surface_area_cm2' => 300,
             'hollow' => ['enabled' => true, 'wall_thickness_mm' => 2.0],
         ]);
@@ -801,12 +876,15 @@ class QuotationRequestTest extends TestCase
 
         $this->assertLessThan($padat['weight_g'], $kosong['weight_g']);
         $this->assertLessThan($padat['total_minutes'], $kosong['total_minutes']);
-        $this->assertLessThan($padat['total_cost'], $kosong['total_cost']);
+        $this->assertLessThan(
+            $this->sellingPrice($padat, 'SLA', 'Standard Resin Plus Sunlu'),
+            $this->sellingPrice($kosong, 'SLA', 'Standard Resin Plus Sunlu'),
+        );
     }
 
     public function test_hollow_model_diabaikan_pada_teknologi_selain_sla(): void
     {
-        $estimate = app(PrintEstimator::class)->estimate('FDM', 'PLA', 500, 1, [
+        $estimate = app(PrintEstimator::class)->estimate('FDM', 'PLA Plus Standart ESUN', 500, 1, [
             'surface_area_cm2' => 300,
             'hollow' => ['enabled' => true, 'wall_thickness_mm' => 2.0],
         ]);
@@ -818,7 +896,7 @@ class QuotationRequestTest extends TestCase
     public function test_hollow_tidak_pernah_melebihi_volume_padat(): void
     {
         // Pada part tipis, mengosongkan bagian dalam tidak menyisakan apa pun.
-        $estimate = app(PrintEstimator::class)->estimate('SLA', 'Standard Resin', 5, 1, [
+        $estimate = app(PrintEstimator::class)->estimate('SLA', 'Standard Resin Plus Sunlu', 5, 1, [
             'surface_area_cm2' => 400,
             'hollow' => ['enabled' => true, 'wall_thickness_mm' => 5.0],
         ]);
@@ -831,7 +909,7 @@ class QuotationRequestTest extends TestCase
         $this->postJson(route('quotations.store'), $this->multiPayload([
             $this->item('cover.obj', [
                 'technology' => 'SLA',
-                'material' => 'Standard Resin',
+                'material' => 'Standard Resin Plus Sunlu',
                 'hollow_enabled' => '1',
                 'hollow_wall_thickness_mm' => '1.6',
                 'hollow_drain_diameter_mm' => '4.0',
@@ -852,40 +930,35 @@ class QuotationRequestTest extends TestCase
         $this->assertStringContainsString('Sisi Samping', $item->hollow_label);
     }
 
-    public function test_rincian_biaya_berjumlah_sama_dengan_totalnya(): void
+    /**
+     * Harga hanya boleh punya satu sumber.
+     *
+     * PrintEstimator sengaja tidak lagi mengembalikan angka rupiah apa pun,
+     * supaya tidak ada rincian biaya kedua yang bisa berbeda dari Harga Jual.
+     */
+    public function test_estimator_tidak_lagi_menghasilkan_harga(): void
     {
-        $estimate = app(PrintEstimator::class)->estimate('FDM', 'PLA', 120, 2, [
+        $estimate = app(PrintEstimator::class)->estimate('FDM', 'PLA Plus Standart ESUN', 120, 2, [
             'support' => true,
             'surface_area_cm2' => 180,
         ]);
 
-        $breakdown = $estimate['breakdown'];
+        foreach (['total_cost', 'unit_cost', 'breakdown'] as $key) {
+            $this->assertArrayNotHasKey($key, $estimate);
+        }
 
-        $this->assertSame(
-            ['material', 'machine_time', 'support', 'finishing', 'quality_control', 'total'],
-            array_keys($breakdown)
-        );
-
-        $components = array_sum([
-            $breakdown['material'],
-            $breakdown['machine_time'],
-            $breakdown['support'],
-            $breakdown['finishing'],
-            $breakdown['quality_control'],
-        ]);
-
-        $this->assertEqualsWithDelta($components, $breakdown['total'], 0.01);
-        $this->assertEqualsWithDelta($breakdown['total'], $estimate['total_cost'], 0.01);
+        // Yang tersisa adalah besaran fisik: berat, waktu, dan volume.
+        $this->assertGreaterThan(0, $estimate['total_weight_g']);
+        $this->assertGreaterThan(0, $estimate['total_minutes']);
     }
 
-    public function test_tanpa_support_komponen_biaya_support_nol(): void
+    public function test_tanpa_support_beratnya_tidak_bertambah(): void
     {
-        $estimate = app(PrintEstimator::class)->estimate('FDM', 'PLA', 120, 1, ['surface_area_cm2' => 180]);
+        $estimate = app(PrintEstimator::class)->estimate('FDM', 'PLA Plus Standart ESUN', 120, 1, ['surface_area_cm2' => 180]);
 
-        $this->assertSame(0.0, $estimate['breakdown']['support']);
-        $this->assertGreaterThan(0, $estimate['breakdown']['material']);
-        $this->assertGreaterThan(0, $estimate['breakdown']['finishing']);
-        $this->assertGreaterThan(0, $estimate['breakdown']['quality_control']);
+        $this->assertFalse($estimate['support_enabled']);
+        $this->assertSame(0.0, $estimate['support_weight_g']);
+        $this->assertSame($estimate['weight_g'], $estimate['total_weight_g']);
     }
 
     public function test_rincian_biaya_penawaran_menjumlahkan_seluruh_model(): void
@@ -900,7 +973,7 @@ class QuotationRequestTest extends TestCase
 
         $this->assertNotEmpty($breakdown);
 
-        foreach (['material', 'machine_time', 'support', 'finishing', 'quality_control', 'total'] as $component) {
+        foreach (['material_cost', 'machine_operational_cost', 'hpp', 'risk_cost', 'packaging', 'overtime', 'subtotal', 'profit', 'basic_fee', 'selling_price', 'total'] as $component) {
             $expected = $quotation->items->sum(fn ($item) => (float) $item->cost_breakdown[$component]);
 
             $this->assertEqualsWithDelta($expected, (float) $breakdown[$component], 0.01, $component);
@@ -945,11 +1018,11 @@ class QuotationRequestTest extends TestCase
 
         // `none` memakai pengali 1,0 — pembersihan dasar yang memang sudah
         // selalu dihitung, jadi penawaran lama tidak berubah nilainya.
-        $tanpa = $estimator->estimate('FDM', 'PLA', 120, 2, ['surface_area_cm2' => 180]);
-        $eksplisit = $estimator->estimate('FDM', 'PLA', 120, 2, ['surface_area_cm2' => 180, 'finishing' => 'none']);
+        $tanpa = $estimator->estimate('FDM', 'PLA Plus Standart ESUN', 120, 2, ['surface_area_cm2' => 180]);
+        $eksplisit = $estimator->estimate('FDM', 'PLA Plus Standart ESUN', 120, 2, ['surface_area_cm2' => 180, 'finishing' => 'none']);
 
         $this->assertSame('none', $tanpa['finishing']);
-        $this->assertEqualsWithDelta($tanpa['total_cost'], $eksplisit['total_cost'], 0.01);
+        $this->assertEqualsWithDelta($this->sellingPrice($tanpa, quantity: 2), $this->sellingPrice($eksplisit, quantity: 2), 0.01);
         $this->assertSame(0, $tanpa['finishing_minutes']);
     }
 
@@ -958,12 +1031,13 @@ class QuotationRequestTest extends TestCase
         $estimator = app(PrintEstimator::class);
         $options = ['surface_area_cm2' => 180];
 
-        $none = $estimator->estimate('FDM', 'PLA', 120, 2, $options);
-        $sanding = $estimator->estimate('FDM', 'PLA', 120, 2, $options + ['finishing' => 'sanding']);
+        $none = $estimator->estimate('FDM', 'PLA Plus Standart ESUN', 120, 2, $options);
+        $sanding = $estimator->estimate('FDM', 'PLA Plus Standart ESUN', 120, 2, $options + ['finishing' => 'sanding']);
 
-        $this->assertGreaterThan($none['breakdown']['finishing'], $sanding['breakdown']['finishing']);
-        $this->assertGreaterThan($none['total_cost'], $sanding['total_cost']);
+        // Finishing menambah jam pengerjaan, dan jam itulah yang menaikkan
+        // Operasional Mesin pada rumus Harga Jual.
         $this->assertGreaterThan($none['total_minutes'], $sanding['total_minutes']);
+        $this->assertGreaterThan($this->sellingPrice($none, quantity: 2), $this->sellingPrice($sanding, quantity: 2));
 
         // Waktu finishing dihitung per unit: 0,25 jam x 2 unit = 30 menit.
         $this->assertSame(30, $sanding['finishing_minutes']);
@@ -974,24 +1048,24 @@ class QuotationRequestTest extends TestCase
         $estimator = app(PrintEstimator::class);
         $options = ['surface_area_cm2' => 180];
 
-        $sanding = $estimator->estimate('FDM', 'PLA', 120, 1, $options + ['finishing' => 'sanding']);
-        $painting = $estimator->estimate('FDM', 'PLA', 120, 1, $options + ['finishing' => 'painting']);
+        $sanding = $estimator->estimate('FDM', 'PLA Plus Standart ESUN', 120, 1, $options + ['finishing' => 'sanding']);
+        $painting = $estimator->estimate('FDM', 'PLA Plus Standart ESUN', 120, 1, $options + ['finishing' => 'painting']);
 
-        $this->assertGreaterThan($sanding['breakdown']['finishing'], $painting['breakdown']['finishing']);
         $this->assertGreaterThan($sanding['total_minutes'], $painting['total_minutes']);
+        $this->assertGreaterThan($this->sellingPrice($sanding), $this->sellingPrice($painting));
     }
 
     public function test_finishing_tersimpan_pada_item(): void
     {
         $this->postJson(route('quotations.store'), $this->multiPayload([
-            $this->item('gear.stl', ['finishing' => 'polishing']),
+            $this->item('gear.stl', ['finishing' => 'sanding']),
             $this->item('cover.obj'),
         ]))->assertCreated();
 
         [$gear, $cover] = QuotationRequest::sole()->items->all();
 
-        $this->assertSame('polishing', $gear->finishing);
-        $this->assertSame('Polishing', $gear->finishing_label);
+        $this->assertSame('sanding', $gear->finishing);
+        $this->assertSame('Sanding', $gear->finishing_label);
 
         // Model lain memakai pilihan bawaan, tidak ikut berubah.
         $this->assertSame('none', $cover->finishing);
@@ -1013,7 +1087,7 @@ class QuotationRequestTest extends TestCase
         $this->postJson(route('quotations.store'), $this->multiPayload([
             $this->item('lens.stl', [
                 'technology' => 'SLA',
-                'material' => 'Clear Resin',
+                'material' => 'Standard Resin High Clear Sunlu',
                 'material_color' => 'merah',
             ]),
         ]))->assertCreated();

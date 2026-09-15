@@ -31,7 +31,7 @@
                 'video' => 'videos/post-processing.mp4',
                 'poster' => 'images/photos/detail-02.jpg',
                 'label' => 'Finishing',
-                'caption' => 'Sanding, primer, hingga painting sampai permukaannya benar-benar rapi.',
+                'caption' => 'Sanding hingga painting sampai permukaannya benar-benar rapi.',
             ],
             [
                 'video' => 'videos/workshop.mp4',

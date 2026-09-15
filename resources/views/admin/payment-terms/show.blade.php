@@ -10,7 +10,7 @@
         $profile = $quotation->user?->businessProfile;
     @endphp
 
-    <a href="{{ route('admin.payment-terms.index') }}" class="inline-flex items-center gap-2 text-sm font-semibold text-ink-500 transition-colors hover:text-brand-600">
+    <a href="{{ staff_route('payment-terms.index') }}" class="inline-flex items-center gap-2 text-sm font-semibold text-ink-500 transition-colors hover:text-brand-600">
         &larr; Kembali ke Payment Terms
     </a>
 
@@ -26,7 +26,7 @@
             </p>
         </div>
 
-        <a href="{{ route('admin.quotations.show', $quotation) }}" class="viewer-tool">Lihat Penawaran</a>
+        <a href="{{ staff_route('quotations.show', $quotation) }}" class="viewer-tool">Lihat Penawaran</a>
     </div>
 
     {{-- ===================== RINGKASAN NILAI ===================== --}}
@@ -61,12 +61,12 @@
             </p>
 
             <div class="mt-5 grid gap-4 lg:grid-cols-2">
-                <form method="POST" action="{{ route('admin.payment-terms.approve', $term) }}">
+                <form method="POST" action="{{ staff_route('payment-terms.approve', $term) }}">
                     @csrf
                     <button type="submit" class="btn-primary w-full">Setujui Payment Term</button>
                 </form>
 
-                <form method="POST" action="{{ route('admin.payment-terms.reject', $term) }}" class="space-y-3">
+                <form method="POST" action="{{ staff_route('payment-terms.reject', $term) }}" class="space-y-3">
                     @csrf
                     <textarea name="reason"
                               rows="2"
@@ -99,7 +99,7 @@
                 ditolak dan tidak ada yang tersimpan. Termin yang sudah dibayar terkunci nominalnya.
             </p>
 
-            <form method="POST" action="{{ route('admin.payment-terms.schedule', $term) }}" class="mt-5">
+            <form method="POST" action="{{ staff_route('payment-terms.schedule', $term) }}" class="mt-5">
                 @csrf
                 @method('PATCH')
 
@@ -198,21 +198,21 @@
 
                         <div class="flex flex-wrap gap-2">
                             @if ($installment->latestProof)
-                                <a href="{{ route('admin.payments.installments.proof', [$installment, $installment->latestProof]) }}"
+                                <a href="{{ staff_route('payments.installments.proof', [$installment, $installment->latestProof]) }}"
                                    target="_blank"
                                    rel="noopener"
                                    class="viewer-tool">Lihat Bukti</a>
                             @endif
 
                             @if ($installment->status === \App\Support\InstallmentStatus::INACTIVE)
-                                <form method="POST" action="{{ route('admin.payment-terms.installments.activate', [$term, $installment]) }}">
+                                <form method="POST" action="{{ staff_route('payment-terms.installments.activate', [$term, $installment]) }}">
                                     @csrf
                                     <button type="submit" class="viewer-tool">Aktifkan Termin</button>
                                 </form>
                             @endif
 
                             @if ($installment->isAwaitingVerification())
-                                <a href="{{ route('admin.payments.index', ['filter' => 'installments']) }}" class="btn-primary px-4 py-2">
+                                <a href="{{ staff_route('payments.index', ['filter' => 'installments']) }}" class="btn-primary px-4 py-2">
                                     Verifikasi
                                 </a>
                             @endif

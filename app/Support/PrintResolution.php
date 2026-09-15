@@ -81,7 +81,7 @@ class PrintResolution
      */
     public static function isWithinRange(?string $key, ?string $technology): bool
     {
-        $range = config('printing.technologies.'.strtoupper((string) $technology).'.layer_height_range');
+        $range = self::rangeFor($technology);
 
         if (! is_array($range)) {
             return true;
@@ -92,6 +92,23 @@ class PrintResolution
         return $height >= (float) $range['min'] && $height <= (float) $range['max'];
     }
 
+    /**
+     * Rentang tebal lapisan milik satu teknologi.
+     *
+     * Dibaca dari teknologi yang dikelola Superadmin; teknologi yang tidak
+     * dikenal mengembalikan null sehingga seluruh resolusi dianggap sah.
+     *
+     * @return array{min: float, max: float}|null
+     */
+    private static function rangeFor(?string $technology): ?array
+    {
+        $row = \App\Models\PrintTechnology::findByCode($technology);
+
+        return $row === null
+            ? null
+            : ['min' => $row->layer_height_min, 'max' => $row->layer_height_max];
+    }
+
     /** Keterangan singkat bila resolusi di luar rentang teknologi terpilih. */
     public static function rangeNotice(?string $key, ?string $technology): ?string
     {
@@ -99,7 +116,7 @@ class PrintResolution
             return null;
         }
 
-        $range = config('printing.technologies.'.strtoupper((string) $technology).'.layer_height_range');
+        $range = self::rangeFor($technology);
         $code = strtoupper((string) $technology);
 
         $rangeText = $range['min'] === $range['max']

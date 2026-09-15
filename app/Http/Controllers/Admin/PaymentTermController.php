@@ -84,7 +84,7 @@ class PaymentTermController extends Controller
         $this->terms->approve($term, $request->user());
 
         return redirect()
-            ->route('admin.payment-terms.show', $term)
+            ->route(staff_route_name('payment-terms.show'), $term)
             ->with('status', 'Skema '.$term->scheme_label.' disetujui. Jadwal termin sudah terbentuk dan pelanggan diberi tahu.');
     }
 

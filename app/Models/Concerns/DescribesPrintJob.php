@@ -4,6 +4,7 @@ namespace App\Models\Concerns;
 
 use App\Support\AnalysisStatus;
 use App\Support\LeadTime;
+use App\Support\MaterialCatalog;
 use App\Support\Printer;
 use App\Support\PrintResolution;
 use Illuminate\Support\Facades\Storage;
@@ -43,6 +44,21 @@ trait DescribesPrintJob
         $format = fn ($value) => rtrim(rtrim(number_format((float) $value, 1, ',', '.'), '0'), ',');
 
         return $name.' ('.$format($volume['x'] ?? 0).' × '.$format($volume['y'] ?? 0).' × '.$format($volume['z'] ?? 0).' mm)';
+    }
+
+    /**
+     * Nama material yang dilihat pelanggan, mis. "PLA+".
+     *
+     * Yang tersimpan tetap nama katalog beserta brand-nya ("PLA Plus Standart
+     * ESUN") — itulah yang menentukan harga dan yang dibaca admin. Accessor ini
+     * hanya menerjemahkannya untuk halaman pelanggan; material lama yang tidak
+     * lagi ditawarkan dikembalikan apa adanya. Lihat App\Support\MaterialCatalog.
+     */
+    public function getMaterialLabelAttribute(): ?string
+    {
+        return blank($this->material)
+            ? null
+            : MaterialCatalog::displayName((string) $this->technology, (string) $this->material);
     }
 
     /**

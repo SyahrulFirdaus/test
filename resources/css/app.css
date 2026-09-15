@@ -446,7 +446,9 @@
     .spec-option {
         @apply flex w-full flex-col rounded-xl border border-ink-200 bg-white px-4 py-3 text-left
                transition-all duration-200 hover:border-brand-300 hover:bg-brand-50/40
-               focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600;
+               focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600
+               disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:border-ink-200
+               disabled:hover:bg-white;
     }
 
     .spec-option[aria-pressed='true'] {
@@ -464,6 +466,16 @@
     /* Panel kiri Edit Specification: informasi model dan material terpilih. */
     .spec-info-row {
         @apply flex items-start justify-between gap-3 text-xs;
+    }
+
+    /* Navigasi tab halaman Price List (admin) — satu tabel tampil per tab. */
+    .price-list-tab {
+        @apply -mb-px shrink-0 whitespace-nowrap border-b-2 border-transparent px-4 py-3 text-sm
+               font-semibold text-ink-500 transition-colors hover:text-ink-800;
+    }
+
+    .price-list-tab[aria-selected='true'] {
+        @apply border-brand-600 text-brand-700;
     }
 
     .color-swatch {
@@ -584,5 +596,135 @@
 
     .mask-fade-b {
         mask-image: linear-gradient(to bottom, black 65%, transparent 100%);
+    }
+}
+
+/* -------------------------------------------------------------------------
+ | Dark Mode — hanya untuk halaman dashboard
+ |
+ | Dipasang sebagai atribut `data-theme="dark"` pada <html> oleh
+ | resources/views/layouts/dashboard.blade.php, jadi seluruh halaman publik
+ | (beranda, panduan, tracking) tidak pernah tersentuh: tanpa atribut itu
+ | tidak satu pun aturan di bawah berlaku.
+ |
+ | Caranya bukan menambahkan kelas `dark:` ke ratusan baris markup, melainkan
+ | membalik NILAI token warnanya. Tangga "ink" dipakai terbalik — yang paling
+ | terang menjadi yang paling gelap — sehingga `bg-ink-50` yang tadinya latar
+ | muda kini menjadi latar gelap, dan `text-ink-900` yang tadinya tulisan
+ | gelap kini menjadi tulisan terang. Markup yang sudah ada tidak berubah
+ | sama sekali, dan halaman baru otomatis ikut tema tanpa perlu diingat.
+ * ------------------------------------------------------------------------- */
+[data-theme='dark'] {
+    /* Memberi tahu browser agar scrollbar, dropdown, dan date picker bawaan
+       ikut gelap — kalau tidak, kontrol nativenya tetap putih menyala. */
+    color-scheme: dark;
+
+    /* Permukaan kartu. Dipisah dari tangga ink karena `bg-white` dan
+       `border-ink-100` harus tetap dapat dibedakan satu sama lain. */
+    --surface: #1b1614;
+    --surface-raised: #221b19;
+
+    --color-ink-50: #120e0d;
+    --color-ink-100: #2a2320;
+    --color-ink-200: #3a322e;
+    --color-ink-300: #554b46;
+    --color-ink-400: #9c8f89;
+    --color-ink-500: #b3a8a2;
+    --color-ink-600: #c9bfba;
+    --color-ink-700: #ddd5d1;
+    --color-ink-800: #ece6e3;
+    --color-ink-900: #faf7f6;
+    --color-ink-950: #ffffff;
+
+    /* Tiga keluarga warna status dibalik dengan pola yang sama: tingkat muda
+       menjadi latar gelap, tingkat tua menjadi tulisan terang. Tingkat
+       tengah (400–600) sengaja dibiarkan supaya lencana solid tetap pekat. */
+    --color-emerald-50: #0c2019;
+    --color-emerald-100: #12362a;
+    --color-emerald-200: #1c4d3c;
+    --color-emerald-300: #2f7259;
+    --color-emerald-700: #7ee0b4;
+    --color-emerald-800: #a7ecd0;
+    --color-emerald-900: #cdf5e4;
+
+    --color-amber-50: #241a06;
+    --color-amber-100: #3a2a09;
+    --color-amber-200: #533c0d;
+    --color-amber-300: #7a5a15;
+    --color-amber-700: #f0c366;
+    --color-amber-800: #f6d894;
+    --color-amber-900: #fbe9c2;
+
+    --color-rose-50: #2a1013;
+    --color-rose-100: #431a1f;
+    --color-rose-200: #5d242b;
+    --color-rose-300: #87373f;
+    --color-rose-700: #f2a3ac;
+    --color-rose-800: #f7c3c9;
+    --color-rose-900: #fbdde1;
+
+    /* Dua tingkat brand termuda dipakai sebagai LATAR penanda terpilih /
+       sedang aktif — termasuk lewat varian tembus pandang seperti
+       `bg-brand-50/60`. Karena varian itu diturunkan dari tokennya, yang
+       dibalik harus tokennya, bukan satu per satu kelasnya. Tingkat 500 ke
+       atas sengaja dibiarkan supaya tombol tetap oxblood pekat. */
+    --color-brand-50: #3a1512;
+    --color-brand-100: #4d1a16;
+
+    /* Bayangan tidak terbaca di atas latar gelap; digantikan garis tipis
+       lewat border yang memang sudah ada pada tiap kartu. */
+    --shadow-card: 0 1px 2px rgb(0 0 0 / 0.4), 0 12px 32px -12px rgb(0 0 0 / 0.55);
+    --shadow-card-hover: 0 2px 4px rgb(0 0 0 / 0.45), 0 24px 48px -16px rgb(0 0 0 / 0.6);
+}
+
+@layer utilities {
+    /*
+     | `white` sengaja TIDAK ikut dibalik: `text-white` pada kartu gradien
+     | brand dan pada tombol utama memang harus tetap putih. Yang dialihkan
+     | hanya pemakaiannya sebagai PERMUKAAN.
+     */
+    [data-theme='dark'] .bg-white,
+    [data-theme='dark'] .field-input,
+    [data-theme='dark'] .viewer-tool,
+    [data-theme='dark'] .btn-outline {
+        background-color: var(--surface);
+    }
+
+    [data-theme='dark'] .bg-white\/90,
+    [data-theme='dark'] .bg-white\/80,
+    [data-theme='dark'] .bg-white\/70 {
+        background-color: color-mix(in oklab, var(--surface) 88%, transparent);
+    }
+
+    /* Kartu di atas kartu — mis. panel notifikasi di dalam sidebar. */
+    [data-theme='dark'] .bg-white .bg-white {
+        background-color: var(--surface-raised);
+    }
+
+    /*
+     | Brand dipakai dua arah: sebagai TULISAN penekanan (harga, judul aktif)
+     | dan sebagai LATAR tombol. Tangga warnanya karena itu tidak dibalik —
+     | tombol harus tetap oxblood pekat — dan hanya pemakaian sebagai tulisan
+     | yang dicerahkan agar terbaca di atas latar gelap.
+     */
+    [data-theme='dark'] .text-brand-600,
+    [data-theme='dark'] .text-brand-700 {
+        color: var(--color-brand-300);
+    }
+
+    [data-theme='dark'] .text-brand-800,
+    [data-theme='dark'] .text-brand-900 {
+        color: var(--color-brand-200);
+    }
+
+    /* Lingkaran ikon pada kartu: 10% brand di atas latar gelap nyaris tak
+       terlihat, jadi dipekatkan sedikit. */
+    [data-theme='dark'] .bg-brand-600\/10 {
+        background-color: color-mix(in oklab, var(--color-brand-600) 34%, var(--surface));
+    }
+
+    [data-theme='dark'] .border-brand-100,
+    [data-theme='dark'] .border-brand-200 {
+        border-color: color-mix(in oklab, var(--color-brand-500) 45%, var(--surface));
     }
 }

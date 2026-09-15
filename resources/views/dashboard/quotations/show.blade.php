@@ -111,7 +111,7 @@
         <div class="mt-6 rounded-2xl border border-emerald-200 bg-emerald-50 p-5">
             <p class="font-display text-sm font-bold text-emerald-900">Penawaran masih dapat diubah.</p>
             <p class="mt-1.5 text-sm text-emerald-800">
-                Selama statusnya masih "Menunggu Review", Anda dapat menambah atau menghapus file, mengubah pengaturan
+                Selama statusnya masih "File Sedang Direview", Anda dapat menambah atau menghapus file, mengubah pengaturan
                 printing, dan mengganti jumlah cetak. Setelah admin mulai mereview, isinya menjadi tetap.
             </p>
         </div>
@@ -156,7 +156,7 @@
 
                 @if ($quotation->estimated_price !== null)
                     <p class="mt-5 rounded-xl bg-brand-50 p-4 text-xs leading-relaxed text-brand-800">
-                        Angka di atas adalah harga penawaran resmi yang sudah ditetapkan tim kami.
+                        Angka di atas adalah harga penawaran resmi, dihitung sistem dari spesifikasi yang Anda pilih.
                     </p>
                 @else
                     <p class="mt-5 rounded-xl bg-ink-50 p-4 text-xs leading-relaxed text-ink-500">
@@ -202,7 +202,7 @@
                                         <span class="truncate font-bold text-ink-900">{{ $item->file_name }}</span>
                                     </p>
                                     <p class="mt-1 text-xs text-ink-500">
-                                        {{ $item->printer_name }} &middot; {{ $item->technology }} &middot; {{ $item->material }} &middot;
+                                        {{ $item->printer_name }} &middot; {{ $item->technology }} &middot; {{ $item->material_label }} &middot;
                                         {{ $item->quantity }} unit &middot; {{ $item->resolution_label }}
                                     </p>
                                     <p class="mt-0.5 text-xs text-ink-400">

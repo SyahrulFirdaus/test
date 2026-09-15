@@ -78,11 +78,11 @@ class CustomerDashboardTest extends TestCase
             'file_size' => 2048,
             'analysis_status' => QuotationRequest::ANALYSIS_READY,
             'technology' => 'FDM',
-            'material' => 'PLA',
+            'material' => 'PLA Plus Standart ESUN',
             'estimated_minutes' => 200,
             'estimated_cost' => 30000000,
             'estimated_price' => 30000000,
-            'status' => QuotationStatus::RECEIVED,
+            'status' => QuotationStatus::REVIEWING,
         ], $overrides));
 
         Storage::disk('local')->put('quotations/2026-08/bracket-'.$quotation->id.'.stl', 'solid cube endsolid cube');
@@ -95,7 +95,7 @@ class CustomerDashboardTest extends TestCase
             'file_size' => 2048,
             'analysis_status' => QuotationRequest::ANALYSIS_READY,
             'technology' => 'FDM',
-            'material' => 'PLA',
+            'material' => 'PLA Plus Standart ESUN',
             'printer' => 'ender3',
             'printer_name' => 'Creality Ender 3',
             'quantity' => 100,
@@ -232,7 +232,7 @@ class CustomerDashboardTest extends TestCase
 
     public function test_kartu_pembayaran_hanya_muncul_bila_ada_tagihan(): void
     {
-        $this->quotation(['status' => QuotationStatus::RECEIVED]);
+        $this->quotation(['status' => QuotationStatus::REVIEWING]);
 
         $this->actingAs($this->personal)
             ->get(route('dashboard'))

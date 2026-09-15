@@ -20,7 +20,7 @@ class LoginController extends Controller
     public function create(): View|RedirectResponse
     {
         if (Auth::check()) {
-            return redirect()->route(Auth::user()->isAdmin() ? 'admin.dashboard' : 'dashboard');
+            return redirect()->route($this->homeFor(Auth::user()));
         }
 
         return view('admin.login');
@@ -79,23 +79,58 @@ class LoginController extends Controller
             ]);
         }
 
+        // Akun pengelola yang dinonaktifkan Superadmin tetap ada beserta
+        // jejaknya, tetapi tidak lagi berhak masuk.
+        if (! Auth::user()->isActive()) {
+            $this->activity->logFailure(
+                action: ActivityAction::LOGIN_FAILED,
+                description: 'Akun pengelola nonaktif mencoba masuk.',
+                actor: Auth::user(),
+            );
+
+            Auth::logout();
+            $request->session()->invalidate();
+            $request->session()->regenerateToken();
+
+            throw ValidationException::withMessages([
+                'email' => 'Akun tersebut sedang dinonaktifkan. Hubungi Superadmin.',
+            ]);
+        }
+
         RateLimiter::clear($throttleKey);
         $request->session()->regenerate();
 
         $this->activity->log(
             action: ActivityAction::LOGIN,
-            description: 'Admin berhasil masuk ke dashboard.',
+            description: $request->user()->isSuperAdmin()
+                ? 'Superadmin berhasil masuk ke dashboard.'
+                : 'Admin berhasil masuk ke dashboard.',
             actor: $request->user(),
         );
 
-        return redirect()->intended(route('admin.dashboard'));
+        return redirect()->intended(route($this->homeFor($request->user())));
+    }
+
+    /**
+     * Halaman pertama sesudah masuk.
+     *
+     * Superadmin mendarat di dashboardnya sendiri — gambaran keseluruhan
+     * sistem — bukan di antrean kerja harian milik Admin.
+     */
+    private function homeFor(\App\Models\User $user): string
+    {
+        return match (true) {
+            $user->isSuperAdmin() => 'superadmin.dashboard',
+            $user->isAdmin() => 'admin.dashboard',
+            default => 'dashboard',
+        };
     }
 
     public function destroy(Request $request): RedirectResponse
     {
         $this->activity->log(
             action: ActivityAction::LOGOUT,
-            description: 'Admin keluar dari dashboard.',
+            description: ($request->user()?->isSuperAdmin() ? 'Superadmin' : 'Admin').' keluar dari dashboard.',
             actor: $request->user(),
         );
 

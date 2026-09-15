@@ -26,6 +26,16 @@ class ActivityModule
     /** Perubahan data dan konfigurasi yang dilakukan pengelola. */
     public const ADMIN = 'admin';
 
+    /**
+     * Pengelolaan sistem yang hanya dapat dilakukan Superadmin: akun Admin,
+     * master data harga, dan konfigurasi yang memengaruhi seluruh website.
+     *
+     * Dipisah dari modul Admin supaya Superadmin dapat menyaring justru
+     * aktivitas yang paling berdampak tanpa tenggelam di antara pekerjaan
+     * operasional harian.
+     */
+    public const SUPERADMIN = 'superadmin';
+
     /** @return array<string, string> */
     public static function all(): array
     {
@@ -35,6 +45,7 @@ class ActivityModule
             self::QUOTATION => 'Quotation',
             self::PAYMENT => 'Payment',
             self::ADMIN => 'Admin',
+            self::SUPERADMIN => 'Superadmin',
         ];
     }
 

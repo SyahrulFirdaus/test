@@ -17,8 +17,8 @@
 
         <div>
             <label for="password" class="field-label">Password</label>
-            <input type="password" id="password" name="password" required autocomplete="current-password"
-                   class="field-input" placeholder="Kata sandi Anda">
+            <x-password-field id="password" name="password" required autocomplete="current-password"
+                              class="field-input mt-0" placeholder="Kata sandi Anda" />
             @error('password') <p class="field-error">{{ $message }}</p> @enderror
         </div>
 

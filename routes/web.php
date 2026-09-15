@@ -11,7 +11,9 @@ use App\Http\Controllers\QuotationTrackingController;
 use App\Http\Controllers\RegionController;
 use App\Http\Controllers\ServiceController;
 use App\Http\Controllers\SitemapController;
+use App\Http\Controllers\SuperAdmin;
 use App\Http\Controllers\TechnologyController;
+use App\Models\PricingFormula;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -206,7 +208,6 @@ Route::middleware(['auth', 'customer'])->prefix('dashboard')->group(function () 
         Route::delete('alamat/{address}', [Dashboard\AddressController::class, 'destroy'])->name('addresses.destroy');
         Route::post('alamat/{address}/utama', [Dashboard\AddressController::class, 'makeDefault'])->name('addresses.default');
 
-
         /*
         | Pemesanan ulang, khusus akun Business.
         |
@@ -249,89 +250,202 @@ Route::middleware(['auth', 'customer'])->prefix('dashboard')->group(function () 
 | Pengelolaan permintaan penawaran, pengguna, dan persetujuan pembatalan.
 */
 
-Route::prefix('admin')->name('admin.')->group(function () {
+/*
+|--------------------------------------------------------------------------
+| Menu Pengelola yang Dipakai Bersama
+|--------------------------------------------------------------------------
+| Penawaran, Verifikasi Pembayaran, Payment Term, Notifikasi, Profil, dan
+| Ganti Password adalah hak Admin maupun Superadmin. Definisinya ditulis
+| sekali di sini lalu dipasang dua kali — di bawah /admin dengan nama
+| admin.* dan di bawah /superadmin dengan nama superadmin.* — sehingga
+| keduanya punya alamat sendiri tanpa pernah bisa berbeda isi.
+|
+| Yang memilih nama route saat menyusun tautan adalah helper staff_route();
+| lihat app/Support/helpers.php.
+*/
+$staffRoutes = function () {
+    Route::get('permintaan', [Admin\QuotationRequestController::class, 'index'])->name('quotations.index');
+    Route::get('permintaan/{quotation}', [Admin\QuotationRequestController::class, 'show'])->name('quotations.show');
+    Route::patch('permintaan/{quotation}', [Admin\QuotationRequestController::class, 'update'])->name('quotations.update');
+    Route::get('permintaan/{quotation}/unduh', [Admin\QuotationRequestController::class, 'download'])->name('quotations.download');
+    Route::delete('permintaan/{quotation}', [Admin\QuotationRequestController::class, 'destroy'])->name('quotations.destroy');
+
+    // Keputusan atas permintaan pembatalan yang diajukan pelanggan.
+    Route::post('permintaan/{quotation}/pembatalan/setujui', [Admin\QuotationRequestController::class, 'approveCancellation'])->name('quotations.cancellation.approve');
+    Route::post('permintaan/{quotation}/pembatalan/tolak', [Admin\QuotationRequestController::class, 'rejectCancellation'])->name('quotations.cancellation.reject');
+
+    // Satu penawaran dapat berisi beberapa model; tiap model punya berkas,
+    // estimasi, dan catatannya sendiri.
+    Route::get('permintaan/{quotation}/model/{item}/unduh', [Admin\QuotationRequestController::class, 'downloadItem'])
+        ->scopeBindings()
+        ->name('quotations.items.download');
+    Route::patch('permintaan/{quotation}/model/{item}', [Admin\QuotationRequestController::class, 'updateItem'])
+        ->scopeBindings()
+        ->name('quotations.items.update');
+
+    // Verifikasi Pembayaran: bukti transfer yang masuk beserta keputusan
+    // terima atau tolak.
+    Route::get('verifikasi-pembayaran', [Admin\PaymentController::class, 'index'])->name('payments.index');
+    Route::get('verifikasi-pembayaran/{quotation}/bukti', [Admin\PaymentController::class, 'proof'])->name('payments.proof');
+    Route::post('verifikasi-pembayaran/{quotation}/terima', [Admin\PaymentController::class, 'approve'])->name('payments.approve');
+    Route::post('verifikasi-pembayaran/{quotation}/tolak', [Admin\PaymentController::class, 'reject'])->name('payments.reject');
+
+    // Verifikasi bukti pembayaran per termin, satu antrean dengan menu di
+    // atas namun pada tab tersendiri.
+    Route::get('verifikasi-pembayaran/termin/{installment}/bukti/{proof}', [Admin\PaymentController::class, 'installmentProof'])->name('payments.installments.proof');
+    Route::post('verifikasi-pembayaran/termin/{installment}/terima', [Admin\PaymentController::class, 'approveInstallment'])->name('payments.installments.approve');
+    Route::post('verifikasi-pembayaran/termin/{installment}/tolak', [Admin\PaymentController::class, 'rejectInstallment'])->name('payments.installments.reject');
+
+    /*
+    | Payment Terms: seluruh penawaran Business yang memakai pembayaran
+    | bertahap, persetujuan skemanya, dan pengaturan batas nominalnya.
+    |
+    | Route pengaturan didaftarkan sebelum route berparameter agar
+    | "pengaturan" tidak tertangkap sebagai id payment term.
+    */
+    Route::get('payment-terms', [Admin\PaymentTermController::class, 'index'])->name('payment-terms.index');
+    Route::get('payment-terms/pengaturan', [Admin\PaymentTermSettingController::class, 'edit'])->name('payment-terms.settings.edit');
+    Route::patch('payment-terms/pengaturan', [Admin\PaymentTermSettingController::class, 'update'])->name('payment-terms.settings.update');
+
+    Route::get('payment-terms/{term}', [Admin\PaymentTermController::class, 'show'])->name('payment-terms.show');
+    Route::post('payment-terms/{term}/setujui', [Admin\PaymentTermController::class, 'approve'])->name('payment-terms.approve');
+    Route::post('payment-terms/{term}/tolak', [Admin\PaymentTermController::class, 'reject'])->name('payment-terms.reject');
+    Route::patch('payment-terms/{term}/jadwal', [Admin\PaymentTermController::class, 'updateSchedule'])->name('payment-terms.schedule');
+    Route::post('payment-terms/{term}/termin/{installment}/aktifkan', [Admin\PaymentTermController::class, 'activate'])->name('payment-terms.installments.activate');
+
+    Route::get('notifikasi', [Admin\NotificationController::class, 'index'])->name('notifications.index');
+    Route::get('notifikasi/terbaru', [Admin\NotificationController::class, 'latest'])->name('notifications.latest');
+    Route::post('notifikasi/baca-semua', [Admin\NotificationController::class, 'readAll'])->name('notifications.read-all');
+    Route::post('notifikasi/{notification}/baca', [Admin\NotificationController::class, 'read'])->name('notifications.read');
+
+    Route::get('profil', [Admin\ProfileController::class, 'edit'])->name('profile.edit');
+    Route::patch('profil', [Admin\ProfileController::class, 'update'])->name('profile.update');
+
+    Route::get('ganti-password', [Auth\PasswordController::class, 'edit'])->name('password.edit');
+    Route::put('ganti-password', [Auth\PasswordController::class, 'update'])->name('password.update');
+};
+
+Route::prefix('admin')->name('admin.')->group(function () use ($staffRoutes) {
     Route::get('login', [Admin\LoginController::class, 'create'])->name('login');
     Route::post('login', [Admin\LoginController::class, 'store'])
         ->middleware('throttle:10,1')
         ->name('login.store');
 
-    Route::middleware(['auth', 'admin'])->group(function () {
+    Route::middleware(['auth', 'admin'])->group(function () use ($staffRoutes) {
         Route::post('logout', [Admin\LoginController::class, 'destroy'])->name('logout');
 
         Route::get('/', [Admin\DashboardController::class, 'index'])->name('dashboard');
 
-        Route::get('permintaan', [Admin\QuotationRequestController::class, 'index'])->name('quotations.index');
-        Route::get('permintaan/{quotation}', [Admin\QuotationRequestController::class, 'show'])->name('quotations.show');
-        Route::patch('permintaan/{quotation}', [Admin\QuotationRequestController::class, 'update'])->name('quotations.update');
-        Route::get('permintaan/{quotation}/unduh', [Admin\QuotationRequestController::class, 'download'])->name('quotations.download');
-        Route::delete('permintaan/{quotation}', [Admin\QuotationRequestController::class, 'destroy'])->name('quotations.destroy');
-
-        // Keputusan atas permintaan pembatalan yang diajukan pelanggan.
-        Route::post('permintaan/{quotation}/pembatalan/setujui', [Admin\QuotationRequestController::class, 'approveCancellation'])->name('quotations.cancellation.approve');
-        Route::post('permintaan/{quotation}/pembatalan/tolak', [Admin\QuotationRequestController::class, 'rejectCancellation'])->name('quotations.cancellation.reject');
-
-        // Satu penawaran dapat berisi beberapa model; tiap model punya berkas,
-        // estimasi, dan catatannya sendiri.
-        Route::get('permintaan/{quotation}/model/{item}/unduh', [Admin\QuotationRequestController::class, 'downloadItem'])
-            ->scopeBindings()
-            ->name('quotations.items.download');
-        Route::patch('permintaan/{quotation}/model/{item}', [Admin\QuotationRequestController::class, 'updateItem'])
-            ->scopeBindings()
-            ->name('quotations.items.update');
-
-        // Verifikasi Pembayaran: bukti transfer yang masuk beserta keputusan
-        // terima atau tolak.
-        Route::get('verifikasi-pembayaran', [Admin\PaymentController::class, 'index'])->name('payments.index');
-        Route::get('verifikasi-pembayaran/{quotation}/bukti', [Admin\PaymentController::class, 'proof'])->name('payments.proof');
-        Route::post('verifikasi-pembayaran/{quotation}/terima', [Admin\PaymentController::class, 'approve'])->name('payments.approve');
-        Route::post('verifikasi-pembayaran/{quotation}/tolak', [Admin\PaymentController::class, 'reject'])->name('payments.reject');
-
-        // Verifikasi bukti pembayaran per termin, satu antrean dengan menu di
-        // atas namun pada tab tersendiri.
-        Route::get('verifikasi-pembayaran/termin/{installment}/bukti/{proof}', [Admin\PaymentController::class, 'installmentProof'])->name('payments.installments.proof');
-        Route::post('verifikasi-pembayaran/termin/{installment}/terima', [Admin\PaymentController::class, 'approveInstallment'])->name('payments.installments.approve');
-        Route::post('verifikasi-pembayaran/termin/{installment}/tolak', [Admin\PaymentController::class, 'rejectInstallment'])->name('payments.installments.reject');
-
-        /*
-        | Payment Terms: seluruh penawaran Business yang memakai pembayaran
-        | bertahap, persetujuan skemanya, dan pengaturan batas nominalnya.
-        |
-        | Route pengaturan didaftarkan sebelum route berparameter agar
-        | "pengaturan" tidak tertangkap sebagai id payment term.
-        */
-        Route::get('payment-terms', [Admin\PaymentTermController::class, 'index'])->name('payment-terms.index');
-        Route::get('payment-terms/pengaturan', [Admin\PaymentTermSettingController::class, 'edit'])->name('payment-terms.settings.edit');
-        Route::patch('payment-terms/pengaturan', [Admin\PaymentTermSettingController::class, 'update'])->name('payment-terms.settings.update');
-
-        Route::get('payment-terms/{term}', [Admin\PaymentTermController::class, 'show'])->name('payment-terms.show');
-        Route::post('payment-terms/{term}/setujui', [Admin\PaymentTermController::class, 'approve'])->name('payment-terms.approve');
-        Route::post('payment-terms/{term}/tolak', [Admin\PaymentTermController::class, 'reject'])->name('payment-terms.reject');
-        Route::patch('payment-terms/{term}/jadwal', [Admin\PaymentTermController::class, 'updateSchedule'])->name('payment-terms.schedule');
-        Route::post('payment-terms/{term}/termin/{installment}/aktifkan', [Admin\PaymentTermController::class, 'activate'])->name('payment-terms.installments.activate');
-
-        Route::get('pengguna', [Admin\UserController::class, 'index'])->name('users.index');
-        Route::get('pengguna/{user}', [Admin\UserController::class, 'show'])->name('users.show');
-
-        /*
-        | Activity Logs: jejak audit seluruh aktivitas penting pelanggan dan
-        | pengelola.
-        |
-        | Hanya dua route baca. Jejak audit tidak menyediakan penyuntingan
-        | maupun penghapusan dengan sengaja — riwayat yang dapat diubah tidak
-        | lagi dapat dijadikan bukti.
-        */
-        Route::get('activity-logs', [Admin\ActivityLogController::class, 'index'])->name('activity-logs.index');
-        Route::get('activity-logs/{activityLog}', [Admin\ActivityLogController::class, 'show'])->name('activity-logs.show');
-
-        Route::get('notifikasi', [Admin\NotificationController::class, 'index'])->name('notifications.index');
-        Route::get('notifikasi/terbaru', [Admin\NotificationController::class, 'latest'])->name('notifications.latest');
-        Route::post('notifikasi/baca-semua', [Admin\NotificationController::class, 'readAll'])->name('notifications.read-all');
-        Route::post('notifikasi/{notification}/baca', [Admin\NotificationController::class, 'read'])->name('notifications.read');
-
-        Route::get('profil', [Admin\ProfileController::class, 'edit'])->name('profile.edit');
-        Route::patch('profil', [Admin\ProfileController::class, 'update'])->name('profile.update');
-
-        Route::get('ganti-password', [Auth\PasswordController::class, 'edit'])->name('password.edit');
-        Route::put('ganti-password', [Auth\PasswordController::class, 'update'])->name('password.update');
+        $staffRoutes();
     });
+});
+
+/*
+|--------------------------------------------------------------------------
+| Dashboard Superadmin
+|--------------------------------------------------------------------------
+| Wilayah dengan akses tertinggi: statistik keseluruhan sistem, master data
+| harga, seluruh akun pelanggan, jejak audit, dan pengelolaan akun Admin.
+|
+| Tugas operasional harian — penawaran, verifikasi pembayaran, payment term,
+| notifikasi, profil, dan ganti password — tetap berada pada grup admin dan
+| dipakai bersama, karena Superadmin memang menjalankannya juga: lihat
+| App\Models\User::isAdmin(), yang ikut bernilai true baginya.
+|
+| Yang berada DI SINI hanya milik Superadmin, dijaga middleware tersendiri
+| sehingga URL-nya benar-benar tertutup bagi Admin biasa — bukan sekadar
+| disembunyikan dari sidebar.
+*/
+
+Route::prefix('superadmin')->name('superadmin.')->middleware(['auth', 'superadmin'])->group(function () use ($staffRoutes) {
+    // Alamat sendiri untuk seluruh menu operasional, isinya sama persis
+    // dengan milik Admin.
+    $staffRoutes();
+
+    Route::get("/", [SuperAdmin\DashboardController::class, "index"])->name("dashboard");
+
+    /*
+    | Akun Admin: satu-satunya tempat akun pengelola dibuat, disunting, dan
+    | dinonaktifkan. Akun Superadmin sendiri tidak dapat disentuh dari sini.
+    */
+    Route::get("akun-admin", [SuperAdmin\AdminAccountController::class, "index"])->name("admins.index");
+    Route::get("akun-admin/tambah", [SuperAdmin\AdminAccountController::class, "create"])->name("admins.create");
+    Route::post("akun-admin", [SuperAdmin\AdminAccountController::class, "store"])->name("admins.store");
+    Route::get("akun-admin/{admin}/edit", [SuperAdmin\AdminAccountController::class, "edit"])->name("admins.edit");
+    Route::patch("akun-admin/{admin}", [SuperAdmin\AdminAccountController::class, "update"])->name("admins.update");
+    Route::delete("akun-admin/{admin}", [SuperAdmin\AdminAccountController::class, "destroy"])->name("admins.destroy");
+    /*
+    | Price List: harga material FDM/SLA, packaging, dan mesin — sumber
+    | data Calculator/Quotation. Empat tabel dikelola terpisah lewat
+    | controller masing-masing; halaman index menampilkan keempatnya.
+    */
+    Route::get('price-list', [SuperAdmin\PriceListController::class, 'index'])->name('price-list.index');
+
+    /*
+    | Teknologi cetak: menambah satu di sini langsung memunculkan tabnya
+    | sendiri pada Price List, pilihannya pada Edit Specification, dan baris
+    | parameternya pada tab Harga.
+    |
+    | Route "tambah" didaftarkan sebelum route berparameter agar tidak
+    | tertangkap sebagai id teknologi.
+    */
+    Route::get('price-list/teknologi/tambah', [SuperAdmin\PrintTechnologyController::class, 'create'])->name('price-list.technologies.create');
+    Route::post('price-list/teknologi', [SuperAdmin\PrintTechnologyController::class, 'store'])->name('price-list.technologies.store');
+    Route::get('price-list/teknologi/{technology}/edit', [SuperAdmin\PrintTechnologyController::class, 'edit'])->name('price-list.technologies.edit');
+    Route::patch('price-list/teknologi/{technology}', [SuperAdmin\PrintTechnologyController::class, 'update'])->name('price-list.technologies.update');
+    Route::delete('price-list/teknologi/{technology}', [SuperAdmin\PrintTechnologyController::class, 'destroy'])->name('price-list.technologies.destroy');
+
+    /*
+    | Material milik satu teknologi. Teknologinya menjadi parameter route,
+    | jadi satu controller melayani seluruh tab — termasuk tab teknologi yang
+    | baru ditambahkan Superadmin.
+    */
+    Route::get('price-list/material/{technology}/tambah', [SuperAdmin\PriceListMaterialController::class, 'create'])->name('price-list.materials.create');
+    Route::post('price-list/material/{technology}', [SuperAdmin\PriceListMaterialController::class, 'store'])->name('price-list.materials.store');
+    Route::delete('price-list/material/{technology}/hapus-terpilih', [SuperAdmin\PriceListMaterialController::class, 'destroyMany'])->name('price-list.materials.destroy-many');
+    Route::get('price-list/material/{technology}/{material}/edit', [SuperAdmin\PriceListMaterialController::class, 'edit'])->name('price-list.materials.edit');
+    Route::patch('price-list/material/{technology}/{material}', [SuperAdmin\PriceListMaterialController::class, 'update'])->name('price-list.materials.update');
+    Route::delete('price-list/material/{technology}/{material}', [SuperAdmin\PriceListMaterialController::class, 'destroy'])->name('price-list.materials.destroy');
+
+
+    // Penghapusan massal didaftarkan SEBELUM route berparameter agar
+    // "hapus-terpilih" tidak tertangkap sebagai id material.
+
+    // Penghapusan massal didaftarkan SEBELUM route berparameter agar
+    // "hapus-terpilih" tidak tertangkap sebagai id material.
+
+    Route::get('price-list/packaging/create', [SuperAdmin\PackagingItemController::class, 'create'])->name('price-list.packaging.create');
+    Route::post('price-list/packaging', [SuperAdmin\PackagingItemController::class, 'store'])->name('price-list.packaging.store');
+    Route::get('price-list/packaging/{packagingItem}/edit', [SuperAdmin\PackagingItemController::class, 'edit'])->name('price-list.packaging.edit');
+    Route::patch('price-list/packaging/{packagingItem}', [SuperAdmin\PackagingItemController::class, 'update'])->name('price-list.packaging.update');
+    Route::delete('price-list/packaging/{packagingItem}', [SuperAdmin\PackagingItemController::class, 'destroy'])->name('price-list.packaging.destroy');
+
+    Route::get('price-list/machine-cost/create', [SuperAdmin\MachineCostController::class, 'create'])->name('price-list.machine-cost.create');
+    Route::post('price-list/machine-cost', [SuperAdmin\MachineCostController::class, 'store'])->name('price-list.machine-cost.store');
+    Route::get('price-list/machine-cost/{machineCost}/edit', [SuperAdmin\MachineCostController::class, 'edit'])->name('price-list.machine-cost.edit');
+    Route::patch('price-list/machine-cost/{machineCost}', [SuperAdmin\MachineCostController::class, 'update'])->name('price-list.machine-cost.update');
+    Route::delete('price-list/machine-cost/{machineCost}', [SuperAdmin\MachineCostController::class, 'destroy'])->name('price-list.machine-cost.destroy');
+
+    // Tab Harga: rumus & parameter simulasi Harga Jual per teknologi.
+    // Satu baris per teknologi, dibuat otomatis saat teknologinya ditambah;
+    // tidak ada tambah/hapus dari sini. Kode teknologi selalu huruf kapital,
+    // keberadaannya diperiksa controller karena daftarnya kini dapat berubah.
+    Route::patch('price-list/harga/{technology}', [SuperAdmin\PricingFormulaController::class, 'update'])
+        ->where('technology', '[A-Z0-9]+')
+        ->name('price-list.harga.update');
+
+    Route::get('pengguna', [SuperAdmin\UserController::class, 'index'])->name('users.index');
+    Route::get('pengguna/{user}', [SuperAdmin\UserController::class, 'show'])->name('users.show');
+
+    /*
+    | Activity Logs: jejak audit seluruh aktivitas penting pelanggan dan
+    | pengelola.
+    |
+    | Hanya dua route baca. Jejak audit tidak menyediakan penyuntingan
+    | maupun penghapusan dengan sengaja — riwayat yang dapat diubah tidak
+    | lagi dapat dijadikan bukti.
+    */
+    Route::get('activity-logs', [SuperAdmin\ActivityLogController::class, 'index'])->name('activity-logs.index');
+    Route::get('activity-logs/{activityLog}', [SuperAdmin\ActivityLogController::class, 'show'])->name('activity-logs.show');
+
 });

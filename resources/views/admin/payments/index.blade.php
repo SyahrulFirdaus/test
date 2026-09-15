@@ -28,7 +28,7 @@
              itulah pekerjaan yang benar-benar menunggu admin. --}}
         <div class="mt-8 flex flex-wrap gap-2">
             @foreach ($tabs as $key => $label)
-                <a href="{{ route('admin.payments.index', ['filter' => $key]) }}"
+                <a href="{{ staff_route('payments.index', ['filter' => $key]) }}"
                    class="inline-flex items-center gap-2 rounded-xl border px-4 py-2.5 text-sm font-bold transition-colors
                           {{ $filter === $key
                               ? 'border-transparent bg-brand-600 text-white'
@@ -93,10 +93,10 @@
                         </dl>
 
                         <div class="mt-5 flex flex-wrap items-center gap-2 border-t border-ink-100 pt-5">
-                            <a href="{{ route('admin.payment-terms.show', $term) }}" class="viewer-tool">Kelola Payment Term</a>
+                            <a href="{{ staff_route('payment-terms.show', $term) }}" class="viewer-tool">Kelola Payment Term</a>
 
                             @if ($proof)
-                                <a href="{{ route('admin.payments.installments.proof', [$installment, $proof]) }}"
+                                <a href="{{ staff_route('payments.installments.proof', [$installment, $proof]) }}"
                                    target="_blank"
                                    rel="noopener"
                                    class="viewer-tool">
@@ -109,7 +109,7 @@
                         {{-- Menerima termin ini sekaligus mengaktifkan termin
                              berikutnya sesuai jadwal. --}}
                         <div class="mt-5 grid gap-4 rounded-2xl border border-ink-100 bg-ink-50/70 p-5 lg:grid-cols-2">
-                            <form method="POST" action="{{ route('admin.payments.installments.approve', $installment) }}">
+                            <form method="POST" action="{{ staff_route('payments.installments.approve', $installment) }}">
                                 @csrf
                                 <p class="text-sm font-bold text-ink-900">Terima Pembayaran</p>
                                 <p class="mt-1 text-xs leading-relaxed text-ink-500">
@@ -118,7 +118,7 @@
                                 <button type="submit" class="btn-primary mt-3 w-full">Terima Pembayaran</button>
                             </form>
 
-                            <form method="POST" action="{{ route('admin.payments.installments.reject', $installment) }}">
+                            <form method="POST" action="{{ staff_route('payments.installments.reject', $installment) }}">
                                 @csrf
                                 <label for="reason-termin-{{ $installment->id }}" class="text-sm font-bold text-ink-900">Tolak Pembayaran</label>
                                 <textarea id="reason-termin-{{ $installment->id }}"
@@ -190,10 +190,10 @@
                     @endif
 
                     <div class="mt-5 flex flex-wrap items-center gap-2 border-t border-ink-100 pt-5">
-                        <a href="{{ route('admin.quotations.show', $quotation) }}" class="viewer-tool">Detail Penawaran</a>
+                        <a href="{{ staff_route('quotations.show', $quotation) }}" class="viewer-tool">Detail Penawaran</a>
 
                         @if ($quotation->hasPaymentProof())
-                            <a href="{{ route('admin.payments.proof', $quotation) }}"
+                            <a href="{{ staff_route('payments.proof', $quotation) }}"
                                target="_blank"
                                rel="noopener"
                                class="viewer-tool">
@@ -209,7 +209,7 @@
                          pelanggan tahu apa yang harus diperbaiki. --}}
                     @if ($quotation->status === \App\Support\QuotationStatus::PAYMENT_REVIEW)
                         <div class="mt-5 grid gap-4 rounded-2xl border border-ink-100 bg-ink-50/70 p-5 lg:grid-cols-2">
-                            <form method="POST" action="{{ route('admin.payments.approve', $quotation) }}">
+                            <form method="POST" action="{{ staff_route('payments.approve', $quotation) }}">
                                 @csrf
                                 <p class="text-sm font-bold text-ink-900">Terima Pembayaran</p>
                                 <p class="mt-1 text-xs leading-relaxed text-ink-500">
@@ -218,7 +218,7 @@
                                 <button type="submit" class="btn-primary mt-3 w-full">Terima Pembayaran</button>
                             </form>
 
-                            <form method="POST" action="{{ route('admin.payments.reject', $quotation) }}">
+                            <form method="POST" action="{{ staff_route('payments.reject', $quotation) }}">
                                 @csrf
                                 <label for="reason-{{ $quotation->id }}" class="text-sm font-bold text-ink-900">Tolak Pembayaran</label>
                                 <textarea id="reason-{{ $quotation->id }}"

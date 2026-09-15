@@ -19,11 +19,11 @@ namespace App\Support;
  */
 class QuotationStatus
 {
-    public const RECEIVED = 'received';
-
+    /**
+     * Tahap pertama sekaligus satu-satunya tahap yang isinya masih boleh
+     * diubah pemiliknya. Penawaran baru langsung masuk ke sini.
+     */
     public const REVIEWING = 'reviewing';
-
-    public const AWAITING_APPROVAL = 'awaiting_approval';
 
     public const AWAITING_PAYMENT = 'awaiting_payment';
 
@@ -117,7 +117,7 @@ class QuotationStatus
 
     public static function first(): string
     {
-        return self::flowKeys()[0] ?? self::RECEIVED;
+        return self::flowKeys()[0] ?? self::REVIEWING;
     }
 
     /** Apakah status ini termasuk keadaan pembatalan. */
@@ -131,9 +131,9 @@ class QuotationStatus
     /**
      * Apakah isi penawaran masih boleh diubah pemiliknya.
      *
-     * Hanya tahap paling awal ("Menunggu Review") yang ditandai `editable` di
-     * config; begitu admin memindahkannya ke "File Sedang Direview", seluruh
-     * data penawaran menjadi read only.
+     * Hanya tahap paling awal ("File Sedang Direview") yang ditandai `editable`
+     * di config; begitu admin memindahkannya ke tahap berikutnya, seluruh data
+     * penawaran menjadi read only.
      */
     public static function isEditable(?string $status): bool
     {
@@ -231,6 +231,96 @@ class QuotationStatus
         $index = array_search($status, self::flowKeys(), true);
 
         return $index === false ? -1 : $index;
+    }
+
+    /**
+     * Tahap tepat sesudah status ini pada alur, atau null bila sudah di ujung.
+     *
+     * Dihitung dari tahap acuan (lihat `timelineAnchor`), sehingga status di
+     * luar alur maju — bukti pembayaran ditolak, pengajuan pembatalan —
+     * meneruskan alurnya dari tahap terakhir yang benar-benar dijalani.
+     */
+    public static function next(?string $status, ?string $fallback = null): ?string
+    {
+        $position = self::position(self::timelineAnchor($status, $fallback));
+
+        if ($position < 0) {
+            return null;
+        }
+
+        return self::flowKeys()[$position + 1] ?? null;
+    }
+
+    /**
+     * Tahap yang boleh dipasang admin dari status sekarang.
+     *
+     * Alurnya selangkah demi selangkah: hanya tahap yang sedang berjalan dan
+     * tepat satu tahap sesudahnya. Tahap yang sudah dilewati tidak dapat
+     * dipilih ulang, dan tahap yang lebih jauh tidak dapat dilompati sebelum
+     * tahap sebelumnya benar-benar tersimpan.
+     *
+     * @return array<int, string>
+     */
+    public static function selectableFrom(?string $status, ?string $fallback = null): array
+    {
+        $anchor = self::timelineAnchor($status, $fallback);
+
+        // Status di luar alur yang tidak menyimpan tahap acuan — mis. pembatalan
+        // tanpa `status_before_cancellation` — hanya boleh kembali ke tahap awal.
+        if (self::position($anchor) < 0) {
+            return [self::first()];
+        }
+
+        return array_values(array_filter([$anchor, self::next($anchor)]));
+    }
+
+    /** Apakah perpindahan ke `$target` sah dari status sekarang. */
+    public static function canTransitionTo(?string $status, ?string $target, ?string $fallback = null): bool
+    {
+        return in_array($target, self::selectableFrom($status, $fallback), true);
+    }
+
+    /**
+     * Susunan dropdown status admin beserta keadaan tiap tahap.
+     *
+     * Seluruh tahap tetap ditampilkan supaya urutannya terbaca utuh; yang
+     * membedakan hanya `selectable`. Keadaannya dihitung dari status yang
+     * tersimpan, jadi menyegarkan halaman selalu mengembalikan kunci yang sama.
+     *
+     * @return array<int, array{key: string, label: string, state: string, hint: string, selectable: bool}>
+     */
+    public static function manualChoices(?string $status, ?string $fallback = null): array
+    {
+        $current = self::position(self::timelineAnchor($status, $fallback));
+        $selectable = self::selectableFrom($status, $fallback);
+
+        $choices = [];
+
+        foreach (self::flow() as $key => $stage) {
+            $position = self::position($key);
+
+            $state = match (true) {
+                $current >= 0 && $position < $current => 'done',
+                $current >= 0 && $position === $current => 'current',
+                $position === $current + 1 => 'next',
+                default => 'locked',
+            };
+
+            $choices[] = [
+                'key' => $key,
+                'label' => $stage['label'],
+                'state' => $state,
+                'hint' => match ($state) {
+                    'done' => 'sudah dilewati',
+                    'current' => 'status saat ini',
+                    'next' => 'tahap berikutnya',
+                    default => 'terkunci',
+                },
+                'selectable' => in_array($key, $selectable, true),
+            ];
+        }
+
+        return $choices;
     }
 
     /**

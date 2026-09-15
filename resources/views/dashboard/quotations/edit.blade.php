@@ -17,7 +17,7 @@
         <p class="font-mono text-sm font-semibold text-brand-600">{{ $quotation->tracking_number }}</p>
         <h2 class="mt-1 text-2xl font-bold tracking-tight text-ink-900 sm:text-3xl">Ubah Penawaran</h2>
         <p class="mt-2 max-w-3xl text-sm leading-relaxed text-ink-500">
-            Selama status masih <span class="font-semibold text-ink-700">"Menunggu Review"</span>, Anda dapat menambah
+            Selama status masih <span class="font-semibold text-ink-700">"File Sedang Direview"</span>, Anda dapat menambah
             atau menghapus file 3D, mengubah pengaturan printing, dan mengganti jumlah cetaknya. Estimasi biaya dihitung
             ulang otomatis setiap kali perubahan disimpan.
         </p>
@@ -93,7 +93,7 @@
 
                     <div class="flex flex-wrap items-center gap-2">
                         <span class="rounded-full border border-ink-200 bg-white px-3 py-1 text-xs font-bold text-brand-700">
-                            {{ $rupiah($item->estimated_cost) }}
+                            {{ $rupiah($item->display_price) }}
                         </span>
 
                         @if ($itemCount > 1)
@@ -134,12 +134,15 @@
                             <label for="material-{{ $item->id }}" class="field-label">Material</label>
                             <select id="material-{{ $item->id }}" name="material" class="field-input" data-material-select>
                                 @foreach ($technologies as $code => $config)
-                                    @foreach (array_keys($config['materials']) as $material)
+                                    {{-- Nilai option tetap nama katalog beserta brand-nya: itulah
+                                         yang divalidasi server dan menentukan harga. Yang dibaca
+                                         pelanggan hanya nama jenis bahannya. --}}
+                                    @foreach ($config['materials'] as $material => $label)
                                         <option value="{{ $material }}"
                                                 data-technology="{{ $code }}"
                                                 @selected($item->technology === $code && $item->material === $material)
                                                 @if ($item->technology !== $code) hidden @endif>
-                                            {{ $material }}
+                                            {{ $label }}
                                         </option>
                                     @endforeach
                                 @endforeach
@@ -256,7 +259,7 @@
                                 'Spesifikasi' => $item->specification_summary,
                                 'Berat' => $angka($item->total_weight_g, 1).' g',
                                 'Lead Time' => $item->lead_time ?? '-',
-                                'Estimasi' => $rupiah($item->estimated_cost),
+                                'Harga Penawaran' => $rupiah($item->display_price),
                             ] as $label => $value)
                                 <div>
                                     <dt class="text-[0.6rem] font-semibold uppercase tracking-[0.14em] text-ink-400">{{ $label }}</dt>

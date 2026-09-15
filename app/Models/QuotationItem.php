@@ -192,7 +192,8 @@ class QuotationItem extends Model
     {
         return implode(' · ', [
             $this->technology,
-            $this->material,
+            // Ringkasan ini dibaca pelanggan di halaman Ubah Spesifikasi.
+            $this->material_label,
             $this->material_color_label,
             $this->finishing_label,
             $this->quantity.' pcs',

@@ -13,6 +13,7 @@ import {
     formatNumber,
     formatPercent,
 } from './print-estimator';
+import { materialLabel } from './model-spec';
 import { extensionOf, FORMAT_NAMES } from './model-formats';
 import { estimateSupport, isSupportRequired, supportNote } from './support-estimator';
 import { buildSupport, disposeSupport } from './support-builder';
@@ -1364,8 +1365,10 @@ export default class PrinterCard {
             return;
         }
 
+        // Nilai option tetap nama katalog — itulah yang dikirim ke server dan
+        // menentukan harga; yang dibaca pelanggan hanya nama jenis bahannya.
         this.materialSelect.innerHTML = (this.technology()?.materials ?? [])
-            .map((material) => `<option value="${escapeHtml(material.name)}">${escapeHtml(material.name)}</option>`)
+            .map((material) => `<option value="${escapeHtml(material.name)}">${escapeHtml(materialLabel(material))}</option>`)
             .join('');
     }
 
@@ -1696,14 +1699,18 @@ export default class PrinterCard {
             {
                 scale,
                 surfaceAreaCm2: this.metrics.surfaceAreaMm2 / 100,
+                // Sudah terskalakan sejak diukur di viewer; dipakai Basic Fee.
+                dimensions: this.dimensions,
                 infillDensity: this.settings.infillDensity,
                 infillPattern: this.settings.infillPattern,
                 patterns: this.config.infill?.patterns,
                 hollow: { ...this.settings.hollow, drainHoles: this.config.hollow?.drainCount ?? 2 },
                 printer: this.printerConfig(),
+                printerKey: this.printerKey,
                 finishing: this.settings.finishing,
                 finishings: this.config.finishing?.options,
                 cost: this.config.cost,
+                pricing: this.config.pricing,
             }
         );
 
@@ -1725,7 +1732,8 @@ export default class PrinterCard {
         // ditampilkan di sini. Rincian biaya per komponen juga ditiadakan —
         // pelanggan cukup melihat satu angka Estimasi Harga.
         this.setEstimate('technology', `${technology.code} (${technology.name})`);
-        this.setEstimate('material', this.settings.material);
+        // Material lama yang tidak lagi ditawarkan tetap ditampilkan apa adanya.
+        this.setEstimate('material', materialLabel(this.material() ?? { name: this.settings.material }));
         this.setEstimate('quality', resolution?.quality ?? '-');
         this.setEstimate('volume', `${formatNumber(result.totalMaterialVolumeCm3, 2)} cm³`);
         this.setEstimate('weight', `${formatNumber(result.weightG, 1)} gram`);

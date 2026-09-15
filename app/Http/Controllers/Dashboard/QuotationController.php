@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Dashboard;
 
 use App\Http\Controllers\Controller;
+use App\Models\PrintTechnology;
 use App\Models\QuotationItem;
 use App\Models\QuotationRequest;
 use App\Models\User;
@@ -10,11 +11,13 @@ use App\Notifications\CancellationRequested;
 use App\Services\ActivityLogger;
 use App\Services\MeshInspector;
 use App\Services\PrintEstimator;
+use App\Services\SellingPriceEstimator;
 use App\Support\ActivityAction;
 use App\Support\ActivityModule;
 use App\Support\AnalysisStatus;
 use App\Support\Finishing;
 use App\Support\InfillPattern;
+use App\Support\MaterialCatalog;
 use App\Support\MaterialColor;
 use App\Support\ModelFormat;
 use App\Support\Printer;
@@ -33,15 +36,16 @@ use RuntimeException;
 /**
  * "Penawaran Saya" — daftar, detail, penyuntingan, dan pembatalan.
  *
- * Penyuntingan hanya terbuka selama status masih "Menunggu Review". Begitu
- * admin memindahkannya ke "File Sedang Direview", seluruh isi penawaran
- * menjadi read only supaya berkas yang sedang ditinjau tim produksi tidak
- * berubah di tengah jalan.
+ * Penyuntingan hanya terbuka selama status masih "File Sedang Direview" —
+ * tahap pertama sekaligus satu-satunya yang ditandai `editable`. Begitu admin
+ * memindahkannya ke "Menunggu Pembayaran", seluruh isi penawaran menjadi read
+ * only supaya berkas yang sudah dikutip harganya tidak berubah di tengah jalan.
  */
 class QuotationController extends Controller
 {
     public function __construct(
         private readonly PrintEstimator $estimator,
+        private readonly SellingPriceEstimator $sellingPrice,
         private readonly MeshInspector $inspector,
         private readonly ActivityLogger $activity,
     ) {}
@@ -99,14 +103,25 @@ class QuotationController extends Controller
 
         return view('dashboard.quotations.edit', [
             'quotation' => $quotation->load('items'),
-            'technologies' => config('printing.technologies'),
+            // Dibaca lewat estimator, bukan langsung dari config: teknologi dan
+            // materialnya dikelola Superadmin di Price List. Kunci array tetap
+            // nama katalog yang dikirim formulir, nilainya nama yang dibaca
+            // pelanggan.
+            'technologies' => collect($this->estimator->technologies())
+                ->map(fn (array $technology, string $code) => [
+                    ...$technology,
+                    'materials' => collect(MaterialCatalog::offered($code, $technology['materials'] ?? []))
+                        ->map(fn (array $material, string $name) => MaterialCatalog::displayName($code, $name))
+                        ->all(),
+                ])
+                ->all(),
             'resolutions' => PrintResolution::all(),
             'printers' => Printer::all(),
             'infillDensities' => InfillPattern::densities(),
             'infillPatterns' => InfillPattern::all(),
             'materialColors' => MaterialColor::all(),
             'finishings' => Finishing::all(),
-            'hollowTechnologies' => config('printing.hollow.technologies', []),
+            'hollowTechnologies' => PrintTechnology::hollowCodes(),
             'drainPositions' => config('printing.hollow.drain_hole.positions', []),
             'maxModels' => UploadLimit::maxFiles(),
             'maxFileMb' => UploadLimit::maxMegabytes(),
@@ -167,8 +182,10 @@ class QuotationController extends Controller
 
         $settings = [
             'quantity' => 1,
-            'technology' => $template?->technology ?? array_key_first(config('printing.technologies')),
-            'material' => $template?->material ?? array_key_first(config('printing.technologies.FDM.materials', ['PLA' => []])),
+            // Bawaan mengikuti Price List — bukan lagi daftar tetap yang
+            // menganggap FDM selalu ada.
+            'technology' => $template?->technology ?? (PrintTechnology::codes()[0] ?? null),
+            'material' => $template?->material ?? $this->defaultMaterialFor($template?->technology),
             'printer' => $template?->printer ?? Printer::default(),
             'resolution' => $template?->resolution ?? PrintResolution::default(),
             'scale_percent' => 100,
@@ -243,7 +260,7 @@ class QuotationController extends Controller
 
         $validated = $request->validate([
             'quantity' => ['required', 'integer', 'min:1', 'max:10000'],
-            'technology' => ['required', 'string', 'in:'.implode(',', array_keys(config('printing.technologies')))],
+            'technology' => ['required', 'string', 'in:'.implode(',', PrintTechnology::codes())],
             'material' => ['required', 'string', 'max:60'],
             'printer' => ['required', 'string', 'in:'.implode(',', Printer::keys())],
             'resolution' => ['nullable', 'string', 'in:'.implode(',', PrintResolution::keys())],
@@ -361,7 +378,7 @@ class QuotationController extends Controller
     /**
      * Pembatalan penawaran.
      *
-     * Selama masih "Menunggu Review" pembatalan langsung berlaku. Setelah
+     * Selama masih "File Sedang Direview" pembatalan langsung berlaku. Setelah
      * berkas mulai direview, yang tercatat adalah permintaan pembatalan yang
      * menunggu keputusan admin.
      */
@@ -469,6 +486,24 @@ class QuotationController extends Controller
      * @param  array<string, mixed>  $stats
      * @return array<string, mixed>
      */
+    /**
+     * Material pertama yang tersedia untuk sebuah teknologi.
+     *
+     * Dipakai sebagai nilai bawaan saat pelanggan menambah model tanpa model
+     * lain yang dapat dicontoh. Dibaca dari Price List, jadi teknologi yang
+     * ditambahkan Superadmin pun punya nilai bawaan tanpa perubahan kode.
+     */
+    private function defaultMaterialFor(?string $technology): ?string
+    {
+        $technology ??= PrintTechnology::codes()[0] ?? null;
+
+        if ($technology === null) {
+            return null;
+        }
+
+        return array_key_first($this->estimator->technology($technology)['materials'] ?? []);
+    }
+
     private function estimateAttributes(array $settings, array $stats): array
     {
         $printer = Printer::exists($settings['printer'] ?? null) ? (string) $settings['printer'] : Printer::default();
@@ -508,6 +543,18 @@ class QuotationController extends Controller
             ],
         );
 
+        // Harga ditetapkan rumus Harga Jual Price List, memakai berat dan waktu
+        // yang baru saja dihitung di atas.
+        $pricing = $this->sellingPrice->calculate([
+            'technology' => (string) $settings['technology'],
+            'material' => (string) $settings['material'],
+            'printer_name' => Printer::name($printer),
+            'quantity' => (int) $settings['quantity'],
+            'total_weight_g' => $estimate['total_weight_g'],
+            'minutes' => $estimate['total_minutes'],
+            'dimensions' => $dimensions ?: null,
+        ]);
+
         return [
             'technology' => strtoupper((string) $settings['technology']),
             'material' => (string) $settings['material'],
@@ -537,8 +584,11 @@ class QuotationController extends Controller
             'estimated_weight_g' => $estimate['weight_g'],
             'support_weight_g' => $estimate['support_weight_g'],
             'estimated_minutes' => $estimate['total_minutes'],
-            'estimated_cost' => $estimate['total_cost'],
-            'cost_breakdown' => $estimate['breakdown'],
+            // Harga mengikuti rumus Harga Jual Price List, sama seperti saat
+            // permintaannya pertama kali dikirim; perhitungannya ikut disimpan
+            // agar halaman admin tidak perlu menghitung ulang.
+            'estimated_cost' => $pricing['selling_price'],
+            'cost_breakdown' => $pricing,
         ];
     }
 

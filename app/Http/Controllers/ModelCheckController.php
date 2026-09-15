@@ -3,7 +3,9 @@
 namespace App\Http\Controllers;
 
 use App\Models\Address;
+use App\Models\PrintTechnology;
 use App\Services\PrintEstimator;
+use App\Services\SellingPriceEstimator;
 use App\Support\Finishing;
 use App\Support\InfillPattern;
 use App\Support\LeadTime;
@@ -17,7 +19,10 @@ use Illuminate\Contracts\View\View;
 
 class ModelCheckController extends Controller
 {
-    public function __construct(private readonly PrintEstimator $estimator) {}
+    public function __construct(
+        private readonly PrintEstimator $estimator,
+        private readonly SellingPriceEstimator $sellingPrice,
+    ) {}
 
     /**
      * Halaman "3D Models" — Pre-Print Analyzer.
@@ -171,7 +176,7 @@ class ModelCheckController extends Controller
             ],
 
             'hollow' => [
-                'technologies' => config('printing.hollow.technologies'),
+                'technologies' => PrintTechnology::hollowCodes(),
                 'wallThickness' => config('printing.hollow.wall_thickness_mm'),
                 'drainDiameter' => config('printing.hollow.drain_hole.diameter_mm'),
                 'drainCount' => config('printing.hollow.drain_hole.count'),
@@ -188,20 +193,20 @@ class ModelCheckController extends Controller
                 'options' => Finishing::browserPayload(),
             ],
 
-            // Rincian biaya dihitung ulang di browser dengan angka yang sama
-            // persis seperti yang dipakai server.
+            // Yang dihitung ulang di browser hanyalah Harga Jual, dan satu-satunya
+            // komponennya yang bergantung ukuran adalah Basic Fee. Komponen biaya
+            // lama (support removal, finishing per cm2, quality control,
+            // pembulatan) tidak lagi dikirim karena tidak lagi menentukan harga
+            // apa pun — lihat App\Services\SellingPriceEstimator.
             'cost' => [
-                'supportRemovalFee' => config('printing.cost.support_removal_fee'),
-                'finishing' => [
-                    'ratePerCm2' => config('printing.cost.finishing.rate_per_cm2'),
-                    'minimum' => config('printing.cost.finishing.minimum'),
-                ],
-                'qualityControl' => [
-                    'percent' => config('printing.cost.quality_control.percent'),
-                    'minimum' => config('printing.cost.quality_control.minimum'),
-                ],
-                'rounding' => config('printing.cost.rounding'),
+                'basicFee' => ['tiers' => \App\Support\BasicFee::browserPayload()],
             ],
+
+            // Parameter Harga Jual dari Price List — termasuk Machine Cost yang
+            // sudah dicocokkan dengan tiap printer — supaya harga yang dilihat
+            // pelanggan di Calculator sama persis dengan yang dihitung ulang server
+            // saat permintaan disimpan.
+            'pricing' => $this->sellingPrice->browserPayload(),
 
             'analysis' => [
                 'overhang' => [

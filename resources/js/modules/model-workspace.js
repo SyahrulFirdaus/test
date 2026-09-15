@@ -18,6 +18,9 @@ import {
     finishingOptions,
     materialCatalog,
     materialInfo,
+    materialLabel,
+    PAINTING_KEY,
+    paintingAllowedForColor,
     specificationOf,
     supportNoteFor,
     technologyOptions,
@@ -597,7 +600,7 @@ export default class ModelWorkspace {
         this.specFinishing.addEventListener('click', (event) => {
             const option = event.target.closest('[data-spec-finishing-option]');
 
-            if (!option) {
+            if (!option || option.disabled) {
                 return;
             }
 
@@ -686,8 +689,6 @@ export default class ModelWorkspace {
         this.renderSpecTechnologies();
         this.renderSpecMaterials();
         this.renderSpecColors();
-        this.renderSpecFinishings();
-        this.renderSpecFinishingNote();
         this.renderSpecExtras();
         this.renderSpecInfo();
         this.previewSpec();
@@ -739,7 +740,7 @@ export default class ModelWorkspace {
                             class="spec-option"
                             data-spec-material-option="${escapeAttribute(material.name)}"
                             aria-pressed="${material.name === this.draft.material}">
-                        <span class="spec-option-title">${escapeHtml(material.name)}</span>
+                        <span class="spec-option-title">${escapeHtml(materialLabel(material))}</span>
                         <span class="spec-option-note">Maks. ${escapeHtml(sizeText(material.maxSize))}</span>
                     </button>
                 `
@@ -747,19 +748,35 @@ export default class ModelWorkspace {
             .join('');
     }
 
-    /** Surface finish; daftar beserta keterangannya dibaca dari konfigurasi. */
+    /**
+     * Surface finish; daftar beserta keterangannya dibaca dari konfigurasi.
+     *
+     * Painting hanya masuk akal di atas dasar putih, jadi pilihan ini
+     * dinonaktifkan untuk warna lain — dan dibatalkan otomatis bila warnanya
+     * baru saja diganti dari Putih.
+     */
     renderSpecFinishings() {
+        const paintingAllowed = paintingAllowedForColor(this.draft.color);
+
+        if (this.draft.finishing === PAINTING_KEY && !paintingAllowed) {
+            this.draft.finishing = this.config.finishing?.default ?? 'none';
+        }
+
         this.specFinishing.innerHTML = finishingOptions(this.config)
-            .map(
-                (option) => `
+            .map((option) => {
+                const disabled = option.key === PAINTING_KEY && !paintingAllowed;
+
+                return `
                     <button type="button"
                             class="spec-option"
                             data-spec-finishing-option="${escapeAttribute(option.key)}"
-                            aria-pressed="${option.key === this.draft.finishing}">
+                            aria-pressed="${option.key === this.draft.finishing}"
+                            aria-disabled="${disabled}"
+                            ${disabled ? 'disabled title="Painting hanya tersedia untuk warna Putih"' : ''}>
                         <span class="spec-option-title">${escapeHtml(option.label)}</span>
                     </button>
-                `
-            )
+                `;
+            })
             .join('');
     }
 
@@ -803,7 +820,7 @@ export default class ModelWorkspace {
         setText('[data-spec-model="volume"]', `${formatNumber(summary.volumeCm3 ?? 0, 2)} cm³`);
         setText('[data-spec-model="weight"]', `${formatNumber(summary.weightG ?? 0, 1)} gram`);
 
-        setText('[data-spec-material-name]', material?.name ?? '-');
+        setText('[data-spec-material-name]', material ? materialLabel(material) : '-');
         setText('[data-spec-material-description]', material?.description ?? '');
         setText('[data-spec-material-max]', sizeText(material?.maxSize));
 
@@ -870,6 +887,10 @@ export default class ModelWorkspace {
                 `
             )
             .join('');
+
+        // Warna menentukan apakah Painting boleh dipilih, jadi finishing ikut disegarkan.
+        this.renderSpecFinishings();
+        this.renderSpecFinishingNote();
     }
 
     /* --------------------------------------------- notice ukuran model */
@@ -1171,9 +1192,9 @@ export default class ModelWorkspace {
     /**
      * Total seluruh mesin.
      *
-     * Karena tiap model dicetak pada mesinnya sendiri, waktu tidak dijumlahkan
-     * sebagai antrean satu mesin — yang ditampilkan adalah total jam mesin, dan
-     * waktu selesai mengikuti mesin yang paling lama.
+     * `minutes` adalah penjumlahan waktu proses seluruh object — inilah yang
+     * menentukan lead time penawaran. Object terlama tidak lagi dicatat
+     * terpisah: lead time ditentukan keseluruhan pesanan, bukan satu object.
      */
     totals() {
         return this.readyRecords().reduce(
@@ -1183,11 +1204,10 @@ export default class ModelWorkspace {
                 return {
                     weightG: carry.weightG + (record.summary.weightG ?? 0),
                     minutes: carry.minutes + (estimate.totalMinutes ?? 0),
-                    longestMinutes: Math.max(carry.longestMinutes, estimate.totalMinutes ?? 0),
                     cost: carry.cost + (estimate.totalCost ?? 0),
                 };
             },
-            { weightG: 0, minutes: 0, longestMinutes: 0, cost: 0 }
+            { weightG: 0, minutes: 0, cost: 0 }
         );
     }
 
@@ -1240,10 +1260,11 @@ export default class ModelWorkspace {
 
         this.setTotal('models', `${formatCount(ready.length)} model`);
 
-        // Tiap model dicetak pada mesinnya sendiri sehingga pengerjaannya
-        // berjalan bersamaan; lead time penawaran karena itu mengikuti mesin
-        // yang paling lama, bukan penjumlahan seluruh jam mesin.
-        this.setTotal('time', formatLeadTime(totals.longestMinutes));
+        // Lead time ditentukan TOTAL waktu proses seluruh object dalam satu
+        // penawaran — bukan object yang paling lama, dan bukan per object.
+        // Aturannya ada di App\Support\LeadTime: sampai 20 jam Express,
+        // lebihnya Standard.
+        this.setTotal('time', formatLeadTime(totals.minutes));
         this.setTotal('cost', this.showsPrice ? formatCurrency(totals.cost) : '-');
 
         hide(this.summaryPlaceholder);

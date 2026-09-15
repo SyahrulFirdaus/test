@@ -6,7 +6,9 @@
  *  2. panel notifikasi di balik ikon lonceng;
  *  3. penarikan berkala notifikasi baru beserta popupnya;
  *  4. hitung mundur batas waktu pembayaran;
- *  5. tombol salin (mis. nomor rekening).
+ *  5. tombol salin (mis. nomor rekening);
+ *  6. pengalih mode terang/gelap;
+ *  7. penghapusan massal pada tabel Price List.
  *
  * Notifikasi ditarik berkala (polling) alih-alih lewat WebSocket supaya
  * pemberitahuan terasa langsung tanpa menuntut server tambahan. Endpointnya
@@ -16,10 +18,90 @@
 
 const POLL_INTERVAL_MS = 20000;
 
+initThemeToggle();
 initSidebar();
 initNotifications();
 initPaymentCountdown();
 initCopyButtons();
+initPriceListTabs();
+initFormulaTabs();
+initBulkDelete();
+
+/**
+ * Mode terang/gelap.
+ *
+ * Temanya sendiri sudah dipasang skrip inline di <head> sebelum halaman
+ * digambar — di sini hanya perpindahannya yang diurus, beserta penyelarasan
+ * rupa tombolnya dengan keadaan yang sedang berlaku.
+ *
+ * Pilihan disimpan di localStorage, jadi melekat pada perangkat, bukan pada
+ * akun. Selama pengguna belum pernah memilih sendiri, temanya mengikuti
+ * setelan sistem operasinya dan ikut berubah bila setelan itu berubah.
+ */
+function initThemeToggle() {
+    const toggle = document.querySelector('[data-theme-toggle]');
+
+    if (!toggle) {
+        return;
+    }
+
+    const root = document.documentElement;
+    const media = window.matchMedia('(prefers-color-scheme: dark)');
+
+    const isDark = () => root.getAttribute('data-theme') === 'dark';
+
+    const render = () => {
+        const dark = isDark();
+        const label = dark ? 'Kembali ke mode terang' : 'Aktifkan mode gelap';
+
+        toggle.setAttribute('aria-pressed', dark ? 'true' : 'false');
+        toggle.setAttribute('aria-label', label);
+        toggle.setAttribute('title', label);
+
+        // Ikon menunjukkan MODE YANG SEDANG BERLAKU, bukan tujuan kliknya —
+        // pengguna melihat bulan saat gelap, matahari saat terang.
+        toggle.querySelector('[data-theme-icon="light"]')?.classList.toggle('hidden', dark);
+        toggle.querySelector('[data-theme-icon="dark"]')?.classList.toggle('hidden', !dark);
+    };
+
+    const apply = (dark) => {
+        if (dark) {
+            root.setAttribute('data-theme', 'dark');
+        } else {
+            root.removeAttribute('data-theme');
+        }
+
+        render();
+    };
+
+    toggle.addEventListener('click', () => {
+        const dark = !isDark();
+
+        apply(dark);
+
+        try {
+            localStorage.setItem('nusama-theme', dark ? 'dark' : 'light');
+        } catch (error) {
+            // Penyimpanan diblokir: temanya tetap berubah untuk halaman ini,
+            // hanya tidak diingat saat halaman berikutnya dibuka.
+        }
+    });
+
+    // Mengikuti setelan sistem selama pengguna belum memilih sendiri.
+    media.addEventListener('change', (event) => {
+        try {
+            if (localStorage.getItem('nusama-theme')) {
+                return;
+            }
+        } catch (error) {
+            return;
+        }
+
+        apply(event.matches);
+    });
+
+    render();
+}
 
 /** Sidebar tersembunyi di layar kecil dan dibuka lewat tombol menu. */
 function initSidebar() {
@@ -225,6 +307,65 @@ function initPaymentCountdown() {
     tick();
 }
 
+/**
+ * Tab halaman Price List: FDM/SLA/Packaging/Machine Cost tampil satu per
+ * satu, tanpa reload. Tab aktif mengikuti query string `?tab=` bila ada
+ * (mis. setelah submit pencarian salah satu tabel) supaya reload halaman
+ * tidak mengembalikan pengguna ke tab FDM.
+ */
+function initPriceListTabs() {
+    const tabs = document.querySelectorAll('[data-price-list-tab]');
+    const panels = document.querySelectorAll('[data-price-list-panel]');
+
+    if (!tabs.length) {
+        return;
+    }
+
+    const activate = (name) => {
+        tabs.forEach((tab) => tab.setAttribute('aria-selected', String(tab.dataset.priceListTab === name)));
+        panels.forEach((panel) => panel.classList.toggle('hidden', panel.dataset.priceListPanel !== name));
+    };
+
+    tabs.forEach((tab) => {
+        tab.addEventListener('click', () => activate(tab.dataset.priceListTab));
+    });
+
+    const requested = new URLSearchParams(window.location.search).get('tab');
+
+    if (requested && [...tabs].some((tab) => tab.dataset.priceListTab === requested)) {
+        activate(requested);
+    }
+}
+
+/**
+ * Sub-tab teknologi (FDM/SLA/MJF/SLM) di dalam tab Harga pada Price List.
+ * Pola sama persis dengan initPriceListTabs — lihat komentarnya di atas —
+ * hanya kunci query string-nya `?formula=` alih-alih `?tab=`.
+ */
+function initFormulaTabs() {
+    const tabs = document.querySelectorAll('[data-formula-tab]');
+    const panels = document.querySelectorAll('[data-formula-panel]');
+
+    if (!tabs.length) {
+        return;
+    }
+
+    const activate = (name) => {
+        tabs.forEach((tab) => tab.setAttribute('aria-selected', String(tab.dataset.formulaTab === name)));
+        panels.forEach((panel) => panel.classList.toggle('hidden', panel.dataset.formulaPanel !== name));
+    };
+
+    tabs.forEach((tab) => {
+        tab.addEventListener('click', () => activate(tab.dataset.formulaTab));
+    });
+
+    const requested = new URLSearchParams(window.location.search).get('formula');
+
+    if (requested && [...tabs].some((tab) => tab.dataset.formulaTab === requested)) {
+        activate(requested);
+    }
+}
+
 /** Tombol salin sederhana; labelnya kembali semula setelah dua detik. */
 function initCopyButtons() {
     document.querySelectorAll('[data-copy]').forEach((button) => {
@@ -243,6 +384,103 @@ function initCopyButtons() {
                 button.textContent = original;
             }, 2000);
         });
+    });
+}
+
+/**
+ * Penghapusan massal pada tabel Price List (Material FDM & SLA).
+ *
+ * Satu fungsi melayani kedua tab; yang membedakan hanya nilai atribut
+ * `data-bulk-*`, jadi menambah tabel ketiga nanti cukup menyalin markupnya
+ * tanpa menyentuh berkas ini.
+ *
+ * Kotak centang baris berada di dalam <table> sedangkan formulirnya di luar —
+ * keduanya dijembatani atribut `form` pada HTML, bukan oleh JavaScript. Yang
+ * dikerjakan di sini hanya tiga: centang-semua, menghitung yang terpilih, dan
+ * menahan pengiriman sampai dikonfirmasi.
+ */
+function initBulkDelete() {
+    document.querySelectorAll('[data-bulk-form]').forEach((form) => {
+        const key = form.dataset.bulkForm;
+        const noun = form.dataset.bulkNoun || 'baris';
+
+        const scope = form.closest('[data-price-list-panel]') || document;
+        const all = scope.querySelector(`[data-bulk-all="${key}"]`);
+        const bar = scope.querySelector(`[data-bulk-bar="${key}"]`);
+        const counter = scope.querySelector(`[data-bulk-count="${key}"]`);
+        const clear = scope.querySelector(`[data-bulk-clear="${key}"]`);
+        const items = () => Array.from(scope.querySelectorAll(`[data-bulk-item="${key}"]`));
+
+        if (items().length === 0) {
+            return;
+        }
+
+        const selected = () => items().filter((item) => item.checked);
+
+        const render = () => {
+            const count = selected().length;
+            const total = items().length;
+
+            if (counter) {
+                counter.textContent = String(count);
+            }
+
+            bar?.classList.toggle('hidden', count === 0);
+            bar?.classList.toggle('flex', count > 0);
+
+            if (all) {
+                all.checked = count > 0 && count === total;
+                // Sebagian terpilih ditandai garis, bukan centang penuh.
+                all.indeterminate = count > 0 && count < total;
+            }
+
+            // Baris terpilih diberi latar agar terlihat saat tabelnya panjang.
+            items().forEach((item) => {
+                item.closest('tr')?.classList.toggle('bg-brand-50/60', item.checked);
+            });
+        };
+
+        all?.addEventListener('change', () => {
+            items().forEach((item) => {
+                item.checked = all.checked;
+            });
+
+            render();
+        });
+
+        scope.addEventListener('change', (event) => {
+            if (event.target.matches(`[data-bulk-item="${key}"]`)) {
+                render();
+            }
+        });
+
+        clear?.addEventListener('click', () => {
+            items().forEach((item) => {
+                item.checked = false;
+            });
+
+            render();
+        });
+
+        form.addEventListener('submit', (event) => {
+            const count = selected().length;
+
+            if (count === 0) {
+                event.preventDefault();
+
+                return;
+            }
+
+            const confirmed = window.confirm(
+                `Hapus ${count} ${noun} yang dipilih? Tindakan ini tidak dapat dibatalkan.`
+            );
+
+            if (!confirmed) {
+                event.preventDefault();
+            }
+        });
+
+        render();
     });
 }
 

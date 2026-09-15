@@ -33,8 +33,8 @@
 
                 <div>
                     <label for="password" class="block text-xs font-semibold uppercase tracking-[0.14em] text-ink-400">Kata Sandi</label>
-                    <input type="password" id="password" name="password" required autocomplete="current-password"
-                           class="mt-2 w-full rounded-xl border border-ink-200 px-4 py-3 text-sm text-ink-900 transition-colors focus:border-brand-600 focus:outline-none">
+                    <x-password-field id="password" name="password" required autocomplete="current-password"
+                                      class="w-full rounded-xl border border-ink-200 px-4 py-3 text-sm text-ink-900 transition-colors focus:border-brand-600 focus:outline-none" />
                 </div>
 
                 <div class="flex flex-wrap items-center justify-between gap-3">

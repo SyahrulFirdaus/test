@@ -7,6 +7,7 @@
      */
     $user = auth()->user();
     $isAdmin = $user->isAdmin();
+    $isSuperAdmin = $user->isSuperAdmin();
     $isBusiness = ! $isAdmin && $user->isBusiness();
 
     /*
@@ -51,26 +52,52 @@
             ['label' => 'Ganti Password', 'route' => 'dashboard.password.edit', 'icon' => 'lock', 'active' => 'dashboard.password.*'],
         ];
 
-    $menu = $isAdmin
-        ? [
-            ['label' => 'Dashboard', 'route' => 'admin.dashboard', 'icon' => 'grid', 'active' => 'admin.dashboard'],
-            ['label' => 'Penawaran', 'route' => 'admin.quotations.index', 'icon' => 'layers', 'active' => 'admin.quotations.*'],
-            ['label' => 'Verifikasi Pembayaran', 'route' => 'admin.payments.index', 'icon' => 'check', 'active' => 'admin.payments.*'],
-            ['label' => 'Payment Terms', 'route' => 'admin.payment-terms.index', 'icon' => 'layers', 'active' => 'admin.payment-terms.*'],
-            ['label' => 'User', 'route' => 'admin.users.index', 'icon' => 'users', 'active' => 'admin.users.*'],
-            ['label' => 'Activity Logs', 'route' => 'admin.activity-logs.index', 'icon' => 'shield', 'active' => 'admin.activity-logs.*'],
-            ['label' => 'Notifikasi', 'route' => 'admin.notifications.index', 'icon' => 'bell', 'active' => 'admin.notifications.*'],
-            ['label' => 'Profil', 'route' => 'admin.profile.edit', 'icon' => 'user', 'active' => 'admin.profile.*'],
-            ['label' => 'Ganti Password', 'route' => 'admin.password.edit', 'icon' => 'lock', 'active' => 'admin.password.*'],
-        ]
-        : $customerMenu;
+    /*
+     * Menu pengelola.
+     *
+     * Admin memegang operasional harian; Superadmin memegang semua itu ditambah
+     * pengelolaan sistem — Price List, User, Activity Log, dan Akun Admin.
+     *
+     * Keduanya punya WILAYAH ALAMAT sendiri: menu yang sama tersedia sebagai
+     * /admin/permintaan maupun /superadmin/permintaan, jadi seluruh tautan di
+     * sini dibangun dari awalan wilayahnya. Dengan begitu Superadmin yang
+     * membuka Penawaran tetap berada di /superadmin sampai selesai.
+     *
+     * Pembatasan yang sebenarnya bukan di sini: /superadmin/* dijaga middleware
+     * `superadmin`, sehingga menyembunyikan menu bukan satu-satunya lapisan.
+     */
+    $area = $isSuperAdmin ? 'superadmin.' : 'admin.';
+
+    $staffMenu = [
+        ['label' => 'Dashboard', 'route' => $area.'dashboard', 'icon' => 'grid', 'active' => $area.'dashboard'],
+        ['label' => 'Penawaran', 'route' => $area.'quotations.index', 'icon' => 'layers', 'active' => $area.'quotations.*'],
+        ['label' => 'Verifikasi Pembayaran', 'route' => $area.'payments.index', 'icon' => 'check', 'active' => $area.'payments.*'],
+        ['label' => 'Payment Terms', 'route' => $area.'payment-terms.index', 'icon' => 'layers', 'active' => $area.'payment-terms.*'],
+        ['label' => 'Notifikasi', 'route' => $area.'notifications.index', 'icon' => 'bell', 'active' => $area.'notifications.*'],
+        ['label' => 'Profil', 'route' => $area.'profile.edit', 'icon' => 'user', 'active' => $area.'profile.*'],
+        ['label' => 'Ganti Password', 'route' => $area.'password.edit', 'icon' => 'lock', 'active' => $area.'password.*'],
+    ];
+
+    if ($isSuperAdmin) {
+        // Menu milik Superadmin disisipkan sebelum Notifikasi agar urutannya
+        // mengikuti struktur yang disepakati; Akun Admin menutup daftar.
+        array_splice($staffMenu, 4, 0, [
+            ['label' => 'Price List', 'route' => 'superadmin.price-list.index', 'icon' => 'tag', 'active' => 'superadmin.price-list.*'],
+            ['label' => 'User', 'route' => 'superadmin.users.index', 'icon' => 'users', 'active' => 'superadmin.users.*'],
+            ['label' => 'Activity Log', 'route' => 'superadmin.activity-logs.index', 'icon' => 'shield', 'active' => 'superadmin.activity-logs.*'],
+        ]);
+
+        $staffMenu[] = ['label' => 'Akun Admin', 'route' => 'superadmin.admins.index', 'icon' => 'users', 'active' => 'superadmin.admins.*'];
+    }
+
+    $menu = $isAdmin ? $staffMenu : $customerMenu;
 
     $unreadNotifications = $user->unreadNotifications()->latest()->limit(8)->get();
     $unreadCount = $user->unreadNotifications()->count();
 
-    $latestEndpoint = route($isAdmin ? 'admin.notifications.latest' : 'dashboard.notifications.latest');
-    $notificationsIndex = route($isAdmin ? 'admin.notifications.index' : 'dashboard.notifications.index');
-    $readAllRoute = route($isAdmin ? 'admin.notifications.read-all' : 'dashboard.notifications.read-all');
+    $latestEndpoint = route($isAdmin ? $area.'notifications.latest' : 'dashboard.notifications.latest');
+    $notificationsIndex = route($isAdmin ? $area.'notifications.index' : 'dashboard.notifications.index');
+    $readAllRoute = route($isAdmin ? $area.'notifications.read-all' : 'dashboard.notifications.read-all');
     $logoutRoute = $isAdmin ? route('admin.logout') : route('logout');
 @endphp
 
@@ -79,10 +106,28 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
+
+    {{-- Tema dipasang sebelum apa pun digambar supaya halaman tidak sempat
+         berkedip putih dulu saat pengguna memilih mode gelap. Karena itu
+         skripnya inline di <head>, bukan di bundel yang dimuat belakangan. --}}
+    <script>
+        (function () {
+            try {
+                var saved = localStorage.getItem("nusama-theme");
+                var dark = saved ? saved === "dark" : window.matchMedia("(prefers-color-scheme: dark)").matches;
+
+                if (dark) {
+                    document.documentElement.setAttribute("data-theme", "dark");
+                }
+            } catch (e) {
+                /* Mode penyamaran atau penyimpanan diblokir: tetap terang. */
+            }
+        })();
+    </script>
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <meta name="robots" content="noindex, nofollow">
 
-    <title>@yield('title', 'Dashboard') &middot; {{ $isAdmin ? 'Admin' : 'Akun' }} {{ $company->name }}</title>
+    <title>@yield('title', 'Dashboard') &middot; {{ $isSuperAdmin ? 'Superadmin' : ($isAdmin ? 'Admin' : 'Akun') }} {{ $company->name }}</title>
 
     <link rel="icon" type="image/svg+xml" href="{{ asset('images/favicon.svg') }}">
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -170,6 +215,19 @@
                 </div>
 
                 <div class="flex items-center gap-2 sm:gap-3">
+                    {{-- Mode gelap. Pilihannya milik perangkat ini saja —
+                         disimpan di localStorage, tidak ikut ke akun — jadi
+                         satu akun dapat tampil berbeda di laptop dan di ponsel. --}}
+                    <button type="button"
+                            class="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-ink-200 text-ink-600 transition-colors hover:border-brand-600 hover:text-brand-700"
+                            data-theme-toggle
+                            aria-pressed="false"
+                            aria-label="Aktifkan mode gelap"
+                            title="Aktifkan mode gelap">
+                        <x-icons.sun class="h-5 w-5" data-theme-icon="light" />
+                        <x-icons.moon class="hidden h-5 w-5" data-theme-icon="dark" />
+                    </button>
+
                     {{-- Ikon lonceng: jumlah yang belum dibaca diperbarui berkala
                          oleh resources/js/dashboard.js --}}
                     <div class="relative"

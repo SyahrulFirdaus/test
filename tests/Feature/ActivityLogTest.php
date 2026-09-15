@@ -29,13 +29,18 @@ class ActivityLogTest extends TestCase
 
     private User $admin;
 
+    private User $superAdmin;
+
     private User $customer;
 
     protected function setUp(): void
     {
         parent::setUp();
 
+        // Yang MENCATATKAN aktivitas tetap admin biasa; yang BOLEH MEMBACA
+        // halaman Activity Log hanya Superadmin.
         $this->admin = User::factory()->admin()->create(['name' => 'Administrator']);
+        $this->superAdmin = User::factory()->superAdmin()->create(['name' => 'Superadmin']);
         $this->customer = User::factory()->create([
             'name' => 'David',
             'customer_type' => CustomerType::BUSINESS,
@@ -62,7 +67,7 @@ class ActivityLogTest extends TestCase
             'estimated_weight_g' => 55.8,
             'estimated_minutes' => 200,
             'estimated_cost' => 150000,
-            'status' => QuotationStatus::RECEIVED,
+            'status' => QuotationStatus::REVIEWING,
         ], $overrides));
     }
 
@@ -145,15 +150,15 @@ class ActivityLogTest extends TestCase
         $quotation = $this->quotation();
 
         $this->actingAs($this->admin)->patch(route('admin.quotations.update', $quotation), [
-            'status' => QuotationStatus::REVIEWING,
+            'status' => QuotationStatus::AWAITING_PAYMENT,
         ]);
 
         $log = ActivityLog::where('action', ActivityAction::QUOTATION_STATUS_UPDATE)->first();
 
         $this->assertNotNull($log);
         $this->assertSame(ActorType::ADMIN, $log->user_type);
-        $this->assertSame(QuotationStatus::label(QuotationStatus::RECEIVED), $log->old_values['status']);
-        $this->assertSame(QuotationStatus::label(QuotationStatus::REVIEWING), $log->new_values['status']);
+        $this->assertSame(QuotationStatus::label(QuotationStatus::REVIEWING), $log->old_values['status']);
+        $this->assertSame(QuotationStatus::label(QuotationStatus::AWAITING_PAYMENT), $log->new_values['status']);
         $this->assertSame($quotation->tracking_number, $log->subject_label);
     }
 
@@ -236,18 +241,18 @@ class ActivityLogTest extends TestCase
     {
         // Pengunjung tanpa sesi diarahkan ke halaman masuk admin. Diperiksa
         // lebih dulu karena actingAs() di bawah berlaku sampai akhir pengujian.
-        $this->get(route('admin.activity-logs.index'))->assertRedirect(route('admin.login'));
+        $this->get(route('superadmin.activity-logs.index'))->assertRedirect(route('admin.login'));
 
         // Pelanggan yang sudah masuk dikembalikan ke dashboardnya sendiri,
         // mengikuti perlakuan seluruh halaman admin lainnya.
         $this->actingAs($this->customer)
-            ->get(route('admin.activity-logs.index'))
+            ->get(route('superadmin.activity-logs.index'))
             ->assertRedirect(route('dashboard'));
 
         app(ActivityLogger::class)->log(action: ActivityAction::LOGIN, actor: $this->customer);
 
         $this->actingAs($this->customer)
-            ->get(route('admin.activity-logs.show', ActivityLog::firstOrFail()))
+            ->get(route('superadmin.activity-logs.show', ActivityLog::firstOrFail()))
             ->assertRedirect(route('dashboard'));
     }
 
@@ -259,8 +264,8 @@ class ActivityLogTest extends TestCase
             actor: $this->customer,
         );
 
-        $this->actingAs($this->admin)
-            ->get(route('admin.activity-logs.index'))
+        $this->actingAs($this->superAdmin)
+            ->get(route('superadmin.activity-logs.index'))
             ->assertOk()
             ->assertSee('Activity Logs')
             ->assertSee('Tanggal &amp; Waktu', false)
@@ -296,20 +301,20 @@ class ActivityLogTest extends TestCase
             userName: 'penyusup@example.com',
         );
 
-        $this->actingAs($this->admin)
-            ->get(route('admin.activity-logs.index', ['type' => ActorType::ADMIN]))
+        $this->actingAs($this->superAdmin)
+            ->get(route('superadmin.activity-logs.index', ['type' => ActorType::ADMIN]))
             ->assertOk()
             ->assertSee('Admin masuk dashboard.')
             ->assertDontSee('Menambahkan berkas kitchenbox.');
 
-        $this->actingAs($this->admin)
-            ->get(route('admin.activity-logs.index', ['module' => ActivityModule::MODELS]))
+        $this->actingAs($this->superAdmin)
+            ->get(route('superadmin.activity-logs.index', ['module' => ActivityModule::MODELS]))
             ->assertOk()
             ->assertSee('Menambahkan berkas kitchenbox.')
             ->assertDontSee('penyusup@example.com');
 
-        $this->actingAs($this->admin)
-            ->get(route('admin.activity-logs.index', ['status' => ActivityStatus::FAILED]))
+        $this->actingAs($this->superAdmin)
+            ->get(route('superadmin.activity-logs.index', ['status' => ActivityStatus::FAILED]))
             ->assertOk()
             ->assertSee('penyusup@example.com')
             ->assertDontSee('Menambahkan berkas kitchenbox.');
@@ -330,8 +335,8 @@ class ActivityLogTest extends TestCase
 
         // Yang tersimpan adalah kunci `spec_update`, sedangkan admin mengetik
         // labelnya seperti yang terbaca pada tabel.
-        $this->actingAs($this->admin)
-            ->get(route('admin.activity-logs.index', ['activity' => 'Edit Specification']))
+        $this->actingAs($this->superAdmin)
+            ->get(route('superadmin.activity-logs.index', ['activity' => 'Edit Specification']))
             ->assertOk()
             ->assertSee('Mengubah material dan jumlah.')
             ->assertDontSee('Masuk ke akun.');
@@ -352,15 +357,15 @@ class ActivityLogTest extends TestCase
             actor: $this->customer,
         );
 
-        $this->actingAs($this->admin)
-            ->get(route('admin.activity-logs.index', ['from' => now()->subDay()->toDateString()]))
+        $this->actingAs($this->superAdmin)
+            ->get(route('superadmin.activity-logs.index', ['from' => now()->subDay()->toDateString()]))
             ->assertOk()
             ->assertSee('Aktivitas hari ini.')
             ->assertDontSee('Aktivitas bulan lalu.');
 
         // Batas atas juga berlaku, dan keduanya boleh dipakai bersamaan.
-        $this->actingAs($this->admin)
-            ->get(route('admin.activity-logs.index', ['to' => now()->subWeek()->toDateString()]))
+        $this->actingAs($this->superAdmin)
+            ->get(route('superadmin.activity-logs.index', ['to' => now()->subWeek()->toDateString()]))
             ->assertOk()
             ->assertSee('Aktivitas bulan lalu.')
             ->assertDontSee('Aktivitas hari ini.');
@@ -379,8 +384,8 @@ class ActivityLogTest extends TestCase
 
         $log = ActivityLog::firstOrFail();
 
-        $this->actingAs($this->admin)
-            ->get(route('admin.activity-logs.show', $log))
+        $this->actingAs($this->superAdmin)
+            ->get(route('superadmin.activity-logs.show', $log))
             ->assertOk()
             ->assertSee('Edit Specification')
             ->assertSee('Business (B2B)')

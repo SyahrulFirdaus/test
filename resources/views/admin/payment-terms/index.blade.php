@@ -22,14 +22,14 @@
             </p>
         </div>
 
-        <a href="{{ route('admin.payment-terms.settings.edit') }}" class="viewer-tool">
+        <a href="{{ staff_route('payment-terms.settings.edit') }}" class="viewer-tool">
             Pengaturan Payment Term
         </a>
     </div>
 
     <div class="mt-8 flex flex-wrap gap-2">
         @foreach ($tabs as $key => $label)
-            <a href="{{ route('admin.payment-terms.index', ['filter' => $key]) }}"
+            <a href="{{ staff_route('payment-terms.index', ['filter' => $key]) }}"
                class="inline-flex items-center gap-2 rounded-xl border px-4 py-2.5 text-sm font-bold transition-colors
                       {{ $filter === $key
                           ? 'border-transparent bg-brand-600 text-white'
@@ -109,10 +109,10 @@
                 @endif
 
                 <div class="mt-5 flex flex-wrap gap-2 border-t border-ink-100 pt-5">
-                    <a href="{{ route('admin.payment-terms.show', $term) }}" class="btn-primary px-5 py-2.5">
+                    <a href="{{ staff_route('payment-terms.show', $term) }}" class="btn-primary px-5 py-2.5">
                         Kelola Payment Term
                     </a>
-                    <a href="{{ route('admin.quotations.show', $quotation) }}" class="viewer-tool">
+                    <a href="{{ staff_route('quotations.show', $quotation) }}" class="viewer-tool">
                         Lihat Penawaran
                     </a>
                 </div>

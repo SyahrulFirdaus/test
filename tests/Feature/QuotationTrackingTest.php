@@ -35,7 +35,7 @@ class QuotationTrackingTest extends TestCase
             'estimated_weight_g' => 67.2,
             'estimated_minutes' => 380,
             'estimated_cost' => 185000,
-            'status' => 'received',
+            'status' => 'reviewing',
         ], $overrides));
 
         // Berkas model tersimpan sebagai item tersendiri: satu penawaran dapat
@@ -60,7 +60,7 @@ class QuotationTrackingTest extends TestCase
             'estimated_cost' => 185000,
         ]);
 
-        $quotation->recordHistory('received', 'Permintaan penawaran berhasil dikirim.');
+        $quotation->recordHistory('reviewing', 'Permintaan penawaran berhasil dikirim.');
 
         return $quotation->load('items');
     }
@@ -75,7 +75,7 @@ class QuotationTrackingTest extends TestCase
             ->assertSee('Rangga Prasetya')
             ->assertSee('bracket.stl')
             ->assertSee('FDM')
-            ->assertSee('Menunggu Review')
+            ->assertSee('File Sedang Direview')
             ->assertSee('Riwayat Tracking');
     }
 
@@ -97,7 +97,7 @@ class QuotationTrackingTest extends TestCase
         $response = $this->get(route('tracking.show', $quotation->tracking_number));
 
         foreach ([
-            'Menunggu Review', 'File Sedang Direview', 'Menunggu Persetujuan Penawaran',
+            'File Sedang Direview', 'Menunggu Pembayaran',
             'Menunggu Pembayaran', 'Pembayaran Diterima', 'Sedang Diproduksi',
             'Quality Control', 'Siap Dikirim', 'Selesai',
         ] as $label) {
@@ -106,7 +106,7 @@ class QuotationTrackingTest extends TestCase
 
         $timeline = collect($quotation->timeline)->keyBy('key');
 
-        $this->assertSame('done', $timeline['received']['state']);
+        $this->assertSame('done', $timeline['reviewing']['state']);
         $this->assertSame('done', $timeline['awaiting_payment']['state']);
         $this->assertSame('current', $timeline['production']['state']);
         $this->assertSame('upcoming', $timeline['quality_control']['state']);
@@ -170,11 +170,15 @@ class QuotationTrackingTest extends TestCase
         $quotation = $this->quotation();
         $admin = User::factory()->admin()->create();
 
-        foreach (['reviewing', 'awaiting_approval', 'awaiting_payment', 'production'] as $status) {
+        // Urutannya mengikuti alur berurutan: satu tahap sekali simpan, dan
+        // menyimpan ulang tahap yang sama tetap menambah baris riwayat.
+        $urutan = ['reviewing', 'awaiting_payment', 'awaiting_payment', 'payment_review'];
+
+        foreach ($urutan as $status) {
             $this->actingAs($admin)->patch(route('admin.quotations.update', $quotation), [
                 'status' => $status,
                 'note' => 'Berpindah ke '.$status,
-            ]);
+            ])->assertSessionHasNoErrors();
         }
 
         // Satu entri awal + empat perubahan.
@@ -182,32 +186,33 @@ class QuotationTrackingTest extends TestCase
 
         $response = $this->get(route('tracking.show', $quotation->tracking_number));
 
-        foreach (['reviewing', 'awaiting_approval', 'awaiting_payment', 'production'] as $status) {
+        foreach ($urutan as $status) {
             $response->assertSee('Berpindah ke '.$status);
         }
     }
 
-    public function test_admin_dapat_mengubah_estimasi_harga_dan_tanggal_selesai(): void
+    public function test_admin_dapat_mengubah_tanggal_selesai_tanpa_menyentuh_harga(): void
     {
         $quotation = $this->quotation();
+        $hargaSebelum = (float) $quotation->display_price;
         $admin = User::factory()->admin()->create();
 
         $this->actingAs($admin)->patch(route('admin.quotations.update', $quotation), [
-            'status' => 'awaiting_approval',
+            'status' => 'awaiting_payment',
+            // Harga sengaja ikut dikirim: admin tidak lagi boleh mengubahnya.
             'estimated_price' => 250000,
             'estimated_finish' => '2026-08-15',
         ])->assertRedirect();
 
         $fresh = $quotation->fresh();
 
-        $this->assertEqualsWithDelta(250000, (float) $fresh->estimated_price, 0.01);
         $this->assertSame('2026-08-15', $fresh->estimated_finish->format('Y-m-d'));
 
-        // Harga admin menggantikan estimasi sistem pada tampilan pelanggan.
-        $this->assertEqualsWithDelta(250000, $fresh->display_price, 0.01);
+        // Harga penawaran tetap mengikuti estimasi sistem, bukan kiriman admin.
+        $this->assertEqualsWithDelta($hargaSebelum, $fresh->display_price, 0.01);
+        $this->assertNotEqualsWithDelta(250000, $fresh->display_price, 0.01);
 
         $this->get(route('tracking.show', $fresh->tracking_number))
-            ->assertSee('Rp250.000', false)
             ->assertSee('15 August 2026');
     }
 
@@ -215,7 +220,9 @@ class QuotationTrackingTest extends TestCase
     {
         Storage::fake('public');
 
-        $quotation = $this->quotation();
+        // Foto proses diunggah saat penawaran memang sudah berada di tahap
+        // produksi — statusnya tidak dapat dilompati dari tahap review.
+        $quotation = $this->quotation(['status' => 'production']);
         $admin = User::factory()->admin()->create();
 
         $this->actingAs($admin)->patch(route('admin.quotations.update', $quotation), [

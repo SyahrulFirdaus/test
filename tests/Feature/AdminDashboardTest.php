@@ -47,7 +47,7 @@ class AdminDashboardTest extends TestCase
             'estimated_weight_g' => 67.2,
             'estimated_minutes' => 380,
             'estimated_cost' => 185000,
-            'status' => 'received',
+            'status' => 'reviewing',
         ], $overrides));
 
         $this->addItem($quotation, 'bracket.stl', [
@@ -131,11 +131,11 @@ class AdminDashboardTest extends TestCase
 
         $this->actingAs($this->admin())
             ->patch(route('admin.quotations.update', $quotation), [
-                'status' => 'awaiting_approval',
+                'status' => 'awaiting_payment',
                 'admin_note' => 'Penawaran sudah dikirim via email.',
             ])->assertRedirect();
 
-        $this->assertSame('awaiting_approval', $quotation->fresh()->status);
+        $this->assertSame('awaiting_payment', $quotation->fresh()->status);
         $this->assertSame('Penawaran sudah dikirim via email.', $quotation->fresh()->admin_note);
     }
 
@@ -169,8 +169,8 @@ class AdminDashboardTest extends TestCase
 
     public function test_filter_status_dan_teknologi_bekerja(): void
     {
-        $this->quotation(['tracking_number' => 'QTN-20260729-AAAAAA', 'name' => 'Pemohon FDM', 'technology' => 'FDM', 'status' => 'received']);
-        $this->quotation(['tracking_number' => 'QTN-20260729-BBBBBB', 'name' => 'Pemohon SLM', 'technology' => 'SLM', 'material' => 'Titanium', 'status' => 'awaiting_approval']);
+        $this->quotation(['tracking_number' => 'QTN-20260729-AAAAAA', 'name' => 'Pemohon FDM', 'technology' => 'FDM', 'status' => 'reviewing']);
+        $this->quotation(['tracking_number' => 'QTN-20260729-BBBBBB', 'name' => 'Pemohon SLM', 'technology' => 'SLM', 'material' => 'Titanium', 'status' => 'awaiting_payment']);
 
         $this->actingAs($this->admin())
             ->get(route('admin.quotations.index', ['technology' => 'SLM']))
@@ -179,7 +179,7 @@ class AdminDashboardTest extends TestCase
             ->assertDontSee('Pemohon FDM');
 
         $this->actingAs($this->admin())
-            ->get(route('admin.quotations.index', ['status' => 'received']))
+            ->get(route('admin.quotations.index', ['status' => 'reviewing']))
             ->assertOk()
             ->assertSee('Pemohon FDM')
             ->assertDontSee('Pemohon SLM');
@@ -228,14 +228,16 @@ class AdminDashboardTest extends TestCase
             ->assertNotFound();
     }
 
-    public function test_estimasi_dan_catatan_dapat_diubah_per_model(): void
+    public function test_catatan_dapat_diubah_per_model_tanpa_mengubah_harga(): void
     {
         $quotation = $this->quotation();
         $kedua = $this->addItem($quotation, 'cover.obj', ['estimated_cost' => 90000]);
         $pertama = $quotation->items->first();
+        $hargaSebelum = (float) $quotation->fresh()->estimated_price;
 
         $this->actingAs($this->admin())
             ->patch(route('admin.quotations.items.update', [$quotation, $kedua]), [
+                // Harga sengaja ikut dikirim: admin tidak lagi boleh mengubahnya.
                 'estimated_price' => 120000,
                 'admin_note' => 'Dinding terlalu tipis, disarankan 1,2 mm.',
             ])->assertRedirect();
@@ -243,16 +245,17 @@ class AdminDashboardTest extends TestCase
         $kedua->refresh();
         $pertama->refresh();
 
-        $this->assertEqualsWithDelta(120000, (float) $kedua->estimated_price, 0.01);
         $this->assertSame('Dinding terlalu tipis, disarankan 1,2 mm.', $kedua->admin_note);
+
+        // Harga model tetap memakai estimasi sistem, kiriman admin diabaikan.
+        $this->assertNull($kedua->estimated_price);
 
         // Model lain sama sekali tidak tersentuh.
         $this->assertNull($pertama->estimated_price);
         $this->assertNull($pertama->admin_note);
 
-        // Harga penawaran mengikuti penjumlahan harga tiap model: model pertama
-        // masih memakai estimasi sistemnya sendiri (185.000).
-        $this->assertEqualsWithDelta(305000, (float) $quotation->fresh()->estimated_price, 0.01);
+        // Harga penawaran pun tidak berubah.
+        $this->assertEqualsWithDelta($hargaSebelum, (float) $quotation->fresh()->estimated_price, 0.01);
     }
 
     public function test_menghapus_penawaran_menghapus_berkas_seluruh_model(): void

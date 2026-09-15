@@ -2,6 +2,7 @@
 
 namespace App\Support;
 
+use App\Services\PrintEstimator;
 use Illuminate\Support\Str;
 
 /**
@@ -24,7 +25,7 @@ class MaterialCatalog
      */
     public static function technologies(): array
     {
-        return collect(config('printing.technologies', []))
+        return collect(app(PrintEstimator::class)->technologies())
             ->map(fn (array $technology, string $code) => [
                 'code' => $code,
                 'name' => $technology['name'],
@@ -52,7 +53,7 @@ class MaterialCatalog
      */
     public static function materialsOf(string $code, ?array $technology = null): array
     {
-        $technology ??= config('printing.technologies.'.$code);
+        $technology ??= app(PrintEstimator::class)->technology($code);
 
         if (! is_array($technology)) {
             return [];
@@ -100,6 +101,70 @@ class MaterialCatalog
     public static function slug(string $technology, string $material): string
     {
         return Str::slug($technology.'-'.$material);
+    }
+
+    /* ------------------------------------- nama yang dilihat pelanggan --- */
+
+    /**
+     * Peta nama katalog → nama yang ditampilkan untuk satu teknologi.
+     *
+     * Peta kosong berarti seluruh material teknologi itu ditawarkan apa
+     * adanya — inilah yang berlaku bagi FDM dan SLA, yang daftar materialnya
+     * dikelola Superadmin lewat Price List. Lihat `material_display` di
+     * config/printing.php.
+     *
+     * @return array<string, string>
+     */
+    public static function displayMap(string $technology): array
+    {
+        return (array) config('printing.material_display.'.strtoupper($technology), []);
+    }
+
+    /**
+     * Nama material yang dilihat pelanggan, mis. "PLA+".
+     *
+     * Material di luar peta — termasuk yang tidak lagi ditawarkan tetapi masih
+     * tercatat pada penawaran lama — dikembalikan apa adanya, sehingga tidak
+     * ada penawaran yang kehilangan keterangan materialnya.
+     */
+    public static function displayName(string $technology, string $material): string
+    {
+        return self::displayMap($technology)[$material] ?? $material;
+    }
+
+    /**
+     * Material yang ditawarkan kepada pelanggan, urut sesuai petanya.
+     *
+     * Menerima daftar material apa adanya dari katalog dan menyaringnya.
+     * Teknologi tanpa peta mengembalikan daftarnya utuh — dan itulah yang
+     * membuat FDM/SLA mengikuti Price List sepenuhnya: menambah baris di sana
+     * langsung menambah pilihan di Edit Specification, menghapusnya langsung
+     * menghilangkan pilihan itu, tanpa menyentuh kode mana pun.
+     *
+     * @param  array<string, mixed>  $materials  nama katalog => data material
+     * @return array<string, mixed>
+     */
+    public static function offered(string $technology, array $materials): array
+    {
+        $map = self::displayMap($technology);
+
+        if ($map === []) {
+            return $materials;
+        }
+
+        $offered = [];
+
+        // Urutan peta yang menentukan urutan pilihan, bukan urutan katalog.
+        foreach ($map as $name => $label) {
+            if (array_key_exists($name, $materials)) {
+                $offered[$name] = $materials[$name];
+            }
+        }
+
+        // Peta yang tidak cocok sama sekali dengan katalog — misalnya baris
+        // Price List-nya baru saja diganti nama admin — tidak boleh membuat
+        // pilihan materialnya kosong sama sekali.
+        return $offered === [] ? $materials : $offered;
     }
 
     /** Tulisan ukuran "250 × 250 × 300 mm"; null bila batasnya belum diatur. */

@@ -46,115 +46,65 @@
                             <p class="font-semibold text-ink-900">{{ $quotation->name }}</p>
                             <p class="font-mono text-[0.65rem] text-brand-600">{{ $quotation->tracking_number }}</p>
                         </div>
-                        <a href="{{ route('admin.quotations.show', $quotation) }}" class="viewer-tool">Tinjau Pengajuan</a>
+                        <a href="{{ staff_route('quotations.show', $quotation) }}" class="viewer-tool">Tinjau Pengajuan</a>
                     </li>
                 @endforeach
             </ul>
         </section>
     @endif
 
-    <div class="mt-6 grid gap-6 lg:grid-cols-12">
+    {{-- ================= SEBARAN STATUS =================
+         Tiap kartu sekaligus menjadi tombol filter: mengekliknya menyaring
+         daftar Penawaran Terbaru di bawah, mengeklik status yang sedang aktif
+         melepas filternya kembali.
 
-        {{-- ================= GRAFIK BULANAN ================= --}}
-        <section class="rounded-2xl border border-ink-100 bg-white p-6 shadow-card lg:col-span-8">
-            <div class="flex flex-wrap items-end justify-between gap-3">
-                <div>
-                    <h2 class="font-display text-base font-bold text-ink-900">Statistik 12 Bulan Terakhir</h2>
-                    <p class="mt-1 text-xs text-ink-400">Penawaran masuk, pesanan selesai, dan pendapatannya.</p>
-                </div>
+         Sejak grafik bulanan pindah ke Dashboard Superadmin, bagian ini berdiri
+         sendiri selebar halaman — statusnya karena itu disusun sebagai kartu
+         berdampingan, bukan daftar memanjang ke bawah. --}}
+    <section class="mt-6 rounded-2xl border border-ink-100 bg-white p-6 shadow-card">
+        <h2 class="font-display text-base font-bold text-ink-900">Sebaran Status</h2>
+        <p class="mt-1 text-xs text-ink-400">Pilih salah satu untuk menyaring daftar penawaran di bawah.</p>
 
-                <div class="flex flex-wrap items-center gap-4 text-[0.65rem] font-semibold text-ink-500">
-                    <span class="inline-flex items-center gap-1.5"><span class="h-2.5 w-2.5 rounded-sm bg-brand-600"></span>Penawaran Masuk</span>
-                    <span class="inline-flex items-center gap-1.5"><span class="h-2.5 w-2.5 rounded-sm bg-emerald-500"></span>Selesai</span>
-                    <span class="inline-flex items-center gap-1.5"><span class="h-2.5 w-2.5 rounded-sm bg-accent-500"></span>Pendapatan</span>
-                </div>
-            </div>
+        <ul class="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            @foreach ($status_breakdown as $status)
+                @php
+                    $isActive = $filters["status"] === $status["key"];
+                    $share = $summary["quotations"] > 0 ? round(($status["total"] / $summary["quotations"]) * 100, 1) : 0;
+                @endphp
 
-            {{-- Grafik digambar sebagai batang CSS biasa: tanpa pustaka tambahan,
-                 tetap terbaca saat dicetak, dan angkanya tersedia sebagai teks. --}}
-            <div class="mt-6 overflow-x-auto">
-                <div class="flex min-w-[640px] items-end gap-3" style="height: 15rem">
-                    @foreach ($chart['months'] as $month)
-                        @php
-                            $incomingHeight = round(($month['incoming'] / $chart['max_incoming']) * 100, 1);
-                            $completedHeight = round(($month['completed'] / $chart['max_incoming']) * 100, 1);
-                            $revenueHeight = round(($month['revenue'] / $chart['max_revenue']) * 100, 1);
-                        @endphp
+                <li>
+                    <a href="{{ staff_route("dashboard", $isActive ? [] : ["status" => $status["key"]]) }}#penawaran-terbaru"
+                       @class([
+                           "block h-full rounded-xl border p-4 transition-colors",
+                           "border-brand-300 bg-brand-50" => $isActive,
+                           "border-ink-100 hover:border-brand-200 hover:bg-ink-50" => ! $isActive,
+                       ])
+                       @if ($isActive) aria-current="true" @endif>
+                        <span class="flex items-start justify-between gap-3">
+                            <span @class([
+                                "text-xs font-semibold leading-snug",
+                                "text-brand-700" => $isActive,
+                                "text-ink-600" => ! $isActive,
+                            ])>{{ $status["label"] }}</span>
 
-                        <div class="flex h-full flex-1 flex-col justify-end">
-                            <div class="flex h-full items-end justify-center gap-1"
-                                 title="{{ $month['label'] }}: {{ $month['incoming'] }} masuk, {{ $month['completed'] }} selesai, {{ $rupiah($month['revenue']) }}">
-                                <span class="w-2.5 rounded-t bg-brand-600 transition-all" style="height: {{ max($incomingHeight, 1) }}%"></span>
-                                <span class="w-2.5 rounded-t bg-emerald-500 transition-all" style="height: {{ max($completedHeight, 1) }}%"></span>
-                                <span class="w-2.5 rounded-t bg-accent-500 transition-all" style="height: {{ max($revenueHeight, 1) }}%"></span>
-                            </div>
-                            <p class="mt-2 text-center text-[0.6rem] font-semibold text-ink-400">{{ $month['short'] }}</p>
-                        </div>
-                    @endforeach
-                </div>
-            </div>
+                            <span @class([
+                                "font-display text-lg font-bold leading-none",
+                                "text-brand-700" => $isActive,
+                                "text-ink-900" => ! $isActive,
+                            ])>{{ $angka($status["total"]) }}</span>
+                        </span>
 
-            <table class="mt-6 w-full text-left text-xs">
-                <caption class="sr-only">Rincian statistik bulanan</caption>
-                <thead>
-                    <tr class="border-b border-ink-100 text-[0.6rem] uppercase tracking-[0.14em] text-ink-400">
-                        <th scope="col" class="py-2 font-bold">Bulan</th>
-                        <th scope="col" class="py-2 text-right font-bold">Masuk</th>
-                        <th scope="col" class="py-2 text-right font-bold">Selesai</th>
-                        <th scope="col" class="py-2 text-right font-bold">Pendapatan</th>
-                    </tr>
-                </thead>
-                <tbody class="divide-y divide-ink-100">
-                    @foreach (array_slice($chart['months'], -6) as $month)
-                        <tr>
-                            <th scope="row" class="py-2 font-semibold text-ink-700">{{ $month['label'] }}</th>
-                            <td class="py-2 text-right text-ink-600">{{ $month['incoming'] }}</td>
-                            <td class="py-2 text-right text-ink-600">{{ $month['completed'] }}</td>
-                            <td class="py-2 text-right font-semibold text-ink-800">{{ $rupiah($month['revenue']) }}</td>
-                        </tr>
-                    @endforeach
-                </tbody>
-            </table>
-        </section>
+                        <span class="mt-3 block h-1.5 overflow-hidden rounded-full bg-ink-100">
+                            <span @class(["block h-full rounded-full", "bg-brand-700" => $isActive, "bg-brand-600" => ! $isActive])
+                                  style="width: {{ $share }}%"></span>
+                        </span>
 
-        {{-- ================= SEBARAN STATUS ================= --}}
-        {{-- Tiap baris sekaligus menjadi tombol filter: mengeklik status
-             menyaring daftar Penawaran Terbaru di bawah, mengeklik status yang
-             sedang aktif melepas filternya kembali. --}}
-        <section class="rounded-2xl border border-ink-100 bg-white p-6 shadow-card lg:col-span-4">
-            <h2 class="font-display text-base font-bold text-ink-900">Sebaran Status</h2>
-            <p class="mt-1 text-xs text-ink-400">Pilih salah satu untuk menyaring daftar penawaran di bawah.</p>
-
-            <ul class="mt-5 space-y-1">
-                @foreach ($status_breakdown as $status)
-                    @php $isActive = $filters['status'] === $status['key']; @endphp
-
-                    <li>
-                        <a href="{{ route('admin.dashboard', $isActive ? [] : ['status' => $status['key']]) }}#penawaran-terbaru"
-                           @class([
-                               'block rounded-xl px-3 py-2 transition-colors',
-                               'bg-brand-50' => $isActive,
-                               'hover:bg-ink-50' => ! $isActive,
-                           ])
-                           @if ($isActive) aria-current="true" @endif>
-                            <span class="flex items-center justify-between gap-3 text-sm">
-                                <span @class(['truncate', 'font-semibold text-brand-700' => $isActive, 'text-ink-600' => ! $isActive])>
-                                    {{ $status['label'] }}
-                                </span>
-                                <span @class(['font-bold', 'text-brand-700' => $isActive, 'text-ink-900' => ! $isActive])>
-                                    {{ $status['total'] }}
-                                </span>
-                            </span>
-                            <span class="mt-1.5 block h-1.5 overflow-hidden rounded-full bg-ink-100">
-                                <span @class(['block h-full rounded-full', 'bg-brand-700' => $isActive, 'bg-brand-600' => ! $isActive])
-                                      style="width: {{ $summary['quotations'] > 0 ? round(($status['total'] / $summary['quotations']) * 100, 1) : 0 }}%"></span>
-                            </span>
-                        </a>
-                    </li>
-                @endforeach
-            </ul>
-        </section>
-    </div>
+                        <span class="mt-1.5 block text-[0.65rem] text-ink-400">{{ $share }}% dari total</span>
+                    </a>
+                </li>
+            @endforeach
+        </ul>
+    </section>
 
     {{-- ================= PENAWARAN TERBARU ================= --}}
     <section id="penawaran-terbaru" class="mt-6 scroll-mt-24 overflow-hidden rounded-2xl border border-ink-100 bg-white shadow-card">
@@ -175,7 +125,7 @@
                 {{-- Filter dikirim lewat GET biasa: hasilnya tersimpan di URL,
                      jadi dapat ditandai atau dibagikan, dan tetap berfungsi
                      tanpa JavaScript. --}}
-                <form method="GET" action="{{ route('admin.dashboard') }}" class="flex flex-wrap items-end gap-2">
+                <form method="GET" action="{{ staff_route('dashboard') }}" class="flex flex-wrap items-end gap-2">
                     <div>
                         <label for="status" class="sr-only">Filter status</label>
                         <select id="status" name="status" class="field-input mt-0 py-2.5 text-xs">
@@ -189,12 +139,12 @@
                     <button type="submit" class="btn-primary px-5 py-2.5 text-xs">Terapkan</button>
 
                     @if ($filters['status'])
-                        <a href="{{ route('admin.dashboard') }}" class="btn-outline px-5 py-2.5 text-xs">Reset</a>
+                        <a href="{{ staff_route('dashboard') }}" class="btn-outline px-5 py-2.5 text-xs">Reset</a>
                     @endif
                 </form>
             </div>
 
-            <a href="{{ route('admin.quotations.index', array_filter(['status' => $filters['status']])) }}"
+            <a href="{{ staff_route('quotations.index', array_filter(['status' => $filters['status']])) }}"
                class="mt-3 inline-block text-sm font-semibold text-brand-600 hover:text-brand-700">
                 Lihat semua di halaman Penawaran &rarr;
             </a>
@@ -216,7 +166,7 @@
                     @forelse ($recent as $quotation)
                         <tr class="transition-colors hover:bg-brand-50/40">
                             <td class="px-6 py-3">
-                                <a href="{{ route('admin.quotations.show', $quotation) }}" class="font-mono text-xs font-semibold text-brand-600 hover:text-brand-700">
+                                <a href="{{ staff_route('quotations.show', $quotation) }}" class="font-mono text-xs font-semibold text-brand-600 hover:text-brand-700">
                                     {{ $quotation->tracking_number }}
                                 </a>
                             </td>
@@ -235,7 +185,7 @@
                             <td colspan="6" class="px-6 py-12 text-center text-sm text-ink-400">
                                 @if ($filters['status'])
                                     Belum ada penawaran berstatus &ldquo;{{ $statuses[$filters['status']] }}&rdquo;.
-                                    <a href="{{ route('admin.dashboard') }}" class="font-semibold text-brand-600 hover:text-brand-700">Tampilkan semua status</a>
+                                    <a href="{{ staff_route('dashboard') }}" class="font-semibold text-brand-600 hover:text-brand-700">Tampilkan semua status</a>
                                 @else
                                     Belum ada penawaran yang masuk.
                                 @endif

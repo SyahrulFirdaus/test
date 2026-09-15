@@ -12,7 +12,7 @@
             </div>
 
             @if ($pendingCancellations > 0)
-                <a href="{{ route('admin.quotations.index', ['status' => \App\Support\QuotationStatus::CANCELLATION_REQUESTED]) }}"
+                <a href="{{ staff_route('quotations.index', ['status' => \App\Support\QuotationStatus::CANCELLATION_REQUESTED]) }}"
                    class="inline-flex items-center gap-2 rounded-xl border border-amber-300 bg-amber-50 px-4 py-2.5 text-sm font-bold text-amber-800 transition-colors hover:bg-amber-100">
                     <x-icons.alert class="h-4 w-4" />
                     {{ $pendingCancellations }} permintaan pembatalan menunggu persetujuan
@@ -89,7 +89,7 @@
                             <tr class="transition-colors hover:bg-brand-50/40">
                                 <td class="px-5 py-4">
                                     @if ($quotation->user_id)
-                                        <a href="{{ route('admin.users.show', $quotation->user_id) }}" class="font-semibold text-ink-900 transition-colors hover:text-brand-600">
+                                        <a href="{{ route('superadmin.users.show', $quotation->user_id) }}" class="font-semibold text-ink-900 transition-colors hover:text-brand-600">
                                             {{ $quotation->name }}
                                         </a>
                                     @else
@@ -138,9 +138,9 @@
                                 </td>
                                 <td class="px-5 py-4">
                                     <div class="flex justify-end gap-2">
-                                        <a href="{{ route('admin.quotations.show', $quotation) }}" class="viewer-tool">Detail</a>
+                                        <a href="{{ staff_route('quotations.show', $quotation) }}" class="viewer-tool">Detail</a>
                                         @if ($quotation->fileExists())
-                                            <a href="{{ route('admin.quotations.download', $quotation) }}" class="viewer-tool">Unduh</a>
+                                            <a href="{{ staff_route('quotations.download', $quotation) }}" class="viewer-tool">Unduh</a>
                                         @endif
                                     </div>
                                 </td>

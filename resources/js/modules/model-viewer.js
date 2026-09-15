@@ -2275,7 +2275,7 @@ export default class ModelViewer {
      * cara baca yang sama dipakai server saat menyimpan permintaan.
      */
     totals() {
-        const breakdown = { material: 0, machine_time: 0, support: 0, finishing: 0, quality_control: 0, total: 0 };
+        const breakdown = Object.fromEntries([...COST_COMPONENTS.map(([key]) => [key, 0]), ['total', 0]]);
 
         const summary = this.readyItems().reduce(
             (carry, item) => {
@@ -2897,6 +2897,8 @@ export default class ModelViewer {
             {
                 scale,
                 surfaceAreaCm2: item.metrics.surfaceAreaMm2 / 100,
+                // Sudah terskalakan sejak diukur di viewer; dipakai Basic Fee.
+                dimensions: item.dimensions,
                 infillDensity: item.settings.infillDensity,
                 infillPattern: item.settings.infillPattern,
                 patterns: this.config.infill?.patterns,
@@ -2905,7 +2907,9 @@ export default class ModelViewer {
                     drainHoles: this.config.hollow?.drainCount ?? 2,
                 },
                 printer: this.printerConfig(),
+                printerKey: this.printerKey,
                 cost: this.config.cost,
+                pricing: this.config.pricing,
             }
         );
 

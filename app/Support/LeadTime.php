@@ -28,36 +28,67 @@ class LeadTime
     }
 
     /**
-     * Rentang hari kerja untuk sekian menit mesin.
+     * Tingkat yang berlaku untuk sekian menit mesin.
      *
-     * @return array{min: int, max: int}
+     * Menit yang masuk adalah TOTAL seluruh object dalam satu penawaran —
+     * penentunya keseluruhan pesanan, bukan object yang paling lama.
+     *
+     * @return array<string, mixed>
      */
-    public static function days(?float $minutes): array
+    public static function tierFor(?float $minutes): array
     {
         $minutes = max(0.0, (float) $minutes);
         $tiers = self::tiers();
 
         foreach ($tiers as $tier) {
             if ($tier['max_minutes'] === null || $minutes <= $tier['max_minutes']) {
-                return ['min' => (int) $tier['min_days'], 'max' => (int) $tier['max_days']];
+                return $tier;
             }
         }
 
         $last = end($tiers);
 
         return $last === false
-            ? ['min' => 3, 'max' => 5]
-            : ['min' => (int) $last['min_days'], 'max' => (int) $last['max_days']];
+            ? ['name' => 'Standard', 'min_days' => 3, 'max_days' => 5]
+            : $last;
     }
 
-    /** Label siap tampil, mis. "3–5 Hari Kerja". */
+    /**
+     * Rentang hari kerja untuk sekian menit mesin.
+     *
+     * @return array{min: int, max: int}
+     */
+    public static function days(?float $minutes): array
+    {
+        $tier = self::tierFor($minutes);
+
+        return ['min' => (int) $tier['min_days'], 'max' => (int) $tier['max_days']];
+    }
+
+    /** Nama tingkatnya, mis. "Express". */
+    public static function name(?float $minutes): string
+    {
+        return (string) (self::tierFor($minutes)['name'] ?? '');
+    }
+
+    /**
+     * Label siap tampil, mis. "Express — 1 Hari Kerja".
+     *
+     * Yang sampai ke pelanggan hanya nama tingkat beserta rentang hari
+     * kerjanya. Jam dan menit mesin tetap dihitung dan tersimpan, tetapi
+     * dipakai sebagai data internal — di sini hanya menentukan tingkat mana
+     * yang berlaku.
+     */
     public static function label(?float $minutes): string
     {
-        ['min' => $min, 'max' => $max] = self::days($minutes);
+        $tier = self::tierFor($minutes);
+        $min = (int) $tier['min_days'];
+        $max = (int) $tier['max_days'];
 
-        return $min === $max
-            ? $min.' '.self::unit()
-            : $min.'–'.$max.' '.self::unit();
+        $range = ($min === $max ? $min : $min.'–'.$max).' '.self::unit();
+        $name = (string) ($tier['name'] ?? '');
+
+        return $name === '' ? $range : $name.' — '.$range;
     }
 
     /**
@@ -70,6 +101,7 @@ class LeadTime
         return [
             'unit' => self::unit(),
             'tiers' => array_map(fn (array $tier) => [
+                'name' => $tier['name'] ?? null,
                 'maxMinutes' => $tier['max_minutes'],
                 'minDays' => $tier['min_days'],
                 'maxDays' => $tier['max_days'],

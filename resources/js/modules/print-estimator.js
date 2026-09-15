@@ -1,13 +1,18 @@
 /**
- * Estimasi berat, waktu, dan biaya cetak di sisi browser.
+ * Estimasi berat, waktu, dan harga cetak di sisi browser.
  *
  * Rumus di sini sengaja dibuat identik dengan App\Services\PrintEstimator
  * supaya angka yang dilihat pengguna sama persis dengan yang dihitung ulang
  * dan disimpan server saat permintaan penawaran dikirim.
  *
  * Urutannya: skala → volume material (infill atau cangkang hollow) → support →
- * waktu (resolusi, pola infill, kecepatan printer) → rincian biaya.
+ * waktu (resolusi, pola infill, kecepatan printer) → Harga Jual.
+ *
+ * Harganya sendiri bukan milik berkas ini: penetapannya ada di ./selling-price.js,
+ * cermin dari App\Services\SellingPriceEstimator.
  */
+
+import { sellingPrice } from './selling-price.js';
 
 const currencyFormatter = new Intl.NumberFormat('id-ID', {
     style: 'currency',
@@ -17,13 +22,17 @@ const currencyFormatter = new Intl.NumberFormat('id-ID', {
 
 const numberFormatter = new Intl.NumberFormat('id-ID', { maximumFractionDigits: 2 });
 
-/** Label komponen biaya, dipakai tabel rincian. */
+/** Label komponen Harga Jual, dipakai tabel rincian. */
 export const COST_COMPONENTS = [
-    ['material', 'Material'],
-    ['machine_time', 'Waktu Printing'],
-    ['support', 'Support Structure'],
-    ['finishing', 'Finishing'],
-    ['quality_control', 'Quality Control'],
+    ['material_cost', 'Material'],
+    ['machine_operational_cost', 'Operasional Mesin'],
+    ['hpp', 'HPP'],
+    ['risk_cost', 'Risk Cost'],
+    ['packaging', 'Packaging'],
+    ['overtime', 'Overtime'],
+    ['subtotal', 'Subtotal'],
+    ['profit', 'Profit'],
+    ['basic_fee', 'Basic Fee'],
 ];
 
 /**
@@ -103,17 +112,20 @@ export function estimate(technology, material, geometryVolumeCm3, quantity = 1, 
     const finishing = options.finishings?.[options.finishing] ?? null;
     const finishingHours = Math.max(0, Number(finishing?.hoursPerUnit ?? 0) || 0) * qty;
 
-    // --- 6. biaya -----------------------------------------------------------
-    const machineRate = technology.machineRate * Math.max(0.1, Number(options.printer?.rateFactor ?? 1) || 1);
-    const breakdown = costBreakdown(technology, material, options.cost ?? {}, {
+    // --- 6. harga -----------------------------------------------------------
+    // Harga penawaran ditetapkan rumus Harga Jual Price List, bukan rincian
+    // biaya lama — lihat ./selling-price.js dan App\Services\SellingPriceEstimator.
+    const totalMinutes = Math.max(1, Math.round((totalHours + finishingHours) * 60));
+    const breakdown = sellingPrice({
+        technology: technology.code,
+        materialPricePerGram: material.pricePerGram,
+        printerKey: options.printerKey ?? null,
         quantity: qty,
-        modelWeightG: weight,
-        supportWeightG: supportWeight,
-        supportEnabled,
-        totalHours,
-        machineRate,
-        surfaceAreaCm2: surfaceArea,
-        finishingMultiplier: Math.max(0, Number(finishing?.costMultiplier ?? 1) || 0),
+        totalWeightG: totalWeight,
+        minutes: totalMinutes,
+        dimensions: options.dimensions ?? null,
+        pricing: options.pricing ?? {},
+        cost: options.cost ?? {},
     });
 
     return {
@@ -141,11 +153,17 @@ export function estimate(technology, material, geometryVolumeCm3, quantity = 1, 
         finishing: options.finishing ?? null,
         finishingMinutes: Math.round(finishingHours * 60),
 
+        largestDimensionMm: breakdown.largest_dimension_mm,
+        basicFee: breakdown.basic_fee,
+        basicFeeLabel: breakdown.basic_fee_label,
+
         unitMinutes: Math.max(1, Math.round(unitHours * 60)),
         // Waktu total mencakup pengerjaan finishing setelah part dicetak.
-        totalMinutes: Math.max(1, Math.round((totalHours + finishingHours) * 60)),
-        unitCost: roundCost(totalWeight * material.pricePerGram + unitHours * machineRate, options.cost),
-        totalCost: breakdown.total,
+        totalMinutes,
+
+        // Harga Estimasi yang dilihat pelanggan adalah Harga Jual itu sendiri,
+        // bukan angka lain yang dihitung terpisah.
+        totalCost: breakdown.selling_price,
         breakdown,
     };
 }
@@ -194,60 +212,6 @@ function resolveHollow(technology, options, solidVolumeCm3, surfaceAreaCm2) {
     };
 }
 
-/**
- * Rincian biaya menjadi lima komponen.
- *
- * Totalnya dihitung dari penjumlahan komponen — bukan sebaliknya — supaya
- * tabel rincian selalu berjumlah persis sama dengan total penawaran.
- */
-function costBreakdown(technology, material, cost, context) {
-    const qty = context.quantity;
-
-    const materialCost = context.modelWeightG * material.pricePerGram * qty;
-
-    // Biaya setup mesin ikut komponen waktu: sama-sama okupansi mesin.
-    const timeCost = technology.setupFee + context.totalHours * context.machineRate;
-
-    const supportCost = context.supportEnabled
-        ? context.supportWeightG * material.pricePerGram * qty + Number(cost.supportRemovalFee ?? 0) * qty
-        : 0;
-
-    // Pembersihan dasar berlaku untuk setiap part; pilihan finishing tambahan
-    // mengalikannya sesuai `finishing.options` di config.
-    const finishingMinimum = Number(cost.finishing?.minimum ?? 0);
-    const baseFinishing = context.surfaceAreaCm2 > 0
-        ? Math.max(finishingMinimum, context.surfaceAreaCm2 * Number(cost.finishing?.ratePerCm2 ?? 0)) * qty
-        : finishingMinimum * qty;
-
-    const finishingCost = baseFinishing * Number(context.finishingMultiplier ?? 1);
-
-    const subtotal = materialCost + timeCost + supportCost + finishingCost;
-
-    const qualityCost = Math.max(
-        Number(cost.qualityControl?.minimum ?? 0),
-        subtotal * Number(cost.qualityControl?.percent ?? 0)
-    );
-
-    const components = {
-        material: roundCost(materialCost, cost),
-        machine_time: roundCost(timeCost, cost),
-        support: roundCost(supportCost, cost),
-        finishing: roundCost(finishingCost, cost),
-        quality_control: roundCost(qualityCost, cost),
-    };
-
-    return {
-        ...components,
-        total: Object.values(components).reduce((sum, value) => sum + value, 0),
-    };
-}
-
-/** Dibulatkan ke atas pada kelipatan yang diatur di config, sama seperti di server. */
-function roundCost(value, cost = {}) {
-    const step = Number(cost.rounding ?? 500) || 0;
-
-    return step > 0 ? Math.ceil(value / step) * step : value;
-}
 
 function clamp(value, fallback, min, max) {
     const numeric = Number(value);
@@ -286,10 +250,9 @@ export function formatPercent(value, digits = 0) {
 let leadTimeConfig = {
     unit: 'Hari Kerja',
     tiers: [
-        { maxMinutes: 480, minDays: 3, maxDays: 5 },
-        { maxMinutes: 1440, minDays: 5, maxDays: 7 },
-        { maxMinutes: 4320, minDays: 7, maxDays: 10 },
-        { maxMinutes: null, minDays: 10, maxDays: 14 },
+        // 20 jam = 1.200 menit.
+        { name: 'Express', maxMinutes: 1200, minDays: 1, maxDays: 1 },
+        { name: 'Standard', maxMinutes: null, minDays: 3, maxDays: 5 },
     ],
 };
 
@@ -299,20 +262,37 @@ export function configureLeadTime(config) {
     }
 }
 
-/** @returns {{min:number, max:number}} rentang hari kerja untuk sekian menit mesin */
-export function leadTimeDays(minutes) {
+/**
+ * Tingkat lead time untuk sekian menit mesin.
+ *
+ * Menit yang masuk adalah TOTAL seluruh object dalam satu penawaran, bukan
+ * waktu satu object — lihat App\Support\LeadTime.
+ */
+function leadTimeTier(minutes) {
     const total = Math.max(0, Number(minutes) || 0);
     const tiers = leadTimeConfig.tiers;
-    const tier = tiers.find((entry) => entry.maxMinutes === null || total <= entry.maxMinutes) ?? tiers[tiers.length - 1];
+
+    return tiers.find((entry) => entry.maxMinutes === null || total <= entry.maxMinutes) ?? tiers[tiers.length - 1];
+}
+
+/** @returns {{min:number, max:number}} rentang hari kerja untuk sekian menit mesin */
+export function leadTimeDays(minutes) {
+    const tier = leadTimeTier(minutes);
 
     return { min: tier.minDays, max: tier.maxDays };
 }
 
-/** Label siap tampil, mis. "3–5 Hari Kerja". */
+/**
+ * Label siap tampil, mis. "Express — 1 Hari Kerja".
+ *
+ * Jam mesin tetap dipakai sebagai data perhitungan, tetapi yang ditampilkan
+ * kepada pelanggan hanya nama tingkat beserta rentang hari kerjanya.
+ */
 export function formatLeadTime(minutes) {
-    const { min, max } = leadTimeDays(minutes);
+    const tier = leadTimeTier(minutes);
+    const range = `${tier.minDays === tier.maxDays ? tier.minDays : `${tier.minDays}–${tier.maxDays}`} ${leadTimeConfig.unit}`;
 
-    return `${min === max ? min : `${min}–${max}`} ${leadTimeConfig.unit}`;
+    return tier.name ? `${tier.name} — ${range}` : range;
 }
 
 export function formatDuration(minutes) {

@@ -5,7 +5,7 @@
 @section('content')
     <div>
 
-        <a href="{{ route('admin.quotations.index') }}" class="inline-flex items-center gap-2 text-sm font-semibold text-ink-500 transition-colors hover:text-brand-600">
+        <a href="{{ staff_route('quotations.index') }}" class="inline-flex items-center gap-2 text-sm font-semibold text-ink-500 transition-colors hover:text-brand-600">
             &larr; Kembali ke daftar permintaan
         </a>
 
@@ -34,14 +34,14 @@
                         @endif
 
                         <div class="mt-5 grid gap-3 sm:grid-cols-2">
-                            <form method="POST" action="{{ route('admin.quotations.cancellation.approve', $quotation) }}"
+                            <form method="POST" action="{{ staff_route('quotations.cancellation.approve', $quotation) }}"
                                   onsubmit="return confirm('Setujui pembatalan penawaran {{ $quotation->tracking_number }}?');">
                                 @csrf
                                 <textarea name="note" rows="2" maxlength="2000" class="field-input mt-0" placeholder="Catatan untuk pelanggan (opsional)"></textarea>
                                 <button type="submit" class="btn-primary mt-3 w-full">Setujui Pembatalan</button>
                             </form>
 
-                            <form method="POST" action="{{ route('admin.quotations.cancellation.reject', $quotation) }}"
+                            <form method="POST" action="{{ staff_route('quotations.cancellation.reject', $quotation) }}"
                                   onsubmit="return confirm('Tolak pembatalan dan lanjutkan penawaran ini?');">
                                 @csrf
                                 <textarea name="note" rows="2" maxlength="2000" class="field-input mt-0" placeholder="Alasan penolakan (opsional)"></textarea>
@@ -92,7 +92,7 @@
                     Lihat {{ $quotation->items->count() }} Model
                 </a>
 
-                <form method="POST" action="{{ route('admin.quotations.destroy', $quotation) }}"
+                <form method="POST" action="{{ staff_route('quotations.destroy', $quotation) }}"
                       onsubmit="return confirm('Hapus permintaan {{ $quotation->tracking_number }} beserta berkas modelnya? Tindakan ini tidak dapat dibatalkan.');">
                     @csrf
                     @method('DELETE')
@@ -163,6 +163,24 @@
                 {{-- ============ DAFTAR MODEL DALAM SATU PENAWARAN ============ --}}
                 @php
                     $fmt = fn ($value, $digits = 2) => is_numeric($value) ? number_format((float) $value, $digits, ',', '.') : '-';
+
+                    // Seluruh harga di halaman ini dibaca dari satu sumber: hasil
+                    // App\Services\SellingPriceEstimator yang juga mengisi tabel
+                    // Detail Perhitungan Harga. Kolom `estimated_price` penawaran
+                    // sengaja tidak dipakai — pada penawaran lama isinya harga
+                    // yang ditetapkan sebelum rumus Price List berlaku, sehingga
+                    // tidak sama dengan baris Harga Jual di rincian. Selisih itu
+                    // tetap dilaporkan di dalam rincian, pada "Tercatat pada
+                    // Penawaran".
+                    $hargaJualPenawaran = (float) $sellingPrice['selling_price'];
+
+                    // Harga Jual per model, dikunci pada id modelnya supaya tabel
+                    // ringkas dan kartu tiap model memakai angka yang sama persis
+                    // dengan accordion rinciannya.
+                    $hargaJualModel = $sellingPrice['models']
+                        ->mapWithKeys(fn (array $entry) => [
+                            $entry['item']->id => (float) $entry['calculation']['selling_price'],
+                        ]);
                 @endphp
 
                 <section id="daftar-model" class="scroll-mt-24 rounded-2xl border border-ink-100 bg-white p-6 shadow-card sm:p-7">
@@ -185,7 +203,7 @@
                                     <th scope="col" class="px-3 py-3 font-bold">Nama File &amp; Mesin</th>
                                     <th scope="col" class="px-3 py-3 text-right font-bold">Jumlah</th>
                                     <th scope="col" class="px-3 py-3 text-right font-bold">Berat</th>
-                                    <th scope="col" class="py-3 pl-3 text-right font-bold">Estimasi</th>
+                                    <th scope="col" class="py-3 pl-3 text-right font-bold">Harga</th>
                                 </tr>
                             </thead>
                             <tbody class="divide-y divide-ink-100">
@@ -199,7 +217,7 @@
                                         <td class="px-3 py-3 text-right text-ink-600">{{ $item->quantity }} unit</td>
                                         <td class="px-3 py-3 text-right text-ink-600">{{ $fmt($item->total_weight_g * $item->quantity, 1) }} gr</td>
                                         <td class="py-3 pl-3 text-right font-semibold text-brand-700">
-                                            Rp{{ number_format((float) $item->display_price, 0, ',', '.') }}
+                                            Rp{{ number_format($hargaJualModel[$item->id] ?? 0, 0, ',', '.') }}
                                         </td>
                                     </tr>
                                 @endforeach
@@ -212,12 +230,19 @@
                                         {{ $fmt($quotation->items->sum(fn ($item) => $item->total_weight_g * $item->quantity), 1) }} gr
                                     </td>
                                     <td class="py-3 pl-3 text-right text-brand-700">
-                                        Rp{{ number_format((float) $quotation->display_price, 0, ',', '.') }}
+                                        Rp{{ number_format($hargaJualPenawaran, 0, ',', '.') }}
                                     </td>
                                 </tr>
                             </tfoot>
                         </table>
                     </div>
+
+                    {{-- ============ DETAIL PERHITUNGAN HARGA (INTERNAL) ============
+                         Sengaja hanya ada di halaman admin: formula, margin profit,
+                         risk cost, dan machine cost adalah informasi internal
+                         NUSAMA3D. Dashboard pelanggan cukup menampilkan total
+                         penawaran dan statusnya. --}}
+                    @include('admin.quotations.partials.selling-price')
                 </section>
 
                 {{-- Rincian tiap model --}}
@@ -261,7 +286,7 @@
                                 <x-admin.analysis-badge :status="$item->analysis_status" />
 
                                 @if ($item->fileExists())
-                                    <a href="{{ route('admin.quotations.items.download', [$quotation, $item]) }}" class="viewer-tool">
+                                    <a href="{{ staff_route('quotations.items.download', [$quotation, $item]) }}" class="viewer-tool">
                                         Unduh {{ $item->file_format }}
                                     </a>
                                 @else
@@ -346,7 +371,7 @@
                                     'Berat Support' => $fmt($item->support_weight_g, 1).' gram',
                                     'Total Berat / unit' => $fmt($item->total_weight_g, 1).' gram',
                                     'Estimasi Waktu' => $item->estimated_duration ?? '-',
-                                    'Estimasi Biaya Sistem' => 'Rp'.number_format((float) $item->estimated_cost, 0, ',', '.'),
+                                    'Harga Jual' => 'Rp'.number_format($hargaJualModel[$item->id] ?? 0, 0, ',', '.'),
                                 ] as $label => $value)
                                     <div>
                                         <dt class="text-[0.6rem] font-semibold uppercase tracking-[0.12em] text-ink-400">{{ $label }}</dt>
@@ -363,41 +388,6 @@
                                     </dd>
                                 </div>
                             </dl>
-
-                            {{-- Rincian biaya model ini --}}
-                            @if (filled($item->cost_breakdown))
-                                <div class="mt-5 border-t border-ink-200 pt-4">
-                                    <p class="text-[0.6rem] font-bold uppercase tracking-[0.12em] text-ink-500">Cost Breakdown</p>
-
-                                    <table class="mt-3 w-full text-left text-sm">
-                                        <tbody class="divide-y divide-ink-200/70">
-                                            @foreach ([
-                                                'material' => 'Material',
-                                                'machine_time' => 'Waktu Printing',
-                                                'support' => 'Support Structure',
-                                                'finishing' => 'Finishing',
-                                                'quality_control' => 'Quality Control',
-                                            ] as $component => $label)
-                                                <tr>
-                                                    <th scope="row" class="py-2 pr-3 text-xs font-medium text-ink-600">{{ $label }}</th>
-                                                    <td class="py-2 text-right text-xs font-semibold text-ink-800">
-                                                        Rp{{ number_format((float) ($item->cost_breakdown[$component] ?? 0), 0, ',', '.') }}
-                                                    </td>
-                                                </tr>
-                                            @endforeach
-                                        </tbody>
-                                        <tfoot>
-                                            <tr class="border-t-2 border-ink-200">
-                                                <th scope="row" class="py-2.5 pr-3 text-xs font-bold uppercase tracking-[0.1em] text-brand-700">Total</th>
-                                                <td class="py-2.5 text-right text-sm font-bold text-brand-700">
-                                                    Rp{{ number_format((float) ($item->cost_breakdown['total'] ?? $item->estimated_cost), 0, ',', '.') }}
-                                                </td>
-                                            </tr>
-                                        </tfoot>
-                                    </table>
-                                </div>
-                            @endif
-                        </div>
 
                         {{-- Analisis kelayakan model ini --}}
                         <div class="mt-6">
@@ -428,22 +418,22 @@
                             @endif
                         </div>
 
-                        {{-- Penyesuaian admin khusus model ini --}}
-                        <form method="POST" action="{{ route('admin.quotations.items.update', [$quotation, $item]) }}"
+                        {{-- Catatan admin khusus model ini. Harganya tidak dapat
+                             disunting: seluruh harga penawaran mengikuti estimasi
+                             sistem yang dihitung saat permintaan dikirim. --}}
+                        <form method="POST" action="{{ staff_route('quotations.items.update', [$quotation, $item]) }}"
                               class="mt-6 grid gap-4 border-t border-ink-100 pt-6 sm:grid-cols-2">
                             @csrf
                             @method('PATCH')
 
                             <div>
-                                <label for="item-price-{{ $item->id }}" class="block text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-ink-400">
-                                    Estimasi Harga Model Ini (Rp)
-                                </label>
-                                <input type="number" step="500" min="0"
-                                       id="item-price-{{ $item->id }}" name="estimated_price"
-                                       value="{{ $item->estimated_price !== null ? (int) $item->estimated_price : '' }}"
-                                       placeholder="{{ (int) $item->estimated_cost }}"
-                                       class="mt-2 w-full rounded-xl border border-ink-200 px-4 py-2.5 text-sm focus:border-brand-600 focus:outline-none">
-                                <p class="mt-1 text-[0.65rem] text-ink-400">Kosongkan untuk memakai estimasi sistem model ini.</p>
+                                <p class="block text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-ink-400">
+                                    Harga Model Ini
+                                </p>
+                                <p class="mt-2 font-display text-lg font-bold text-ink-900">
+                                    Rp{{ number_format($hargaJualModel[$item->id] ?? 0, 0, ',', '.') }}
+                                </p>
+                                <p class="mt-1 text-[0.65rem] text-ink-400">Dihitung sistem dari specification model ini.</p>
                             </div>
 
                             <div>
@@ -456,7 +446,7 @@
                             </div>
 
                             <div class="sm:col-span-2">
-                                <button type="submit" class="viewer-tool">Simpan Perubahan Model {{ $item->position }}</button>
+                                <button type="submit" class="viewer-tool">Simpan Catatan Model {{ $item->position }}</button>
                             </div>
                         </form>
                     </section>
@@ -491,36 +481,20 @@
                         @endforeach
                     </dl>
 
-                    {{-- Rincian biaya gabungan --}}
-                    @if (filled($quotation->cost_breakdown))
-                        <table class="mt-5 w-full text-left text-sm">
-                            <caption class="pb-2 text-left text-[0.6rem] font-bold uppercase tracking-[0.12em] text-ink-500">
-                                Cost Breakdown Seluruh Model
-                            </caption>
-                            <tbody class="divide-y divide-ink-100">
-                                @foreach ([
-                                    'material' => 'Material',
-                                    'machine_time' => 'Waktu Printing',
-                                    'support' => 'Support Structure',
-                                    'finishing' => 'Finishing',
-                                    'quality_control' => 'Quality Control',
-                                ] as $component => $label)
-                                    <tr>
-                                        <th scope="row" class="py-2 pr-3 text-xs font-medium text-ink-600">{{ $label }}</th>
-                                        <td class="py-2 text-right text-xs font-semibold text-ink-800">
-                                            Rp{{ number_format((float) ($quotation->cost_breakdown[$component] ?? 0), 0, ',', '.') }}
-                                        </td>
-                                    </tr>
-                                @endforeach
-                            </tbody>
-                        </table>
-                    @endif
-
+                    {{-- Harga Estimasi yang dilihat pelanggan adalah Harga Jual
+                         itu sendiri, jadi kartunya menyebut keduanya sekaligus
+                         supaya tidak dikira dua angka yang berbeda. Angkanya
+                         dibaca dari perhitungan yang sama dengan tabel Detail
+                         Perhitungan Harga — lihat $hargaJualPenawaran. --}}
                     <div class="mt-5 rounded-xl bg-brand-600 p-5 text-white">
-                        <p class="text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-white/70">Estimasi Biaya</p>
-                        <p class="mt-1.5 font-display text-2xl font-bold">Rp{{ number_format((float) $quotation->estimated_cost, 0, ',', '.') }}</p>
+                        <p class="text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-white/70">Harga Jual &middot; Harga Estimasi</p>
+                        <p class="mt-1.5 font-display text-2xl font-bold">Rp{{ number_format($hargaJualPenawaran, 0, ',', '.') }}</p>
                         <p class="mt-1 text-xs text-white/70">
                             {{ $quotation->items->count() }} model &middot; {{ $quotation->quantity }} unit total
+                        </p>
+                        <p class="mt-2 border-t border-white/20 pt-2 text-[0.65rem] text-white/70">
+                            Subtotal + Profit + Basic Fee &middot;
+                            <a href="#rincian-harga" class="font-semibold underline">lihat rinciannya</a>
                         </p>
                     </div>
                 </section>
@@ -554,47 +528,56 @@
                 <section class="rounded-2xl border border-ink-100 bg-white p-6 shadow-card sm:p-7">
                     <h2 class="font-display text-base font-bold text-ink-900">Tindak Lanjut</h2>
                     <p class="mt-1 text-xs text-ink-400">
-                        Berlaku untuk keseluruhan penawaran. Harga dan catatan per model diatur di kartu masing-masing model.
+                        Berlaku untuk keseluruhan penawaran. Harga penawaran mengikuti estimasi sistem dan tidak diatur di sini;
+                        catatan per model diatur di kartu masing-masing model.
                     </p>
 
-                    <form method="POST" action="{{ route('admin.quotations.update', $quotation) }}" class="mt-5 space-y-4" enctype="multipart/form-data">
+                    <form method="POST" action="{{ staff_route('quotations.update', $quotation) }}" class="mt-5 space-y-4" enctype="multipart/form-data">
                         @csrf
                         @method('PATCH')
 
+                        {{-- Status berjalan berurutan: hanya tahap sekarang dan satu tahap
+                             sesudahnya yang terbuka. Tahap yang sudah dilewati tetap
+                             ditampilkan sebagai jejak urutannya, tetapi ikut terkunci —
+                             batasan yang sama juga dijaga di sisi server. --}}
                         <div>
                             <label for="status" class="block text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-ink-400">Status Tracking</label>
                             <select id="status" name="status" class="mt-2 w-full rounded-xl border border-ink-200 px-4 py-2.5 text-sm focus:border-brand-600 focus:outline-none">
-                                @foreach ($statuses as $value => $label)
-                                    <option value="{{ $value }}" @selected(old('status', $quotation->status) === $value)>{{ $loop->iteration }}. {{ $label }}</option>
+                                @foreach ($statusChoices as $choice)
+                                    <option value="{{ $choice['key'] }}"
+                                            @disabled(! $choice['selectable'])
+                                            @selected($statusDefault === $choice['key'])
+                                            class="{{ $choice['selectable'] ? 'text-ink-900' : 'text-ink-300' }}">
+                                        {{ $loop->iteration }}. {{ $choice['label'] }}
+                                        @if ($choice['state'] === 'done') &#10003; sudah dilewati
+                                        @elseif ($choice['state'] === 'current') &middot; status saat ini
+                                        @elseif ($choice['state'] === 'next') &middot; tahap berikutnya
+                                        @else &#128274; terkunci
+                                        @endif
+                                    </option>
                                 @endforeach
                             </select>
+                            <p class="mt-1.5 text-[0.65rem] text-ink-400">
+                                @if ($statusNext)
+                                    Tahap hanya dapat maju satu langkah. Setelah perubahan ini disimpan,
+                                    <span class="font-semibold text-ink-600">{{ \App\Support\QuotationStatus::label($statusNext) }}</span> terbuka sebagai pilihan berikutnya.
+                                @else
+                                    Penawaran sudah berada pada tahap terakhir, statusnya tidak dapat dimajukan lagi.
+                                @endif
+                            </p>
                             @error('status')
                                 <p class="mt-1.5 text-xs font-semibold text-brand-700">{{ $message }}</p>
                             @enderror
                         </div>
 
-                        <div class="grid gap-4 sm:grid-cols-2">
-                            <div>
-                                <label for="estimated_price" class="block text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-ink-400">Harga Penawaran Total (Rp)</label>
-                                <input type="number" step="500" min="0" id="estimated_price" name="estimated_price"
-                                       value="{{ old('estimated_price', $quotation->estimated_price !== null ? (int) $quotation->estimated_price : '') }}"
-                                       placeholder="{{ (int) $quotation->estimated_cost }}"
-                                       class="mt-2 w-full rounded-xl border border-ink-200 px-4 py-2.5 text-sm focus:border-brand-600 focus:outline-none">
-                                <p class="mt-1 text-[0.65rem] text-ink-400">Kosongkan untuk memakai estimasi sistem.</p>
-                                @error('estimated_price')
-                                    <p class="mt-1.5 text-xs font-semibold text-brand-700">{{ $message }}</p>
-                                @enderror
-                            </div>
-
-                            <div>
-                                <label for="estimated_finish" class="block text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-ink-400">Estimasi Selesai</label>
-                                <input type="date" id="estimated_finish" name="estimated_finish"
-                                       value="{{ old('estimated_finish', $quotation->estimated_finish?->format('Y-m-d')) }}"
-                                       class="mt-2 w-full rounded-xl border border-ink-200 px-4 py-2.5 text-sm focus:border-brand-600 focus:outline-none">
-                                @error('estimated_finish')
-                                    <p class="mt-1.5 text-xs font-semibold text-brand-700">{{ $message }}</p>
-                                @enderror
-                            </div>
+                        <div>
+                            <label for="estimated_finish" class="block text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-ink-400">Estimasi Selesai</label>
+                            <input type="date" id="estimated_finish" name="estimated_finish"
+                                   value="{{ old('estimated_finish', $quotation->estimated_finish?->format('Y-m-d')) }}"
+                                   class="mt-2 w-full rounded-xl border border-ink-200 px-4 py-2.5 text-sm focus:border-brand-600 focus:outline-none">
+                            @error('estimated_finish')
+                                <p class="mt-1.5 text-xs font-semibold text-brand-700">{{ $message }}</p>
+                            @enderror
                         </div>
 
                         <div>
@@ -676,7 +659,7 @@
                         </a>
 
                         @if ($quotation->user)
-                            <a href="{{ route('admin.users.show', $quotation->user) }}" class="viewer-tool justify-center">
+                            <a href="{{ route('superadmin.users.show', $quotation->user) }}" class="viewer-tool justify-center">
                                 Lihat Profil &amp; Riwayat Pelanggan
                             </a>
                         @endif

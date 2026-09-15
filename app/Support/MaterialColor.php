@@ -2,6 +2,8 @@
 
 namespace App\Support;
 
+use App\Services\PrintEstimator;
+
 /**
  * Simulasi warna material.
  *
@@ -62,7 +64,7 @@ class MaterialColor
      */
     public static function forMaterial(?string $technology, ?string $material): array
     {
-        $allowed = config('printing.technologies.'.strtoupper((string) $technology).'.materials.'.$material.'.colors');
+        $allowed = app(PrintEstimator::class)->material((string) $technology, (string) $material)['colors'] ?? null;
 
         if (! is_array($allowed) || $allowed === []) {
             return self::all();

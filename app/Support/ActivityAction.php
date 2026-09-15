@@ -92,9 +92,31 @@ class ActivityAction
 
     /* ------------------------------------------------------------- admin */
 
+    // Tidak dipakai lagi sejak harga penawaran mengikuti estimasi sistem —
+    // tetap ada supaya baris log lama masih terbaca labelnya.
     public const QUOTATION_PRICE_UPDATE = 'quotation_price_update';
 
+    public const QUOTATION_ITEM_NOTE_UPDATE = 'quotation_item_note_update';
+
     public const SETTING_UPDATE = 'setting_update';
+
+    /* -------------------------------------------------------- superadmin */
+
+    public const ADMIN_CREATE = 'admin_create';
+
+    public const ADMIN_UPDATE = 'admin_update';
+
+    public const ADMIN_DELETE = 'admin_delete';
+
+    public const ADMIN_PASSWORD_RESET = 'admin_password_reset';
+
+    public const PRICE_LIST_UPDATE = 'price_list_update';
+
+    public const TECHNOLOGY_CREATE = 'technology_create';
+
+    public const TECHNOLOGY_UPDATE = 'technology_update';
+
+    public const TECHNOLOGY_DELETE = 'technology_delete';
 
     /**
      * Label dan modul bawaan tiap aktivitas.
@@ -142,7 +164,17 @@ class ActivityAction
             self::INSTALLMENT_REJECT => ['label' => 'Tolak Pembayaran Termin', 'module' => ActivityModule::PAYMENT],
 
             self::QUOTATION_PRICE_UPDATE => ['label' => 'Ubah Estimasi Harga', 'module' => ActivityModule::ADMIN],
+            self::QUOTATION_ITEM_NOTE_UPDATE => ['label' => 'Ubah Catatan Model', 'module' => ActivityModule::ADMIN],
             self::SETTING_UPDATE => ['label' => 'Ubah Konfigurasi Sistem', 'module' => ActivityModule::ADMIN],
+
+            self::ADMIN_CREATE => ['label' => 'Tambah Akun Admin', 'module' => ActivityModule::SUPERADMIN],
+            self::ADMIN_UPDATE => ['label' => 'Ubah Akun Admin', 'module' => ActivityModule::SUPERADMIN],
+            self::ADMIN_DELETE => ['label' => 'Hapus Akun Admin', 'module' => ActivityModule::SUPERADMIN],
+            self::ADMIN_PASSWORD_RESET => ['label' => 'Reset Password Admin', 'module' => ActivityModule::SUPERADMIN],
+            self::PRICE_LIST_UPDATE => ['label' => 'Ubah Price List', 'module' => ActivityModule::SUPERADMIN],
+            self::TECHNOLOGY_CREATE => ['label' => 'Tambah Teknologi', 'module' => ActivityModule::SUPERADMIN],
+            self::TECHNOLOGY_UPDATE => ['label' => 'Ubah Teknologi', 'module' => ActivityModule::SUPERADMIN],
+            self::TECHNOLOGY_DELETE => ['label' => 'Hapus Teknologi', 'module' => ActivityModule::SUPERADMIN],
         ];
     }
 

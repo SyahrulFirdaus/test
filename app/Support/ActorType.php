@@ -22,6 +22,8 @@ class ActorType
 
     public const ADMIN = 'admin';
 
+    public const SUPERADMIN = 'superadmin';
+
     /** @return array<string, array<string, string>> */
     public static function all(): array
     {
@@ -29,6 +31,7 @@ class ActorType
             self::PERSONAL => ['label' => 'B2C', 'long' => 'Personal (B2C)'],
             self::BUSINESS => ['label' => 'B2B', 'long' => 'Business (B2B)'],
             self::ADMIN => ['label' => 'Admin', 'long' => 'Administrator'],
+            self::SUPERADMIN => ['label' => 'Superadmin', 'long' => 'Superadmin'],
         ];
     }
 
@@ -72,6 +75,10 @@ class ActorType
     {
         if ($user === null) {
             return self::PERSONAL;
+        }
+
+        if ($user->isSuperAdmin()) {
+            return self::SUPERADMIN;
         }
 
         if ($user->isAdmin()) {

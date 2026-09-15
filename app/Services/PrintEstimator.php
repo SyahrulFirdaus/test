@@ -2,6 +2,8 @@
 
 namespace App\Services;
 
+use App\Models\PrintTechnology;
+use App\Support\BasicFee;
 use App\Support\Finishing;
 use App\Support\InfillPattern;
 use App\Support\MaterialCatalog;
@@ -26,17 +28,46 @@ use InvalidArgumentException;
  *   3. Support ditambahkan sebagai volume terpisah.
  *   4. Waktu dihitung dari total volume dibagi laju mesin, ikut dipengaruhi
  *      resolusi, pola infill, dan kecepatan printer yang dipilih.
- *   5. Biaya dipecah menjadi lima komponen yang totalnya sama persis dengan
- *      total penawaran.
+ *
+ * Kelas ini TIDAK menentukan harga. Berat dan waktu yang dihasilkannya menjadi
+ * masukan App\Services\SellingPriceEstimator, satu-satunya tempat Harga Jual
+ * dihitung — Harga Estimasi yang dilihat pelanggan adalah angka yang sama.
+ * Rincian biaya lama (material/waktu/support/finishing/quality control) sengaja
+ * dihapus dari sini supaya tidak ada dua sumber harga yang bisa berbeda.
  */
 class PrintEstimator
 {
+    /** @var array<string, mixed>|null katalog yang sudah dibaca permintaan ini */
+    private ?array $technologies = null;
+
     public function __construct(private readonly SupportEstimator $support) {}
 
-    /** @return array<string, mixed> */
+    /**
+     * Seluruh teknologi beserta materialnya, dibaca dari basis data.
+     *
+     * Teknologi maupun materialnya dikelola Superadmin lewat halaman Price
+     * List — inilah satu-satunya titik pembacaannya, jadi seluruh pemakai
+     * kelas ini (browserPayload, estimate, validasi, Harga Jual) otomatis
+     * mengikuti data terbaru tanpa satu baris kode pun berubah.
+     *
+     * Hasilnya sengaja berbentuk sama persis dengan blok `technologies` di
+     * config/printing.php yang dahulu dipakai, sehingga seluruh pemanggil lama
+     * tidak perlu tahu sumbernya sudah pindah.
+     *
+     * Diingat selama satu permintaan: dipanggil berkali-kali oleh
+     * technology(), material(), dan supports() dalam satu alur perhitungan.
+     *
+     * @return array<string, mixed>
+     */
     public function technologies(): array
     {
-        return config('printing.technologies', []);
+        return $this->technologies ??= PrintTechnology::query()
+            ->with('materials')
+            ->ordered()
+            ->get()
+            ->keyBy('code')
+            ->map(fn (PrintTechnology $technology) => $technology->toEstimatorArray())
+            ->all();
     }
 
     public function technology(string $code): ?array
@@ -57,7 +88,7 @@ class PrintEstimator
     /** Apakah Hollow Model tersedia untuk teknologi ini. */
     public function allowsHollow(string $technology): bool
     {
-        return in_array(strtoupper($technology), (array) config('printing.hollow.technologies', []), true);
+        return (bool) ($this->technology($technology)['allows_hollow'] ?? false);
     }
 
     /**
@@ -71,6 +102,9 @@ class PrintEstimator
 
         foreach ($this->technologies() as $code => $technology) {
             $payload[$code] = [
+                // Kode teknologinya ikut dibawa supaya estimator di browser
+                // dapat mencari parameter Harga Jual miliknya sendiri.
+                'code' => $code,
                 'name' => $technology['name'],
                 // Label pilihan teknologi pada Edit Specification, mis.
                 // "FDM (Plastic)". Sumbernya sama dengan halaman panduan.
@@ -93,9 +127,15 @@ class PrintEstimator
                 'supportNote' => $this->support->unavailableReason($code),
                 'layerHeightRange' => $technology['layer_height_range'] ?? null,
                 'allowsHollow' => $this->allowsHollow($code),
-                'materials' => collect($technology['materials'])
+
+                // Pelanggan memilih jenis bahan, bukan brand: daftarnya
+                // disaring dan diberi nama tampilan oleh MaterialCatalog.
+                // `name` tetap nama katalog — itulah yang dikirim kembali ke
+                // server, tersimpan pada penawaran, dan menentukan harga.
+                'materials' => collect(MaterialCatalog::offered($code, $technology['materials']))
                     ->map(fn (array $material, string $name) => [
                         'name' => $name,
+                        'label' => MaterialCatalog::displayName($code, $name),
                         'density' => $material['density'],
                         'pricePerGram' => $material['price_per_gram'],
                         // Warna yang tersedia untuk material ini; kosong berarti
@@ -222,21 +262,11 @@ class PrintEstimator
             : Finishing::default();
         $finishingHours = Finishing::hoursPerUnit($finishing) * $quantity;
 
-        // --- 6. biaya -------------------------------------------------------
-        $machineRate = $tech['machine_rate_per_hour'] * max(0.1, (float) $printer['rate_factor']);
-        $breakdown = $this->breakdown($tech, $mat, [
-            'quantity' => $quantity,
-            'model_weight_g' => $weight,
-            'support_weight_g' => $support['weight_g'],
-            'support_enabled' => $support['enabled'],
-            'total_hours' => $totalHours,
-            'machine_rate' => $machineRate,
-            'surface_area_cm2' => $surfaceArea,
-            'finishing_multiplier' => Finishing::costMultiplier($finishing),
-        ]);
-
-        $unitHoursCost = $unitHours * $machineRate;
-        $unitCost = ($totalWeight * $mat['price_per_gram']) + $unitHoursCost;
+        // Sisi terpanjang model dilaporkan apa adanya; yang memakainya untuk
+        // menentukan Basic Fee adalah App\Services\SellingPriceEstimator.
+        // Dimensi yang dikirim browser sudah terskalakan, jadi tidak dikalikan
+        // skala lagi di sini.
+        $largestDimension = BasicFee::largestDimension($options['dimensions'] ?? null);
 
         return [
             'scale' => $scale,
@@ -279,69 +309,13 @@ class PrintEstimator
             'finishing_label' => Finishing::label($finishing),
             'finishing_minutes' => (int) round($finishingHours * 60),
 
+            'largest_dimension_mm' => round($largestDimension, 2),
+            'basic_fee_label' => BasicFee::label($largestDimension),
+
             'unit_minutes' => (int) max(1, round($unitHours * 60)),
             // Waktu total mencakup pengerjaan finishing setelah part dicetak.
             'total_minutes' => (int) max(1, round(($totalHours + $finishingHours) * 60)),
-            'unit_cost' => $this->roundCost($unitCost),
-            'total_cost' => $breakdown['total'],
-            'breakdown' => $breakdown,
         ];
-    }
-
-    /**
-     * Rincian biaya menjadi lima komponen.
-     *
-     * Totalnya sengaja dihitung dari penjumlahan komponen — bukan sebaliknya —
-     * supaya tabel rincian yang dilihat pelanggan selalu berjumlah persis sama
-     * dengan total penawaran, berapa pun pembulatannya.
-     *
-     * @param  array<string, mixed>  $tech
-     * @param  array<string, mixed>  $mat
-     * @param  array<string, mixed>  $context
-     * @return array<string, float>
-     */
-    private function breakdown(array $tech, array $mat, array $context): array
-    {
-        $cost = config('printing.cost', []);
-        $quantity = (int) $context['quantity'];
-
-        $materialCost = $context['model_weight_g'] * $mat['price_per_gram'] * $quantity;
-
-        // Biaya setup mesin ikut komponen waktu: sama-sama okupansi mesin.
-        $timeCost = $tech['setup_fee'] + ($context['total_hours'] * $context['machine_rate']);
-
-        $supportCost = $context['support_enabled']
-            ? ($context['support_weight_g'] * $mat['price_per_gram'] * $quantity)
-                + ((float) ($cost['support_removal_fee'] ?? 0) * $quantity)
-            : 0.0;
-
-        // Pembersihan dasar berlaku untuk setiap part; pilihan finishing
-        // tambahan mengalikannya sesuai `finishing.options` di config.
-        $baseFinishing = $context['surface_area_cm2'] > 0
-            ? max(
-                (float) ($cost['finishing']['minimum'] ?? 0),
-                $context['surface_area_cm2'] * (float) ($cost['finishing']['rate_per_cm2'] ?? 0)
-            ) * $quantity
-            : (float) ($cost['finishing']['minimum'] ?? 0) * $quantity;
-
-        $finishingCost = $baseFinishing * (float) ($context['finishing_multiplier'] ?? 1.0);
-
-        $subtotal = $materialCost + $timeCost + $supportCost + $finishingCost;
-
-        $qualityCost = max(
-            (float) ($cost['quality_control']['minimum'] ?? 0),
-            $subtotal * (float) ($cost['quality_control']['percent'] ?? 0)
-        );
-
-        $components = [
-            'material' => $this->roundCost($materialCost),
-            'machine_time' => $this->roundCost($timeCost),
-            'support' => $this->roundCost($supportCost),
-            'finishing' => $this->roundCost($finishingCost),
-            'quality_control' => $this->roundCost($qualityCost),
-        ];
-
-        return [...$components, 'total' => round(array_sum($components), 2)];
     }
 
     /**
@@ -424,17 +398,5 @@ class PrintEstimator
         }
 
         return min($max, max($min, (float) $value));
-    }
-
-    /** Biaya dibulatkan ke atas pada kelipatan yang diatur di config agar enak dibaca. */
-    private function roundCost(float $value): float
-    {
-        $step = (float) config('printing.cost.rounding', 500);
-
-        if ($step <= 0) {
-            return round($value, 2);
-        }
-
-        return round(ceil($value / $step) * $step, 2);
     }
 }

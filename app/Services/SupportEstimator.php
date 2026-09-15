@@ -31,7 +31,9 @@ class SupportEstimator
 
     public function volumeFactor(string $technology): float
     {
-        return (float) config('printing.technologies.'.strtoupper($technology).'.support_volume_factor', 0.0);
+        // Dibaca dari teknologi yang dikelola Superadmin, bukan lagi config:
+        // teknologi baru langsung membawa kebutuhan supportnya sendiri.
+        return (float) (\App\Models\PrintTechnology::findByCode($technology)?->support_volume_factor ?? 0.0);
     }
 
     /** Alasan singkat mengapa support tidak diperlukan, bila memang begitu. */

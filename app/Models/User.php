@@ -18,6 +18,15 @@ class User extends Authenticatable
     /** @use HasFactory<UserFactory> */
     use HasFactory, Notifiable;
 
+    /**
+     * Pemegang akses tertinggi: mengelola Admin, User, Price List, dan
+     * Activity Log, serta melihat statistik keseluruhan sistem.
+     *
+     * Superadmin juga menjalankan seluruh tugas operasional Admin, jadi
+     * `isAdmin()` ikut bernilai true baginya — lihat catatan di sana.
+     */
+    public const ROLE_SUPERADMIN = 'superadmin';
+
     /** Pengelola dashboard admin. */
     public const ROLE_ADMIN = 'admin';
 
@@ -33,6 +42,7 @@ class User extends Authenticatable
         'name',
         'email',
         'role',
+        'is_active',
         'customer_type',
         'phone',
         'city',
@@ -61,6 +71,7 @@ class User extends Authenticatable
         return [
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
+            'is_active' => 'boolean',
         ];
     }
 
@@ -149,7 +160,27 @@ class User extends Authenticatable
             ->values();
     }
 
+    public function isSuperAdmin(): bool
+    {
+        return $this->role === self::ROLE_SUPERADMIN;
+    }
+
+    /**
+     * Berhak atas area pengelola.
+     *
+     * Superadmin ikut di dalamnya dengan sengaja: seluruh tugas operasional
+     * Admin — penawaran, verifikasi pembayaran, payment term — memang menjadi
+     * haknya juga, jadi satu penjaga yang sama cukup untuk keduanya. Yang
+     * membedakan keduanya adalah menu milik Superadmin sendiri (Price List,
+     * User, Activity Log, Akun Admin), yang dijaga `EnsureUserIsSuperAdmin`.
+     */
     public function isAdmin(): bool
+    {
+        return in_array($this->role, [self::ROLE_ADMIN, self::ROLE_SUPERADMIN], true);
+    }
+
+    /** Admin biasa, bukan Superadmin — dipakai menu Akun Admin. */
+    public function isPlainAdmin(): bool
     {
         return $this->role === self::ROLE_ADMIN;
     }
@@ -159,9 +190,27 @@ class User extends Authenticatable
         return ! $this->isAdmin();
     }
 
+    /** Akun nonaktif tetap tersimpan beserta jejaknya, tetapi tidak dapat masuk. */
+    public function isActive(): bool
+    {
+        return (bool) ($this->is_active ?? true);
+    }
+
+    /** Seluruh pengelola: Admin maupun Superadmin. */
     public function scopeAdmins(Builder $query): Builder
     {
+        return $query->whereIn('role', [self::ROLE_ADMIN, self::ROLE_SUPERADMIN]);
+    }
+
+    /** Hanya Admin biasa — daftar pada menu Akun Admin. */
+    public function scopePlainAdmins(Builder $query): Builder
+    {
         return $query->where('role', self::ROLE_ADMIN);
+    }
+
+    public function scopeSuperAdmins(Builder $query): Builder
+    {
+        return $query->where('role', self::ROLE_SUPERADMIN);
     }
 
     public function scopeCustomers(Builder $query): Builder

@@ -109,8 +109,10 @@ class AuthenticatedSessionController extends Controller
     /** Halaman tujuan setelah masuk, mengikuti role akun. */
     private function homeFor(Request $request): string
     {
-        return $request->user()->isAdmin()
-            ? route('admin.dashboard')
-            : route('dashboard');
+        return match (true) {
+            $request->user()->isSuperAdmin() => route('superadmin.dashboard'),
+            $request->user()->isAdmin() => route('admin.dashboard'),
+            default => route('dashboard'),
+        };
     }
 }

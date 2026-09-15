@@ -52,7 +52,7 @@ class UserDashboardTest extends TestCase
             ],
             'analysis_status' => QuotationRequest::ANALYSIS_READY,
             'technology' => 'FDM',
-            'material' => 'PLA',
+            'material' => 'PLA Plus Standart ESUN',
             'printer' => 'ender3',
             'printer_name' => 'Creality Ender 3',
             'build_volume' => ['x' => 220, 'y' => 220, 'z' => 250],
@@ -64,7 +64,7 @@ class UserDashboardTest extends TestCase
             'estimated_minutes' => 200,
             'estimated_cost' => 150000,
             'cost_breakdown' => ['material' => 50000, 'machine_time' => 100000, 'total' => 150000],
-            'status' => QuotationStatus::RECEIVED,
+            'status' => QuotationStatus::REVIEWING,
         ], $overrides));
 
         $quotation->items()->create([
@@ -76,7 +76,7 @@ class UserDashboardTest extends TestCase
             'model_stats' => $quotation->model_stats,
             'analysis_status' => QuotationRequest::ANALYSIS_READY,
             'technology' => 'FDM',
-            'material' => 'PLA',
+            'material' => 'PLA Plus Standart ESUN',
             'printer' => 'ender3',
             'printer_name' => 'Creality Ender 3',
             'build_volume' => ['x' => 220, 'y' => 220, 'z' => 250],
@@ -173,7 +173,7 @@ class UserDashboardTest extends TestCase
             ->get(route('dashboard.quotations.show', $quotation))
             ->assertOk()
             ->assertSee($quotation->tracking_number)
-            ->assertSee('Menunggu Review')
+            ->assertSee('File Sedang Direview')
             ->assertSee('bracket.stl');
     }
 
@@ -204,7 +204,7 @@ class UserDashboardTest extends TestCase
             ->patch(route('dashboard.quotations.items.update', [$quotation, $item]), [
                 'quantity' => 4,
                 'technology' => 'FDM',
-                'material' => 'PETG',
+                'material' => 'PETG High Speed ESUN',
                 'printer' => 'bambu_x1c',
                 'resolution' => '0.10',
                 'scale_percent' => 100,
@@ -217,7 +217,7 @@ class UserDashboardTest extends TestCase
         $item->refresh();
 
         $this->assertSame(4, $item->quantity);
-        $this->assertSame('PETG', $item->material);
+        $this->assertSame('PETG High Speed ESUN', $item->material);
         $this->assertSame('bambu_x1c', $item->printer);
         $this->assertSame('0.10', $item->resolution);
         $this->assertSame('biru', $item->material_color);
@@ -242,7 +242,7 @@ class UserDashboardTest extends TestCase
             ->patch(route('dashboard.quotations.items.update', [$quotation, $item]), [
                 'quantity' => 1,
                 'technology' => 'FDM',
-                'material' => 'PLA',
+                'material' => 'PLA Plus Standart ESUN',
                 'printer' => 'ender3',
                 'resolution' => '0.25',
                 'material_color' => 'biru',
@@ -288,7 +288,7 @@ class UserDashboardTest extends TestCase
                 'printer' => 'ender3',
             ])->assertSessionHasErrors('material');
 
-        $this->assertSame('PLA', $item->fresh()->material);
+        $this->assertSame('PLA Plus Standart ESUN', $item->fresh()->material);
     }
 
     public function test_file_baru_dapat_ditambahkan_dan_diukur_di_server(): void
@@ -360,9 +360,12 @@ class UserDashboardTest extends TestCase
         $this->assertSame(1, $quotation->items()->count());
     }
 
-    public function test_penawaran_yang_sedang_direview_menjadi_read_only(): void
+    public function test_penawaran_yang_sudah_lewat_tahap_review_menjadi_read_only(): void
     {
-        $quotation = $this->quotation(['status' => QuotationStatus::REVIEWING]);
+        // Sejak "Menunggu Review" dihapus, tahap pertama sekaligus tahap yang
+        // masih dapat diubah adalah "File Sedang Direview"; yang read only
+        // adalah tahap sesudahnya.
+        $quotation = $this->quotation(['status' => QuotationStatus::AWAITING_PAYMENT]);
         $item = $quotation->items->first();
 
         $this->actingAs($this->customer)
@@ -373,7 +376,7 @@ class UserDashboardTest extends TestCase
             ->patch(route('dashboard.quotations.items.update', [$quotation, $item]), [
                 'quantity' => 9,
                 'technology' => 'FDM',
-                'material' => 'PLA',
+                'material' => 'PLA Plus Standart ESUN',
                 'printer' => 'ender3',
             ])->assertSessionHasErrors('status');
 
@@ -407,7 +410,7 @@ class UserDashboardTest extends TestCase
     public function test_pembatalan_setelah_review_menjadi_permintaan_yang_menunggu_admin(): void
     {
         $admin = User::factory()->admin()->create();
-        $quotation = $this->quotation(['status' => QuotationStatus::REVIEWING]);
+        $quotation = $this->quotation(['status' => QuotationStatus::AWAITING_PAYMENT]);
 
         $this->actingAs($this->customer)
             ->post(route('dashboard.quotations.cancel', $quotation), ['reason' => 'Proyek ditunda.'])
@@ -416,7 +419,7 @@ class UserDashboardTest extends TestCase
         $quotation->refresh();
 
         $this->assertSame(QuotationStatus::CANCELLATION_REQUESTED, $quotation->status);
-        $this->assertSame(QuotationStatus::REVIEWING, $quotation->status_before_cancellation);
+        $this->assertSame(QuotationStatus::AWAITING_PAYMENT, $quotation->status_before_cancellation);
         $this->assertNull($quotation->cancellation_resolved_at);
 
         // Admin diberi tahu supaya pengajuannya tidak terlewat.
@@ -446,7 +449,7 @@ class UserDashboardTest extends TestCase
         $quotation = $this->quotation();
 
         $this->actingAs($admin)->patch(route('admin.quotations.update', $quotation), [
-            'status' => QuotationStatus::REVIEWING,
+            'status' => QuotationStatus::AWAITING_PAYMENT,
         ])->assertRedirect();
 
         $this->assertSame(1, $this->customer->unreadNotifications()->count());
@@ -454,7 +457,7 @@ class UserDashboardTest extends TestCase
         $this->actingAs($this->customer)
             ->get(route('dashboard.notifications.index'))
             ->assertOk()
-            ->assertSee('File Sedang Direview');
+            ->assertSee('Menunggu Pembayaran');
     }
 
     public function test_endpoint_notifikasi_terbaru_mengembalikan_json(): void
@@ -463,14 +466,14 @@ class UserDashboardTest extends TestCase
         $quotation = $this->quotation();
 
         $this->actingAs($admin)->patch(route('admin.quotations.update', $quotation), [
-            'status' => QuotationStatus::REVIEWING,
+            'status' => QuotationStatus::AWAITING_PAYMENT,
         ]);
 
         $this->actingAs($this->customer)
             ->getJson(route('dashboard.notifications.latest'))
             ->assertOk()
             ->assertJsonPath('unread_count', 1)
-            ->assertJsonPath('notifications.0.title', 'File Sedang Direview');
+            ->assertJsonPath('notifications.0.title', 'Menunggu Pembayaran');
     }
 
     public function test_notifikasi_dapat_ditandai_sudah_dibaca(): void
@@ -479,7 +482,7 @@ class UserDashboardTest extends TestCase
         $quotation = $this->quotation();
 
         $this->actingAs($admin)->patch(route('admin.quotations.update', $quotation), [
-            'status' => QuotationStatus::REVIEWING,
+            'status' => QuotationStatus::AWAITING_PAYMENT,
         ]);
 
         $this->actingAs($this->customer)

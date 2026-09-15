@@ -219,7 +219,7 @@
                         <td>
                             {{ $item->printer_name }}
                             <br><span style="color: #776862; font-weight: normal;">
-                                {{ $item->technology }} &middot; {{ $item->material }} &middot; {{ $extras }}
+                                {{ $item->technology }} &middot; {{ $item->material_label }} &middot; {{ $extras }}
                             </span>
                         </td>
                         <td>{{ $item->resolution_label }}</td>

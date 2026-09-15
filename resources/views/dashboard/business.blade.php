@@ -496,7 +496,7 @@
                             <p class="truncate text-sm font-bold text-ink-900">{{ $order->file_summary }}</p>
                             <p class="mt-1 text-xs text-ink-500">
                                 {{ $order->quantity }} pcs &middot; {{ $order->technology }}
-                                @if ($order->material) &middot; {{ $order->material }} @endif
+                                @if ($order->material) &middot; {{ $order->material_label }} @endif
                             </p>
                             <p class="mt-1 text-xs text-ink-400">
                                 Last order: {{ $order->created_at->translatedFormat('d F Y') }}

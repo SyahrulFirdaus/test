@@ -23,7 +23,9 @@ class EnsureUserIsCustomer
         }
 
         if ($user->isAdmin()) {
-            return redirect()->route('admin.dashboard');
+            // Superadmin dikembalikan ke dashboardnya sendiri, bukan ke antrean
+            // kerja harian milik Admin.
+            return redirect()->route($user->isSuperAdmin() ? 'superadmin.dashboard' : 'admin.dashboard');
         }
 
         return $next($request);

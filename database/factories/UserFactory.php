@@ -38,6 +38,14 @@ class UserFactory extends Factory
         ];
     }
 
+    /** Akun dengan akses tertinggi: mengelola Admin, Price List, User, dan Activity Log. */
+    public function superAdmin(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'role' => User::ROLE_SUPERADMIN,
+        ]);
+    }
+
     /** Akun pengelola dashboard admin. */
     public function admin(): static
     {

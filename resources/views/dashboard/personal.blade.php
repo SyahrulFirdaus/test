@@ -125,7 +125,6 @@
                 );
 
                 $steps = [
-                    ['label' => 'Quotation', 'at' => \App\Support\QuotationStatus::position(\App\Support\QuotationStatus::RECEIVED)],
                     ['label' => 'Review', 'at' => \App\Support\QuotationStatus::position(\App\Support\QuotationStatus::REVIEWING)],
                     ['label' => 'Payment', 'at' => \App\Support\QuotationStatus::position(\App\Support\QuotationStatus::AWAITING_PAYMENT)],
                     ['label' => 'Production', 'at' => \App\Support\QuotationStatus::position(\App\Support\QuotationStatus::PRODUCTION)],

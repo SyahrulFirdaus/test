@@ -9,22 +9,23 @@ use App\Models\User;
 use App\Support\QuotationStatus;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\Request;
-use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 
 /**
- * Dashboard statistik admin.
+ * Dashboard operasional admin.
+ *
+ * Isinya sengaja terbatas pada yang dipakai bekerja: kartu ringkas, sebaran
+ * status, dan penawaran terbaru. Statistik dua belas bulan terakhir pindah ke
+ * Dashboard Superadmin — gambaran keseluruhan sistem bukan alat kerja harian.
  *
  * Angka pendapatan dihitung dari penawaran yang benar-benar selesai memakai
- * harga penawaran yang ditetapkan admin (`estimated_price`); bila belum
- * ditetapkan, estimasi sistem yang dipakai — sama seperti yang dilihat
- * pelanggan di halaman tracking.
+ * harga penawaran yang tersimpan (`estimated_price`, diisi dari estimasi
+ * sistem sejak permintaan dikirim); penawaran lama yang kolomnya masih kosong
+ * memakai estimasi sistemnya — sama seperti yang dilihat pelanggan di halaman
+ * tracking.
  */
 class DashboardController extends Controller
 {
-    /** Banyaknya bulan yang ditampilkan pada grafik. */
-    private const CHART_MONTHS = 12;
-
     /** Banyaknya penawaran terbaru yang ditampilkan di bawah dashboard. */
     private const RECENT_LIMIT = 8;
 
@@ -33,7 +34,7 @@ class DashboardController extends Controller
         $completed = QuotationRequest::query()->where('status', QuotationStatus::COMPLETED);
 
         // Filter status hanya menyaring daftar penawaran di bawah. Kartu
-        // statistik, grafik, dan sebaran status tetap memotret keseluruhan —
+        // statistik dan sebaran status tetap memotret keseluruhan —
         // angka seperti Total Pendapatan kehilangan artinya bila ikut disaring
         // (pendapatan hanya berasal dari penawaran yang selesai).
         $status = $request->query('status');
@@ -58,7 +59,6 @@ class DashboardController extends Controller
                 ->get(),
 
             'status_breakdown' => $this->statusBreakdown(),
-            'chart' => $this->monthlyChart(),
 
             'statuses' => QuotationStatus::options(),
             'filters' => ['status' => $status],
@@ -85,8 +85,8 @@ class DashboardController extends Controller
     }
 
     /**
-     * Sebaran penawaran per status, dipakai sebagai daftar ringkas di samping
-     * grafik. Status tanpa penawaran tetap ditampilkan agar posisinya stabil.
+     * Sebaran penawaran per status: antrean kerja admin hari itu. Status
+     * tanpa penawaran tetap ditampilkan agar posisinya stabil.
      *
      * @return array<int, array{key: string, label: string, total: int}>
      */
@@ -105,59 +105,5 @@ class DashboardController extends Controller
             ])
             ->values()
             ->all();
-    }
-
-    /**
-     * Statistik bulanan 12 bulan terakhir: banyaknya penawaran masuk, penawaran
-     * selesai, dan nilai pendapatannya.
-     *
-     * Pengelompokan dikerjakan di PHP, bukan lewat fungsi tanggal basis data,
-     * supaya hasilnya sama pada MySQL maupun SQLite yang dipakai pengujian.
-     *
-     * @return array<string, mixed>
-     */
-    private function monthlyChart(): array
-    {
-        $start = now()->startOfMonth()->subMonths(self::CHART_MONTHS - 1);
-
-        $months = collect(range(0, self::CHART_MONTHS - 1))
-            ->mapWithKeys(fn (int $offset) => [
-                $start->copy()->addMonths($offset)->format('Y-m') => [
-                    'label' => $start->copy()->addMonths($offset)->translatedFormat('M Y'),
-                    'short' => $start->copy()->addMonths($offset)->translatedFormat('M'),
-                    'incoming' => 0,
-                    'completed' => 0,
-                    'revenue' => 0.0,
-                ],
-            ]);
-
-        QuotationRequest::query()
-            ->where('created_at', '>=', $start)
-            ->get(['created_at', 'status', 'estimated_price', 'estimated_cost'])
-            ->each(function (QuotationRequest $quotation) use (&$months) {
-                $key = Carbon::parse($quotation->created_at)->format('Y-m');
-
-                if (! $months->has($key)) {
-                    return;
-                }
-
-                $bucket = $months[$key];
-                $bucket['incoming']++;
-
-                if ($quotation->status === QuotationStatus::COMPLETED) {
-                    $bucket['completed']++;
-                    $bucket['revenue'] += (float) ($quotation->estimated_price ?? $quotation->estimated_cost ?? 0);
-                }
-
-                $months[$key] = $bucket;
-            });
-
-        $rows = $months->values()->all();
-
-        return [
-            'months' => $rows,
-            'max_incoming' => max(1, (int) collect($rows)->max('incoming')),
-            'max_revenue' => max(1.0, (float) collect($rows)->max('revenue')),
-        ];
     }
 }

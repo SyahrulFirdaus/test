@@ -511,16 +511,16 @@ class RegistrationTest extends TestCase
         $this->post(route('register.store'));
 
         $customer = User::customers()->sole();
-        $admin = User::factory()->admin()->create();
+        $admin = User::factory()->superAdmin()->create();
 
         $this->actingAs($admin)
-            ->get(route('admin.users.index'))
+            ->get(route('superadmin.users.index'))
             ->assertOk()
             ->assertSee('Tipe Customer')
             ->assertSee('Personal');
 
         $this->actingAs($admin)
-            ->get(route('admin.users.show', $customer))
+            ->get(route('superadmin.users.show', $customer))
             ->assertOk()
             ->assertSee('Informasi Pendaftaran')
             ->assertSee('Custom Product')
@@ -532,8 +532,8 @@ class RegistrationTest extends TestCase
         $personal = User::factory()->create(['customer_type' => CustomerType::PERSONAL, 'name' => 'Andi Personal']);
         $business = User::factory()->create(['customer_type' => CustomerType::BUSINESS, 'name' => 'Budi Business']);
 
-        $this->actingAs(User::factory()->admin()->create())
-            ->get(route('admin.users.index', ['type' => CustomerType::BUSINESS]))
+        $this->actingAs(User::factory()->superAdmin()->create())
+            ->get(route('superadmin.users.index', ['type' => CustomerType::BUSINESS]))
             ->assertOk()
             ->assertSee($business->name)
             ->assertDontSee($personal->name);

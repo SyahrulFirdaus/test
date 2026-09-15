@@ -42,6 +42,22 @@ export function materialInfo(config, technology, material) {
     return materialCatalog(config, technology).find((item) => item.name === material) ?? null;
 }
 
+/**
+ * Nama material yang dilihat pelanggan, mis. "PLA+".
+ *
+ * `name` tetap nama katalog beserta brand-nya — itulah yang dikirim ke server
+ * dan menentukan harga. Yang ditampilkan hanya `label`, disiapkan server lewat
+ * App\Support\MaterialCatalog. Material tanpa label ditampilkan apa adanya.
+ */
+export function materialLabel(material) {
+    return material?.label ?? material?.name ?? '-';
+}
+
+/** Nama tampilan sebuah material menurut katalog teknologinya. */
+export function materialLabelFor(config, technology, material) {
+    return materialLabel(materialInfo(config, technology, material) ?? { name: material });
+}
+
 /** Tiga sisi diurutkan dari yang terpanjang, supaya perbandingan tidak bergantung orientasi. */
 function sidesOf(size) {
     return [Number(size?.x ?? 0), Number(size?.y ?? 0), Number(size?.z ?? 0)].sort((a, b) => b - a);
@@ -106,6 +122,14 @@ export function colorOptions(config, technology, material) {
 /** Pilihan finishing beserta keterangannya. */
 export function finishingOptions(config) {
     return Object.entries(config.finishing?.options ?? {}).map(([key, option]) => ({ key, ...option }));
+}
+
+/** Kunci finishing yang hanya boleh dipasangkan dengan warna tertentu. */
+export const PAINTING_KEY = 'painting';
+
+/** Painting hanya masuk akal di atas dasar putih, jadi warna lain menutup pilihan ini. */
+export function paintingAllowedForColor(color) {
+    return color === 'putih';
 }
 
 /**
@@ -205,7 +229,12 @@ export function applySpecification(record, config, spec) {
     const colors = colorOptions(config, spec.technology, spec.material).map((color) => color.key);
     const color = colors.includes(spec.color) ? spec.color : (colors[0] ?? spec.color);
 
-    const finishing = config.finishing?.options?.[spec.finishing] ? spec.finishing : (config.finishing?.default ?? 'none');
+    let finishing = config.finishing?.options?.[spec.finishing] ? spec.finishing : (config.finishing?.default ?? 'none');
+
+    // Painting hanya berlaku untuk warna Putih; kombinasi lain jatuh ke default.
+    if (finishing === PAINTING_KEY && !paintingAllowedForColor(color)) {
+        finishing = config.finishing?.default ?? 'none';
+    }
 
     const scale = Number(settings.scale ?? 1) || 1;
     const geometryVolumeCm3 = inputs.geometryVolumeCm3;
@@ -243,14 +272,18 @@ export function applySpecification(record, config, spec) {
         {
             scale,
             surfaceAreaCm2: Number(inputs.surfaceAreaCm2 ?? 0),
+            // Sudah terskalakan sejak diukur di viewer; dipakai Basic Fee.
+            dimensions: inputs.dimensions ?? null,
             infillDensity: settings.infillDensity,
             infillPattern: settings.infillPattern,
             patterns: config.infill?.patterns,
             hollow: { ...hollow, drainHoles: config.hollow?.drainCount ?? 2 },
             printer: config.printers?.[record.state?.printer] ?? null,
+            printerKey: record.state?.printer ?? null,
             finishing,
             finishings: config.finishing?.options,
             cost: config.cost,
+            pricing: config.pricing,
         }
     );
 

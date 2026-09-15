@@ -175,7 +175,7 @@
                                             </p>
                                             <p class="mt-1.5 pl-8 text-xs font-semibold text-brand-600">{{ $item->printer_label }}</p>
                                             <p class="mt-1 pl-8 text-xs text-ink-500">
-                                                {{ $item->file_format }} &middot; {{ $item->technology }} {{ $item->material }} &middot;
+                                                {{ $item->file_format }} &middot; {{ $item->technology }} {{ $item->material_label }} &middot;
                                                 {{ $item->resolution_label }} &middot; {{ $item->quantity }} unit
                                             </p>
                                             <p class="mt-1 pl-8 text-[0.7rem] text-ink-400">

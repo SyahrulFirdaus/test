@@ -15,7 +15,7 @@
 |   volume_material = volume_model x fill_factor        (atau volume cangkang bila hollow)
 |   berat           = volume_material (cm3) x densitas (g/cm3)
 |   waktu           = setup_hours + volume_material (cm3) / throughput (cm3/jam)
-|   biaya           = material + waktu mesin + support + finishing + quality control
+|   biaya           = material + waktu mesin + support + finishing + quality control + basic fee
 */
 
 return [
@@ -211,23 +211,11 @@ return [
                 'cost_multiplier' => 1.8,
                 'hours_per_unit' => 0.25,
             ],
-            'primer' => [
-                'label' => 'Primer',
-                'description' => 'Diamplas lalu dilapisi primer, siap untuk pengecatan lanjutan.',
-                'cost_multiplier' => 2.4,
-                'hours_per_unit' => 0.4,
-            ],
             'painting' => [
                 'label' => 'Painting',
-                'description' => 'Diamplas, diprimer, lalu dicat sesuai warna yang dipilih.',
+                'description' => 'Diamplas, diprimer, lalu dicat sesuai warna yang dipilih. Hanya tersedia untuk warna Putih.',
                 'cost_multiplier' => 3.4,
                 'hours_per_unit' => 0.75,
-            ],
-            'polishing' => [
-                'label' => 'Polishing',
-                'description' => 'Dipoles sampai mengkilap. Paling cocok untuk resin bening dan part logam.',
-                'cost_multiplier' => 2.9,
-                'hours_per_unit' => 0.6,
             ],
         ],
     ],
@@ -252,6 +240,30 @@ return [
         'quality_control' => [
             'percent' => 0.04,
             'minimum' => 8000,
+        ],
+
+        /*
+         * Basic Fee: biaya dasar penanganan yang ditentukan sisi TERPANJANG
+         * model — bukan volumenya — dalam milimeter. Ukuran yang dibaca sudah
+         * termasuk skala, karena dimensi pada `model_stats` diukur browser dari
+         * model yang sudah diskalakan dan diputar.
+         *
+         *   Kecil    < 80 mm            Rp0
+         *   Sedang   80 mm s.d. 200 mm  Rp25.000
+         *   Besar    > 200 mm           Rp50.000
+         *
+         * Batasnya ditulis apa adanya: `below_mm` berlaku selama ukuran masih
+         * di bawah angka itu, `up_to_mm` sampai dengan angka itu, dan tingkat
+         * terakhir tanpa batas menampung sisanya. Model tanpa catatan dimensi
+         * dianggap Kecil sehingga tidak pernah dikenakan biaya yang tidak dapat
+         * dipertanggungjawabkan ukurannya.
+         */
+        'basic_fee' => [
+            'tiers' => [
+                ['key' => 'kecil', 'label' => 'Kecil', 'below_mm' => 80, 'fee' => 0],
+                ['key' => 'sedang', 'label' => 'Sedang', 'up_to_mm' => 200, 'fee' => 25000],
+                ['key' => 'besar', 'label' => 'Besar', 'fee' => 50000],
+            ],
         ],
 
         // Biaya akhir dibulatkan ke atas pada kelipatan ini agar enak dibaca.
@@ -485,75 +497,11 @@ return [
             'setup_hours' => 0.3,
             'setup_fee' => 25000,
             'machine_rate_per_hour' => 12000,
-            // `colors` membatasi pilihan warna yang benar-benar tersedia untuk
-            // material tersebut; kuncinya mengacu ke `material_colors.options`.
-            // Material tanpa kunci ini menerima seluruh warna.
-            'materials' => [
-                'PLA' => [
-                    'density' => 1.24,
-                    'price_per_gram' => 900,
-                    'colors' => ['putih', 'hitam', 'abu', 'merah', 'biru'],
-                    'description' => 'Filamen paling umum. Mudah dicetak, dimensinya stabil, dan permukaannya rapi.',
-                    'characteristics' => [
-                        'Kekuatan' => 'Sedang',
-                        'Tahan panas' => 'Rendah, melunak di ±60 °C',
-                        'Kelenturan' => 'Kaku',
-                        'Permukaan' => 'Halus',
-                    ],
-                    'pros' => ['Paling ekonomis dan cepat', 'Detail rapi, minim melengkung'],
-                    'cons' => ['Melunak di atas ±60 °C', 'Agak getas bila dibebani terus-menerus'],
-                    'max_size' => ['x' => 250, 'y' => 250, 'z' => 300],
-                    'min_size' => ['x' => 30, 'y' => 30, 'z' => 10],
-                ],
-                'ABS' => [
-                    'density' => 1.04,
-                    'price_per_gram' => 950,
-                    'colors' => ['putih', 'hitam', 'abu', 'merah'],
-                    'description' => 'Termoplastik teknik yang lebih tahan panas dan benturan daripada PLA.',
-                    'characteristics' => [
-                        'Kekuatan' => 'Tinggi',
-                        'Tahan panas' => 'Baik, sampai ±100 °C',
-                        'Kelenturan' => 'Agak liat',
-                        'Permukaan' => 'Sedang, dapat dihaluskan uap aseton',
-                    ],
-                    'pros' => ['Tahan panas dan benturan', 'Dapat dihaluskan dengan uap aseton'],
-                    'cons' => ['Rawan menyusut dan terangkat dari meja', 'Butuh dinding lebih tebal pada part besar'],
-                    'max_size' => ['x' => 500, 'y' => 480, 'z' => 480],
-                    'min_size' => ['x' => 30, 'y' => 30, 'z' => 10],
-                ],
-                'PETG' => [
-                    'density' => 1.27,
-                    'price_per_gram' => 1100,
-                    'colors' => ['putih', 'hitam', 'abu', 'biru', 'bening'],
-                    'description' => 'Perpaduan kemudahan PLA dengan ketangguhan ABS. Cocok untuk part fungsional harian.',
-                    'characteristics' => [
-                        'Kekuatan' => 'Tinggi',
-                        'Tahan panas' => 'Sedang, sampai ±75 °C',
-                        'Kelenturan' => 'Liat',
-                        'Permukaan' => 'Sedang, sedikit mengkilap',
-                    ],
-                    'pros' => ['Liat, tidak mudah patah', 'Tahan air dan bahan kimia ringan'],
-                    'cons' => ['Rawan stringing pada detail halus', 'Permukaan sedikit lebih kasar'],
-                    'max_size' => ['x' => 500, 'y' => 500, 'z' => 600],
-                    'min_size' => ['x' => 30, 'y' => 30, 'z' => 10],
-                ],
-                'TPU' => [
-                    'density' => 1.21,
-                    'price_per_gram' => 1800,
-                    'colors' => ['hitam', 'putih', 'merah'],
-                    'description' => 'Material elastis seperti karet untuk gasket, bumper, dan part yang perlu lentur.',
-                    'characteristics' => [
-                        'Kekuatan' => 'Sedang',
-                        'Tahan panas' => 'Sedang, sampai ±80 °C',
-                        'Kelenturan' => 'Sangat lentur',
-                        'Permukaan' => 'Sedang, sedikit bertekstur',
-                    ],
-                    'pros' => ['Elastis dan tahan sobek', 'Meredam getaran dengan baik'],
-                    'cons' => ['Waktu cetak lebih lama', 'Tidak cocok untuk part yang harus kaku'],
-                    'max_size' => ['x' => 250, 'y' => 250, 'z' => 300],
-                    'min_size' => ['x' => 30, 'y' => 30, 'z' => 10],
-                ],
-            ],
+            // Materialnya (nama, harga, densitas, warna, batas ukuran) dikelola
+            // admin lewat halaman Price List dan disuntikkan ke sini oleh
+            // `PrintEstimator::technologies()` — lihat App\Models\FdmMaterial.
+            // Jangan tulis material di sini lagi, akan selalu tertimpa.
+            'materials' => [],
         ],
 
         'SLA' => [
@@ -573,76 +521,9 @@ return [
             'setup_hours' => 0.5,
             'setup_fee' => 50000,
             'machine_rate_per_hour' => 30000,
-            'materials' => [
-                'Standard Resin' => [
-                    'density' => 1.10,
-                    'price_per_gram' => 2200,
-                    'colors' => ['abu', 'putih', 'hitam'],
-                    'description' => 'Resin serbaguna dengan detail paling halus. Pilihan utama untuk model presentasi.',
-                    'characteristics' => [
-                        'Kekuatan' => 'Rendah',
-                        'Tahan panas' => 'Rendah',
-                        'Kelenturan' => 'Getas',
-                        'Permukaan' => 'Sangat halus',
-                    ],
-                    'pros' => ['Detail dan permukaan terbaik', 'Biaya paling ringan di antara resin'],
-                    'cons' => ['Getas, tidak untuk part fungsional', 'Warna dapat menguning bila lama terkena UV'],
-                    'max_size' => ['x' => 300, 'y' => 200, 'z' => 300],
-                    'min_size' => ['x' => 5, 'y' => 5, 'z' => 5],
-                    'min_size_slender' => ['x' => 10, 'y' => 2, 'z' => 2],
-                ],
-                'Tough Resin' => [
-                    'density' => 1.12,
-                    'price_per_gram' => 2800,
-                    'colors' => ['abu', 'hitam'],
-                    'description' => 'Resin yang diformulasikan lebih liat, mendekati karakter ABS.',
-                    'characteristics' => [
-                        'Kekuatan' => 'Sedang hingga tinggi',
-                        'Tahan panas' => 'Sedang',
-                        'Kelenturan' => 'Liat',
-                        'Permukaan' => 'Sangat halus',
-                    ],
-                    'pros' => ['Lebih tahan benturan', 'Detail tetap halus'],
-                    'cons' => ['Lebih mahal daripada resin standar', 'Tetap kalah kuat dibanding nylon'],
-                    'max_size' => ['x' => 300, 'y' => 200, 'z' => 300],
-                    'min_size' => ['x' => 5, 'y' => 5, 'z' => 5],
-                    'min_size_slender' => ['x' => 10, 'y' => 2, 'z' => 2],
-                ],
-                'Flexible Resin' => [
-                    'density' => 1.08,
-                    'price_per_gram' => 3200,
-                    'colors' => ['hitam', 'abu'],
-                    'description' => 'Resin lentur untuk part yang perlu ditekuk atau menyerap tekanan.',
-                    'characteristics' => [
-                        'Kekuatan' => 'Rendah',
-                        'Tahan panas' => 'Rendah',
-                        'Kelenturan' => 'Lentur',
-                        'Permukaan' => 'Halus',
-                    ],
-                    'pros' => ['Lentur dengan detail tinggi', 'Baik untuk segel dan bantalan'],
-                    'cons' => ['Toleransi dimensi lebih longgar', 'Perlu dinding lebih tebal agar tidak sobek'],
-                    'max_size' => ['x' => 300, 'y' => 200, 'z' => 300],
-                    'min_size' => ['x' => 5, 'y' => 5, 'z' => 5],
-                    'min_size_slender' => ['x' => 10, 'y' => 2, 'z' => 2],
-                ],
-                'Clear Resin' => [
-                    'density' => 1.10,
-                    'price_per_gram' => 3000,
-                    'colors' => ['bening'],
-                    'description' => 'Resin bening untuk part tembus pandang seperti lensa, housing, dan model aliran fluida.',
-                    'characteristics' => [
-                        'Kekuatan' => 'Rendah',
-                        'Tahan panas' => 'Rendah',
-                        'Kelenturan' => 'Getas',
-                        'Permukaan' => 'Sangat halus, tembus pandang setelah dipoles',
-                    ],
-                    'pros' => ['Tembus pandang setelah dipoles', 'Detail sangat halus'],
-                    'cons' => ['Butuh pemolesan tambahan', 'Kejernihan berkurang seiring waktu'],
-                    'max_size' => ['x' => 300, 'y' => 200, 'z' => 300],
-                    'min_size' => ['x' => 5, 'y' => 5, 'z' => 5],
-                    'min_size_slender' => ['x' => 10, 'y' => 2, 'z' => 2],
-                ],
-            ],
+            // Materialnya dikelola admin lewat halaman Price List — lihat
+            // catatan yang sama di atas pada teknologi FDM.
+            'materials' => [],
         ],
 
         'MJF' => [
@@ -776,6 +657,44 @@ return [
 
     /*
     |----------------------------------------------------------------------
+    | Nama Material yang Dilihat Pelanggan
+    |----------------------------------------------------------------------
+    | HANYA untuk teknologi yang daftar materialnya masih tinggal di config
+    | ini, yaitu MJF dan SLM — keduanya belum punya tab Price List sendiri.
+    |
+    | FDM dan SLA TIDAK ada di sini dengan sengaja. Daftar materialnya
+    | dikelola Superadmin lewat Price List, dan Price List itulah satu-satunya
+    | penentu: nama yang tampil adalah kolom `material` pada barisnya, dan
+    | yang ditawarkan adalah seluruh baris yang ada. Mengisi keduanya di sini
+    | akan mengembalikan daftar tetap, yang justru membuat material baru pada
+    | Price List tidak pernah muncul di Edit Specification.
+    |
+    | Untuk MJF/SLM: KUNCI adalah nama katalog yang tersimpan pada penawaran
+    | dan menentukan harga, NILAI adalah nama yang ditampilkan. Urutan baris
+    | menentukan urutan pilihan, dan daftar kuncinya sekaligus menentukan
+    | material mana yang ditawarkan — yang tidak disebut tetap ada untuk
+    | kebutuhan internal, hanya tidak muncul sebagai pilihan pelanggan.
+    |
+    | Teknologi yang petanya kosong ditawarkan apa adanya, dengan nama
+    | katalognya sendiri.
+    */
+    'material_display' => [
+        // Dikelola Price List — lihat catatan di atas.
+        'FDM' => [],
+        'SLA' => [],
+
+        'MJF' => [
+            'PA12' => 'PA 12 Nylon',
+        ],
+
+        'SLM' => [
+            'Stainless Steel' => 'Stainless BJ 316L',
+            'Titanium' => 'Titanium TC4 Metal',
+        ],
+    ],
+
+    /*
+    |----------------------------------------------------------------------
     | Lead Time Pengerjaan
     |----------------------------------------------------------------------
     | Yang dibutuhkan pelanggan bukan lama mesin berputar, melainkan kapan
@@ -786,15 +705,19 @@ return [
     | Tiap tingkat berlaku selama total menit mesin masih di bawah atau sama
     | dengan `max_minutes`; tingkat terakhir (`max_minutes` null) menjadi
     | penampung untuk pekerjaan yang lebih besar dari itu.
+    |
+    | Yang dibandingkan adalah TOTAL waktu proses seluruh 3D object dalam satu
+    | penawaran, bukan waktu satu object. Penawaran berisi tiga object 8 + 6 + 5
+    | jam berjumlah 19 jam sehingga masih Express, sedangkan 10 + 7 + 5 jam
+    | berjumlah 22 jam dan menjadi Standard.
     */
     'lead_time' => [
         'unit' => 'Hari Kerja',
 
         'tiers' => [
-            ['max_minutes' => 480, 'min_days' => 3, 'max_days' => 5],
-            ['max_minutes' => 1440, 'min_days' => 5, 'max_days' => 7],
-            ['max_minutes' => 4320, 'min_days' => 7, 'max_days' => 10],
-            ['max_minutes' => null, 'min_days' => 10, 'max_days' => 14],
+            // 20 jam = 1.200 menit.
+            ['name' => 'Express', 'max_minutes' => 1200, 'min_days' => 1, 'max_days' => 1],
+            ['name' => 'Standard', 'max_minutes' => null, 'min_days' => 3, 'max_days' => 5],
         ],
     ],
 
@@ -816,22 +739,14 @@ return [
     | filter admin, riwayat, dan notifikasi mengikutinya otomatis.
     */
     'quotation_statuses' => [
-        'received' => [
-            'label' => 'Menunggu Review',
-            'description' => 'Permintaan penawaran Anda sudah masuk dan menunggu giliran ditinjau.',
-            'group' => 'flow',
-            // Selama masih di tahap ini, isi penawaran boleh diubah pemiliknya.
-            'editable' => true,
-        ],
+        // Tahap pertama sekaligus satu-satunya tahap yang isinya masih boleh
+        // diubah pemiliknya. Penawaran baru langsung masuk ke sini — tidak
+        // ada lagi antrean "Menunggu Review" sebelumnya.
         'reviewing' => [
             'label' => 'File Sedang Direview',
-            'description' => 'Engineer kami sedang memeriksa file model Anda.',
+            'description' => 'Permintaan Anda sudah masuk dan engineer kami sedang memeriksa file modelnya.',
             'group' => 'flow',
-        ],
-        'awaiting_approval' => [
-            'label' => 'Menunggu Persetujuan Penawaran',
-            'description' => 'Penawaran sudah disusun dan menunggu konfirmasi dari Anda.',
-            'group' => 'flow',
+            'editable' => true,
         ],
         'awaiting_payment' => [
             'label' => 'Menunggu Pembayaran',

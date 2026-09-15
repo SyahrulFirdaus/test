@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Models\Concerns\DescribesPrintJob;
+use App\Services\SellingPriceEstimator;
 use App\Support\AnalysisStatus;
 use App\Support\QuotationStatus;
 use Illuminate\Database\Eloquent\Builder;
@@ -250,7 +251,7 @@ class QuotationRequest extends Model
     /**
      * Isi penawaran masih boleh diubah pemiliknya.
      *
-     * Hanya berlaku selama status masih "Menunggu Review". Begitu admin
+     * Hanya berlaku selama status masih "File Sedang Direview". Begitu admin
      * memindahkannya ke "File Sedang Direview", seluruh datanya read only.
      */
     public function isEditable(): bool
@@ -382,30 +383,6 @@ class QuotationRequest extends Model
     }
 
     /**
-     * Selaraskan harga penawaran dengan harga tiap modelnya.
-     *
-     * Begitu admin menetapkan harga pada salah satu model, harga penawaran
-     * menjadi penjumlahan harga seluruh model — model yang belum disesuaikan
-     * memakai estimasi sistemnya sendiri. Selama belum ada satu pun harga
-     * manual, kolom `estimated_price` dibiarkan kosong agar halaman tracking
-     * tetap menampilkan angka sebagai "Estimasi Biaya Sistem".
-     */
-    public function refreshQuotedPrice(): void
-    {
-        $items = $this->items()->get();
-
-        if ($items->isEmpty() || $items->every(fn (QuotationItem $item) => $item->estimated_price === null)) {
-            $this->forceFill(['estimated_price' => null])->save();
-
-            return;
-        }
-
-        $this->forceFill([
-            'estimated_price' => round($items->sum(fn (QuotationItem $item) => (float) $item->display_price), 2),
-        ])->save();
-    }
-
-    /**
      * Kolom ringkasan penawaran yang disusun dari seluruh modelnya.
      *
      * Berkas dan pilihan produksi mengikuti model pertama agar daftar admin,
@@ -461,12 +438,28 @@ class QuotationRequest extends Model
             'estimated_minutes' => (int) round($sum('estimated_minutes')),
             'estimated_cost' => round($sum('estimated_cost'), 2),
 
+            // Harga penawaran = estimasi sistem, ditetapkan sejak permintaan
+            // dikirim dan ikut terhitung ulang setiap isinya berubah. Admin
+            // tidak lagi mengisi harga manual, jadi angka yang dilihat
+            // pelanggan pada Edit Specification sama persis dengan yang
+            // tersimpan pada penawarannya.
+            'estimated_price' => round($sum('estimated_cost'), 2),
+
             // Rincian biaya penawaran adalah penjumlahan rincian tiap model,
             // sehingga tabelnya tetap berjumlah persis sama dengan totalnya.
+            //
+            // Yang dijumlahkan hanya komponen rupiahnya: sejak perhitungan
+            // Harga Jual ikut tersimpan, `cost_breakdown` tiap model juga
+            // memuat parameter — persentase risk, nama mesin, ukuran object —
+            // yang tidak punya arti bila ditambahkan antar model.
             'cost_breakdown' => $items
                 ->map(fn ($item) => (array) $item['cost_breakdown'])
                 ->reduce(function (array $carry, array $breakdown) {
                     foreach ($breakdown as $component => $value) {
+                        if (! in_array($component, SellingPriceEstimator::SUMMABLE, true) || ! is_numeric($value)) {
+                            continue;
+                        }
+
                         $carry[$component] = round(($carry[$component] ?? 0) + $value, 2);
                     }
 
@@ -489,8 +482,9 @@ class QuotationRequest extends Model
             return;
         }
 
+        // Harga penawaran ikut di dalam ringkasan, jadi mengubah isi penawaran
+        // otomatis menyelaraskan harganya dengan estimasi sistem yang baru.
         $this->forceFill(self::summaryFrom($items))->save();
-        $this->refreshQuotedPrice();
     }
 
     /**

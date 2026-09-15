@@ -18,6 +18,8 @@ class AdminManagementTest extends TestCase
 
     private User $admin;
 
+    private User $superAdmin;
+
     private User $customer;
 
     protected function setUp(): void
@@ -25,6 +27,7 @@ class AdminManagementTest extends TestCase
         parent::setUp();
 
         $this->admin = User::factory()->admin()->create(['name' => 'Administrator']);
+        $this->superAdmin = User::factory()->superAdmin()->create(['name' => 'Superadmin']);
         $this->customer = User::factory()->create([
             'name' => 'Budi Santoso',
             'phone' => '081234567890',
@@ -52,7 +55,7 @@ class AdminManagementTest extends TestCase
             'estimated_weight_g' => 55.8,
             'estimated_minutes' => 200,
             'estimated_cost' => 150000,
-            'status' => QuotationStatus::RECEIVED,
+            'status' => QuotationStatus::REVIEWING,
         ], $overrides));
 
         $quotation->items()->create([
@@ -91,7 +94,10 @@ class AdminManagementTest extends TestCase
             ->assertSee('Object 3D Dicetak')
             ->assertSee('Total Pendapatan')
             ->assertSee('User Terdaftar')
-            ->assertSee('Statistik 12 Bulan Terakhir')
+            // Statistik 12 Bulan Terakhir pindah ke Dashboard Superadmin;
+            // dashboard admin kini hanya memuat alat kerja hariannya.
+            ->assertDontSee('Statistik 12 Bulan Terakhir')
+            ->assertSee('Sebaran Status')
             // Pendapatan memakai harga penawaran yang sudah ditetapkan admin.
             ->assertSee('Rp500.000', false);
     }
@@ -179,22 +185,22 @@ class AdminManagementTest extends TestCase
 
     public function test_admin_dapat_melihat_daftar_user(): void
     {
-        $this->actingAs($this->admin)
-            ->get(route('admin.users.index'))
+        $this->actingAs($this->superAdmin)
+            ->get(route('superadmin.users.index'))
             ->assertOk()
             ->assertSee('Budi Santoso')
             ->assertSee('Bandung')
-            ->assertSee(route('admin.users.show', $this->customer))
+            ->assertSee(route('superadmin.users.show', $this->customer))
             // Akun admin tidak ikut terdaftar sebagai pelanggan.
-            ->assertDontSee(route('admin.users.show', $this->admin));
+            ->assertDontSee(route('superadmin.users.show', $this->admin));
     }
 
     public function test_detail_user_menampilkan_riwayat_penawarannya(): void
     {
         $quotation = $this->quotation();
 
-        $this->actingAs($this->admin)
-            ->get(route('admin.users.show', $this->customer))
+        $this->actingAs($this->superAdmin)
+            ->get(route('superadmin.users.show', $this->customer))
             ->assertOk()
             ->assertSee('Budi Santoso')
             ->assertSee('081234567890')
@@ -204,8 +210,8 @@ class AdminManagementTest extends TestCase
 
     public function test_akun_admin_tidak_dapat_dibuka_sebagai_detail_user(): void
     {
-        $this->actingAs($this->admin)
-            ->get(route('admin.users.show', $this->admin))
+        $this->actingAs($this->superAdmin)
+            ->get(route('superadmin.users.show', $this->admin))
             ->assertNotFound();
     }
 
@@ -213,8 +219,8 @@ class AdminManagementTest extends TestCase
     {
         User::factory()->create(['name' => 'Citra Dewi', 'city' => 'Surabaya']);
 
-        $this->actingAs($this->admin)
-            ->get(route('admin.users.index', ['q' => 'Surabaya']))
+        $this->actingAs($this->superAdmin)
+            ->get(route('superadmin.users.index', ['q' => 'Surabaya']))
             ->assertOk()
             ->assertSee('Citra Dewi')
             ->assertDontSee('Budi Santoso');
@@ -224,7 +230,9 @@ class AdminManagementTest extends TestCase
 
     private function requestedCancellation(): QuotationRequest
     {
-        $quotation = $this->quotation(['status' => QuotationStatus::REVIEWING]);
+        // Harus sudah lewat tahap yang masih dapat diubah, kalau tidak
+        // pembatalannya langsung berlaku tanpa persetujuan admin.
+        $quotation = $this->quotation(['status' => QuotationStatus::AWAITING_PAYMENT]);
 
         $this->actingAs($this->customer)
             ->post(route('dashboard.quotations.cancel', $quotation), ['reason' => 'Proyek ditunda.']);
@@ -263,7 +271,7 @@ class AdminManagementTest extends TestCase
 
         $quotation->refresh();
 
-        $this->assertSame(QuotationStatus::REVIEWING, $quotation->status);
+        $this->assertSame(QuotationStatus::AWAITING_PAYMENT, $quotation->status);
         $this->assertNull($quotation->status_before_cancellation);
 
         // Riwayat mencatat penolakan sekaligus tahap yang dilanjutkan.
@@ -282,7 +290,7 @@ class AdminManagementTest extends TestCase
             ->post(route('admin.quotations.cancellation.approve', $quotation))
             ->assertSessionHas('error');
 
-        $this->assertSame(QuotationStatus::RECEIVED, $quotation->fresh()->status);
+        $this->assertSame(QuotationStatus::REVIEWING, $quotation->fresh()->status);
     }
 
     public function test_pengajuan_pembatalan_tampil_pada_daftar_penawaran(): void
@@ -342,7 +350,7 @@ class AdminManagementTest extends TestCase
                 'status' => QuotationStatus::CANCELLATION_APPROVED,
             ])->assertSessionHasErrors('status');
 
-        $this->assertSame(QuotationStatus::RECEIVED, $quotation->fresh()->status);
+        $this->assertSame(QuotationStatus::REVIEWING, $quotation->fresh()->status);
     }
 
     public function test_detail_penawaran_menyediakan_tombol_whatsapp_pelanggan(): void

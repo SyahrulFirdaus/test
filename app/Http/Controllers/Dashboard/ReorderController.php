@@ -98,11 +98,11 @@ class ReorderController extends Controller
     }
 
     /**
-     * Spesifikasi satu model, tanpa harga.
+     * Spesifikasi satu model beserta estimasi biayanya.
      *
      * Estimasi biaya sistem ikut disalin karena dihitung dari spesifikasi yang
-     * sama, tetapi harga yang pernah ditetapkan admin (`estimated_price`) tidak
-     * — harga pesanan baru ditentukan ulang saat penawarannya ditinjau.
+     * sama; harga penawaran pesanan baru kemudian ditetapkan dari penjumlahan
+     * estimasi itu lewat QuotationRequest::summaryFrom().
      *
      * @return array<string, mixed>
      */

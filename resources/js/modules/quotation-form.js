@@ -112,7 +112,8 @@ export default function initQuotationForm(viewer, root) {
             <dl class="mt-3 grid gap-3 border-t border-ink-100 pt-3 sm:grid-cols-2">
                 ${[
                     // Model dicetak paralel, jadi lead time mengikuti mesin terlama.
-                    ['Estimasi Lead Time', formatLeadTime(payload.totals.longestMinutes ?? payload.totals.minutes)],
+                    // Total waktu proses seluruh object, bukan object terlama.
+                    ['Estimasi Lead Time', formatLeadTime(payload.totals.minutes ?? 0)],
                     ['Total Biaya', formatCurrency(payload.totals.cost)],
                 ]
                     .map(
@@ -384,7 +385,7 @@ function colorLabel(config, key) {
     return config?.materialColors?.options?.[key]?.label ?? '-';
 }
 
-/** Label finishing sesuai config, mis. "Polishing". */
+/** Label finishing sesuai config, mis. "Painting". */
 function finishingLabel(config, key) {
     return config?.finishing?.options?.[key]?.label ?? 'Tanpa Finishing';
 }

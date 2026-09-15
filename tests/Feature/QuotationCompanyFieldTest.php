@@ -93,7 +93,7 @@ class QuotationCompanyFieldTest extends TestCase
             'notes' => 'Mohon warna hitam doff.',
             'model' => UploadedFile::fake()->createWithContent('bracket.stl', 'solid test'),
             'technology' => 'FDM',
-            'material' => 'PLA',
+            'material' => 'PLA Plus Standart ESUN',
             'model_volume_cm3' => 120.5,
             'analysis_status' => QuotationRequest::ANALYSIS_READY,
         ], $overrides);

@@ -3,11 +3,13 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\PrintTechnology;
 use App\Models\QuotationItem;
 use App\Models\QuotationRequest;
 use App\Notifications\CancellationDecided;
 use App\Notifications\QuotationStatusUpdated;
 use App\Services\ActivityLogger;
+use App\Services\SellingPriceEstimator;
 use App\Services\PaymentFlow;
 use App\Support\ActivityAction;
 use App\Support\ActivityModule;
@@ -16,6 +18,7 @@ use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\Rule;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class QuotationRequestController extends Controller
@@ -41,7 +44,7 @@ class QuotationRequestController extends Controller
             'quotations' => $quotations,
             'statuses' => QuotationStatus::options(),
             'pendingCancellations' => QuotationRequest::query()->awaitingCancellation()->count(),
-            'technologies' => array_keys(config('printing.technologies')),
+            'technologies' => PrintTechnology::codes(),
             'filters' => [
                 'status' => $request->query('status'),
                 'technology' => $request->query('technology'),
@@ -57,14 +60,41 @@ class QuotationRequestController extends Controller
         ]);
     }
 
-    public function show(QuotationRequest $quotation): View
+    public function show(QuotationRequest $quotation, SellingPriceEstimator $sellingPrice): View
     {
+        // Pilihan status dihitung dari status yang tersimpan, bukan dari
+        // tampilan sebelumnya — menyegarkan halaman selalu mengembalikan tahap
+        // yang sama beserta kuncinya.
+        $selectable = $this->selectableStatuses($quotation);
+
         return view('admin.quotations.show', [
+            // Rincian Harga Jual tiap model: dibaca dari perhitungan yang sudah
+            // tersimpan, jadi membuka halaman ini tidak menghitung ulang apa pun
+            // dan tidak dapat menggeser harga yang sudah ditawarkan.
+            'sellingPrice' => $sellingPrice->forQuotation($quotation),
             'quotation' => $quotation->load('timelineHistories', 'items', 'user'),
             // Status pembatalan tidak ikut ke dropdown: perpindahannya diatur
             // tombol Setujui / Tolak Pembatalan.
-            'statuses' => QuotationStatus::manualOptions(),
+            'statusChoices' => QuotationStatus::manualChoices($quotation->status, $quotation->status_before_cancellation),
+            // Tahap berikutnya tidak pernah terpilih sendiri: yang terpilih
+            // adalah tahap yang sedang berjalan, kecuali admin baru saja
+            // mengirim pilihan yang sah tetapi gagal validasi di bagian lain.
+            'statusDefault' => in_array(old('status'), $selectable, true) ? old('status') : ($selectable[0] ?? null),
+            'statusNext' => QuotationStatus::next($quotation->status, $quotation->status_before_cancellation),
         ]);
+    }
+
+    /**
+     * Tahap yang sah dipasang pada penawaran ini saat request datang.
+     *
+     * Satu tempat untuk dropdown maupun validasi, supaya keduanya tidak pernah
+     * berbeda pendapat tentang tahap mana yang terbuka.
+     *
+     * @return array<int, string>
+     */
+    private function selectableStatuses(QuotationRequest $quotation): array
+    {
+        return QuotationStatus::selectableFrom($quotation->status, $quotation->status_before_cancellation);
     }
 
     /**
@@ -76,15 +106,21 @@ class QuotationRequestController extends Controller
      */
     public function update(Request $request, QuotationRequest $quotation): RedirectResponse
     {
+        // Status berjalan selangkah demi selangkah: hanya tahap yang sedang
+        // berjalan dan tepat satu tahap sesudahnya yang sah. Pemeriksaannya ada
+        // di sini, bukan hanya pada dropdown, sehingga kiriman yang dibuat
+        // sendiri ke endpoint ini pun tidak dapat melompati tahap.
+        $selectable = $this->selectableStatuses($quotation);
+
         $validated = $request->validate([
-            'status' => ['required', 'string', 'in:'.implode(',', QuotationStatus::flowKeys())],
-            'estimated_price' => ['nullable', 'numeric', 'min:0', 'max:99999999999'],
+            'status' => ['required', 'string', Rule::in($selectable)],
             'estimated_finish' => ['nullable', 'date'],
             'note' => ['nullable', 'string', 'max:2000'],
             'admin_note' => ['nullable', 'string', 'max:2000'],
             'production_photo' => ['nullable', 'image', 'max:4096'],
             'result_photo' => ['nullable', 'image', 'max:4096'],
         ], [
+            'status.in' => $this->stepMessage($quotation),
             'production_photo.image' => 'Foto proses produksi harus berupa gambar.',
             'result_photo.image' => 'Foto hasil akhir harus berupa gambar.',
         ]);
@@ -94,7 +130,8 @@ class QuotationRequestController extends Controller
 
         $attributes = [
             'status' => $validated['status'],
-            'estimated_price' => $validated['estimated_price'] ?? null,
+            // Harga penawaran mengikuti estimasi sistem sejak permintaan
+            // dikirim; admin tidak lagi mengisinya sendiri.
             'estimated_finish' => $validated['estimated_finish'] ?? null,
             'admin_note' => $validated['admin_note'] ?? null,
         ];
@@ -161,6 +198,19 @@ class QuotationRequestController extends Controller
         return back()->with('status', $statusChanged
             ? 'Status diperbarui menjadi '.QuotationStatus::label($validated['status']).' dan tercatat di riwayat.'
             : 'Perubahan berhasil disimpan.');
+    }
+
+    /** Alasan sebuah status ditolak, disebutkan lengkap dengan tahap yang terbuka. */
+    private function stepMessage(QuotationRequest $quotation): string
+    {
+        $next = QuotationStatus::next($quotation->status, $quotation->status_before_cancellation);
+
+        if ($next === null) {
+            return 'Penawaran sudah berada pada tahap terakhir, statusnya tidak dapat dimajukan lagi.';
+        }
+
+        return 'Status hanya dapat maju satu tahap. Dari "'.QuotationStatus::label($quotation->status)
+            .'", tahap yang dapat dipilih berikutnya adalah "'.QuotationStatus::label($next).'".';
     }
 
     /**
@@ -303,34 +353,32 @@ class QuotationRequestController extends Controller
      */
     public function updateItem(Request $request, QuotationRequest $quotation, QuotationItem $item): RedirectResponse
     {
+        // Harga model TIDAK lagi dapat disunting admin: seluruh harga
+        // penawaran mengikuti estimasi sistem. Kiriman `estimated_price`
+        // sengaja tidak divalidasi maupun dipakai, jadi formulir lama yang
+        // masih mengirimnya pun tidak dapat menggeser harga.
         $validated = $request->validate([
-            'estimated_price' => ['nullable', 'numeric', 'min:0', 'max:99999999999'],
             'admin_note' => ['nullable', 'string', 'max:2000'],
         ]);
 
-        $before = $item->only(['estimated_price', 'admin_note']);
+        $before = $item->only(['admin_note']);
 
         $item->update([
-            'estimated_price' => $validated['estimated_price'] ?? null,
             'admin_note' => filled($validated['admin_note'] ?? null) ? trim($validated['admin_note']) : null,
         ]);
 
-        $quotation->refreshQuotedPrice();
-
-        // Penyesuaian harga oleh admin termasuk perubahan yang perlu punya
-        // riwayat jelas — angka inilah yang akhirnya ditagihkan.
         $this->activity->logChanges(
-            action: ActivityAction::QUOTATION_PRICE_UPDATE,
+            action: ActivityAction::QUOTATION_ITEM_NOTE_UPDATE,
             before: $before,
-            after: $item->only(['estimated_price', 'admin_note']),
-            description: 'Mengubah estimasi model '.$item->file_name.' pada penawaran '.$quotation->tracking_number.'.',
+            after: $item->only(['admin_note']),
+            description: 'Mengubah catatan model '.$item->file_name.' pada penawaran '.$quotation->tracking_number.'.',
             subject: $item,
             actor: $request->user(),
             module: ActivityModule::ADMIN,
             subjectLabel: $item->file_name,
         );
 
-        return back()->with('status', "Estimasi model {$item->file_name} berhasil disimpan.");
+        return back()->with('status', "Catatan model {$item->file_name} berhasil disimpan.");
     }
 
     public function destroy(Request $request, QuotationRequest $quotation): RedirectResponse
