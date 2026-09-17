@@ -5,84 +5,20 @@
 
 @section('content')
 
-    {{-- ===================== HERO CAROUSEL =====================
-         Carousel memenuhi lebar layar (tanpa container). Gambar/video menjadi
-         latar dengan object-cover, ditumpuk overlay gelap agar teks tetap
-         terbaca, sedangkan seluruh teks dan tombol tetap berada di dalam
-         container supaya posisinya rapi.
+    {{-- ===================== HERO =====================
+         Latar 3D yang sama dengan halaman masuk (components/scene-3d): mesin
+         cetak Three.js, lantai grid berperspektif, dan kubus rangka. Mesinnya
+         digeser ke kanan supaya teks di kiri tetap lega dan terbaca. --}}
+    {{-- Di ponsel tingginya mengikuti isi (min-h) supaya tombol tidak terpotong. --}}
+    <section class="relative flex min-h-[600px] items-center overflow-hidden bg-brand-950 pb-14 sm:h-[620px] sm:min-h-0 sm:pb-0 lg:h-[700px] xl:h-[750px]"
+             data-hero-3d>
 
-         Letakkan berkas videonya di public/videos/ — selama belum ada, poster
-         tiap slide yang tampil sehingga hero tidak pernah kosong. --}}
-    @php
-        $heroSlides = [
-            [
-                'video' => 'videos/fdm-printing.mp4',
-                'poster' => 'images/photos/machine-01.jpg',
-                'label' => 'FDM Printing',
-                'caption' => 'Filamen termoplastik diekstrusi lapis demi lapis menjadi part fungsional.',
-            ],
-            [
-                'video' => 'videos/resin-printing.mp4',
-                'poster' => 'images/photos/detail-01.jpg',
-                'label' => 'Resin SLA',
-                'caption' => 'Resin dikeraskan sinar UV untuk detail paling halus dan permukaan mulus.',
-            ],
-            [
-                'video' => 'videos/post-processing.mp4',
-                'poster' => 'images/photos/detail-02.jpg',
-                'label' => 'Finishing',
-                'caption' => 'Sanding hingga painting sampai permukaannya benar-benar rapi.',
-            ],
-            [
-                'video' => 'videos/workshop.mp4',
-                'poster' => 'images/photos/workshop-01.jpg',
-                'label' => 'Workshop Kami',
-                'caption' => 'Puluhan mesin berjalan setiap hari untuk menyelesaikan order Anda.',
-            ],
-        ];
-    @endphp
+        <x-scene-3d shift-x="0.3" shift-y="-0.04" scale="1.35" />
 
-    {{-- Tinggi mengikuti lebar layar: ringkas di ponsel, 650–750 px di desktop. --}}
-    <section class="relative flex h-[540px] items-center overflow-hidden bg-ink-950 sm:h-[620px] lg:h-[700px] xl:h-[750px]"
-             data-hero-carousel
-             aria-roledescription="carousel"
-             aria-label="Proses 3D printing di workshop kami">
+        {{-- Sisi kiri sedikit digelapkan agar teks kontras di atas latar 3D. --}}
+        <div class="pointer-events-none absolute inset-0 bg-gradient-to-r from-brand-950/70 via-brand-950/25 to-transparent" aria-hidden="true"></div>
 
-        {{-- Slide: gambar/video memenuhi seluruh area --}}
-        @foreach ($heroSlides as $index => $slide)
-            <div class="absolute inset-0 transition-opacity duration-1000 ease-out {{ $index === 0 ? '' : 'opacity-0' }}"
-                 data-hero-slide="{{ $index }}"
-                 role="group"
-                 aria-roledescription="slide"
-                 aria-label="{{ $loop->iteration }} dari {{ count($heroSlides) }}: {{ $slide['label'] }}"
-                 @if ($index !== 0) aria-hidden="true" @endif>
-
-                <img src="{{ asset($slide['poster']) }}"
-                     alt=""
-                     class="absolute inset-0 h-full w-full object-cover"
-                     loading="{{ $index === 0 ? 'eager' : 'lazy' }}"
-                     aria-hidden="true">
-
-                <video class="absolute inset-0 h-full w-full object-cover opacity-0 transition-opacity duration-700"
-                       data-hero-video
-                       muted
-                       playsinline
-                       loop
-                       preload="none"
-                       poster="{{ asset($slide['poster']) }}"
-                       aria-hidden="true">
-                    <source src="{{ asset($slide['video']) }}" type="video/mp4">
-                </video>
-            </div>
-        @endforeach
-
-        {{-- Overlay gelap + gradien agar teks terbaca di atas gambar apa pun --}}
-        <div class="absolute inset-0 bg-ink-950/50" aria-hidden="true"></div>
-        <div class="absolute inset-0 bg-gradient-to-r from-ink-950/80 via-ink-950/40 to-transparent" aria-hidden="true"></div>
-        <div class="blueprint-grid-dark absolute inset-0 opacity-40" aria-hidden="true"></div>
-
-        {{-- Konten tetap berada di dalam container --}}
-        <div class="container-page relative w-full pt-24">
+        <div class="container-page relative w-full pt-36 sm:pt-24">
             <div class="max-w-2xl">
                 <span class="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-4 py-1.5 text-xs font-semibold uppercase tracking-[0.18em] text-brand-300 backdrop-blur">
                     <span class="relative flex h-2 w-2">
@@ -94,17 +30,11 @@
 
                 <h1 class="mt-6 text-4xl font-bold leading-[1.08] tracking-tight text-white drop-shadow-lg sm:text-5xl lg:text-6xl">
                     Wujudkan ide Anda<br>
-                    menjadi <span class="text-brand-400">part nyata</span>
+                    menjadi <span class="text-brand-300">part nyata</span>
                 </h1>
 
-                <p class="mt-6 max-w-xl text-base leading-relaxed text-ink-200 drop-shadow sm:text-lg">
+                <p class="mt-6 max-w-xl text-base leading-relaxed text-white/80 drop-shadow sm:text-lg">
                     {{ $company->short_description }}
-                </p>
-
-                {{-- Keterangan slide yang sedang tampil --}}
-                <p class="mt-5 flex items-start gap-2.5 text-sm text-white/75">
-                    <span class="mt-1.5 inline-block h-1.5 w-1.5 shrink-0 rounded-full bg-brand-400"></span>
-                    <span data-hero-caption>{{ $heroSlides[0]['label'] }}: {{ $heroSlides[0]['caption'] }}</span>
                 </p>
 
                 <div class="mt-8 flex flex-col gap-3 sm:flex-row">
@@ -117,28 +47,6 @@
                     </a>
                 </div>
             </div>
-        </div>
-
-        {{-- Kendali carousel --}}
-        <button type="button" class="hero-carousel-arrow left-4 sm:left-6" data-hero-prev aria-label="Slide sebelumnya">
-            <x-icons.arrow-right class="h-4 w-4 rotate-180" />
-        </button>
-
-        <button type="button" class="hero-carousel-arrow right-4 sm:right-6" data-hero-next aria-label="Slide berikutnya">
-            <x-icons.arrow-right class="h-4 w-4" />
-        </button>
-
-        <div class="absolute inset-x-0 bottom-7 z-10 flex justify-center gap-2.5" role="tablist" aria-label="Pilih slide">
-            @foreach ($heroSlides as $index => $slide)
-                <button type="button"
-                        class="hero-carousel-dot"
-                        data-hero-dot="{{ $index }}"
-                        data-hero-label="{{ $slide['label'] }}"
-                        data-hero-text="{{ $slide['caption'] }}"
-                        role="tab"
-                        aria-selected="{{ $index === 0 ? 'true' : 'false' }}"
-                        aria-label="{{ $slide['label'] }}"></button>
-            @endforeach
         </div>
     </section>
 
@@ -289,7 +197,7 @@
                         @foreach ([
                             ['icon' => 'cube', 'title' => 'Viewer 3D interaktif', 'text' => 'Putar, zoom, dan geser model. Lengkap dengan mode wireframe serta tujuh preset sudut pandang.'],
                             ['icon' => 'shield', 'title' => 'Analisis kelayakan otomatis', 'text' => 'Mesh tertutup, lubang, non-manifold edge, arah normal, ukuran, dan kesesuaian area cetak.'],
-                            ['icon' => 'spark', 'title' => 'Estimasi lead time & biaya', 'text' => 'Pilih teknologi dan material, angka berat, lead time pengerjaan, serta biayanya langsung dihitung.'],
+                            ['icon' => 'spark', 'title' => 'Estimasi lead time & biaya', 'text' => 'Pilih teknologi dan material, lead time pengerjaan serta biayanya langsung dihitung.'],
                         ] as $feature)
                             <li class="flex gap-4">
                                 <span class="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-brand-600/20 text-brand-300">
@@ -584,3 +492,8 @@
     <x-cta-band />
 
 @endsection
+
+@push('scripts')
+    {{-- Menyalakan animasi 3D pada hero (kanvas data-auth-scene). --}}
+    @vite('resources/js/auth-scene.js')
+@endpush

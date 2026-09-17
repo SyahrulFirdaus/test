@@ -239,6 +239,14 @@ export function applySpecification(record, config, spec) {
     const scale = Number(settings.scale ?? 1) || 1;
     const geometryVolumeCm3 = inputs.geometryVolumeCm3;
 
+    // Infill milik teknologi sebelumnya tidak boleh terbawa: SLA/MJF/SLM
+    // memakai 100%, sehingga model yang dipindah ke FDM akan dihitung padat
+    // dan harganya melonjak. Sama seperti viewer, berganti teknologi berarti
+    // kembali ke infill bawaan teknologi barunya.
+    const infillDensity = spec.technology === settings.technology && settings.infillDensity !== undefined
+        ? settings.infillDensity
+        : Number(technology.defaultInfill ?? 1);
+
     // Support hanya berlaku pada teknologi yang memang membutuhkannya, dan
     // Hollow Model hanya pada teknologi yang mengizinkannya (SLA).
     const supportEnabled = Boolean(spec.support) && allowsSupport(config, spec.technology);
@@ -274,7 +282,7 @@ export function applySpecification(record, config, spec) {
             surfaceAreaCm2: Number(inputs.surfaceAreaCm2 ?? 0),
             // Sudah terskalakan sejak diukur di viewer; dipakai Basic Fee.
             dimensions: inputs.dimensions ?? null,
-            infillDensity: settings.infillDensity,
+            infillDensity,
             infillPattern: settings.infillPattern,
             patterns: config.infill?.patterns,
             hollow: { ...hollow, drainHoles: config.hollow?.drainCount ?? 2 },
@@ -305,6 +313,7 @@ export function applySpecification(record, config, spec) {
                 quantity,
                 support: supportEnabled,
                 hollow,
+                infillDensity,
             },
         },
 

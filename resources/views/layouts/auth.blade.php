@@ -24,6 +24,10 @@
         <aside class="relative hidden overflow-hidden bg-gradient-to-br from-brand-800 via-brand-700 to-brand-950 p-12 lg:flex lg:flex-col lg:justify-between">
             <div class="blueprint-grid-dark absolute inset-0"></div>
 
+            {{-- Halaman yang mau mengisi panel ini dengan visual sendiri
+                 (mis. animasi 3D pada halaman Masuk) menimpa section berikut. --}}
+            @yield('brandVisual')
+
             <a href="{{ route('home') }}" class="relative flex items-center gap-3">
                 <x-logo-mark class="h-11 w-11 shrink-0" />
                 <span class="font-display text-xl font-bold tracking-tight text-white">{{ $company->name }}</span>
@@ -59,7 +63,7 @@
         </aside>
 
         {{-- Formulir --}}
-        <main class="flex items-center justify-center px-5 py-12 sm:px-8">
+        <main data-auth-stage class="flex items-center justify-center px-5 py-12 sm:px-8">
             {{-- Lebar panel dapat dilebarkan halaman yang memuatnya; formulir
                  pendaftaran bertahap memakainya agar pilihan jawaban tidak
                  berdesakan. Halaman lain tetap memakai lebar semula. --}}
@@ -70,7 +74,7 @@
                     <span class="font-display text-lg font-bold tracking-tight text-ink-900">{{ $company->name }}</span>
                 </a>
 
-                <div class="rounded-3xl border border-ink-100 bg-white p-7 shadow-card sm:p-9">
+                <div data-auth-card class="rounded-3xl border border-ink-100 bg-white p-7 shadow-card sm:p-9 @yield('cardClass')">
                     <h1 class="font-display text-2xl font-bold tracking-tight text-ink-900">@yield('heading')</h1>
                     <p class="mt-2 text-sm leading-relaxed text-ink-500">@yield('subheading')</p>
 

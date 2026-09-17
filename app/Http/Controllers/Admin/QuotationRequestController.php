@@ -3,13 +3,16 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\StoreSlaIndustriesQuoteRequest;
 use App\Models\PrintTechnology;
 use App\Models\QuotationItem;
 use App\Models\QuotationRequest;
+use App\Models\SlaIndustriesFormula;
 use App\Notifications\CancellationDecided;
 use App\Notifications\QuotationStatusUpdated;
 use App\Services\ActivityLogger;
 use App\Services\SellingPriceEstimator;
+use App\Services\UsdRate;
 use App\Services\PaymentFlow;
 use App\Support\ActivityAction;
 use App\Support\ActivityModule;
@@ -17,6 +20,7 @@ use App\Support\QuotationStatus;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 use Symfony\Component\HttpFoundation\StreamedResponse;
@@ -60,7 +64,7 @@ class QuotationRequestController extends Controller
         ]);
     }
 
-    public function show(QuotationRequest $quotation, SellingPriceEstimator $sellingPrice): View
+    public function show(QuotationRequest $quotation, SellingPriceEstimator $sellingPrice, UsdRate $rates): View
     {
         // Pilihan status dihitung dari status yang tersimpan, bukan dari
         // tampilan sebelumnya — menyegarkan halaman selalu mengembalikan tahap
@@ -72,7 +76,18 @@ class QuotationRequestController extends Controller
             // tersimpan, jadi membuka halaman ini tidak menghitung ulang apa pun
             // dan tidak dapat menggeser harga yang sudah ditawarkan.
             'sellingPrice' => $sellingPrice->forQuotation($quotation),
-            'quotation' => $quotation->load('timelineHistories', 'items', 'user'),
+            'quotation' => $quotation->load('timelineHistories', 'items.slaIndustriesQuote.calculatedBy', 'user'),
+
+            // Nilai bawaan yang mengisi Form Perhitungan Kalkulator Manual pada
+            // model yang belum pernah dihitung, diambil dari Price List supaya
+            // kurs dan margin yang berlaku tidak perlu diketik ulang.
+            'slaIndustriesDefaults' => SlaIndustriesFormula::current(),
+
+            // Kurs yang berlaku sekarang, untuk formulir yang sedang dihitung.
+            // Kurs yang dipakai harga yang SUDAH ditetapkan tersimpan pada
+            // kuotasi masing-masing dan ditampilkan terpisah.
+            'slaIndustriesUsdRate' => $rates->current(),
+            'usdRateEndpoint' => staff_route('exchange-rate.usd'),
             // Status pembatalan tidak ikut ke dropdown: perpindahannya diatur
             // tombol Setujui / Tolak Pembatalan.
             'statusChoices' => QuotationStatus::manualChoices($quotation->status, $quotation->status_before_cancellation),
@@ -124,6 +139,20 @@ class QuotationRequestController extends Controller
             'production_photo.image' => 'Foto proses produksi harus berupa gambar.',
             'result_photo.image' => 'Foto hasil akhir harus berupa gambar.',
         ]);
+
+        // Penawaran tidak boleh maju melewati tahap review selama masih ada
+        // model yang harganya belum ditetapkan. Melanjutkannya berarti menagih
+        // pelanggan sejumlah penjumlahan model lain saja — angka yang terbaca
+        // sebagai harga penuh padahal belum lengkap.
+        if ($validated['status'] !== QuotationStatus::REVIEWING && $quotation->awaitsPricing()) {
+            $pending = $quotation->itemsAwaitingPricing();
+
+            return back()
+                ->withInput()
+                ->withErrors(['status' => 'Harga '.$pending->count().' model dengan Kalkulator Manual belum ditetapkan: '
+                    .$pending->pluck('file_name')->implode(', ')
+                    .'. Isi Form Perhitungan Kalkulator Manual di bawah lebih dulu.']);
+        }
 
         $statusChanged = $quotation->status !== $validated['status'];
         $note = filled($validated['note'] ?? null) ? trim($validated['note']) : null;
@@ -379,6 +408,101 @@ class QuotationRequestController extends Controller
         );
 
         return back()->with('status', "Catatan model {$item->file_name} berhasil disimpan.");
+    }
+
+    /**
+     * Form Perhitungan Kalkulator Manual satu model.
+     *
+     * Inilah yang menetapkan harga model SLA. Sebelum disimpan,
+     * modelnya berstatus "Menunggu Perhitungan" dan pelanggan tidak melihat
+     * angka apa pun.
+     *
+     * Yang tersimpan hanya PARAMETER yang diketik — Final Price dihitung ulang
+     * di server lewat App\Support\SlaIndustries::compute(), bukan diambil dari
+     * kiriman browser. Angka yang bergerak di layar saat mengetik hanyalah
+     * pratinjau; yang berlaku adalah hasil hitung server.
+     */
+    public function updateSlaIndustriesQuote(
+        StoreSlaIndustriesQuoteRequest $request,
+        QuotationRequest $quotation,
+        QuotationItem $item,
+        UsdRate $rates
+    ): RedirectResponse {
+        // Teknologi lain punya harganya sendiri dari Calculator dan tidak boleh
+        // ditimpa lewat alamat ini.
+        abort_unless($item->usesManualPricing(), 404);
+
+        // Kurs diambil server, BUKAN dari kiriman formulir. Keduanya membaca
+        // simpanan yang sama, jadi angka yang dilihat Admin sebelum menekan
+        // Simpan adalah angka yang benar-benar dipakai.
+        $rate = $rates->current();
+
+        if ($rate['rate'] === null) {
+            // Menghitung dengan kurs nol akan menghasilkan harga gratis. Lebih
+            // baik menolak menyimpan sama sekali.
+            return back()->withInput()->withErrors([
+                'usd_rate' => 'Kurs USD/IDR belum tersedia, jadi harga belum dapat ditetapkan. Coba lagi beberapa saat lagi.',
+            ]);
+        }
+
+        $validated = $request->validated();
+        // Array kosong, bukan null: model yang baru pertama kali dihitung
+        // memang belum punya keadaan sebelumnya.
+        $before = $item->slaIndustriesQuote?->toCostBreakdown() ?? [];
+
+        $quote = DB::transaction(function () use ($item, $validated, $request, $rate) {
+            $quote = $item->slaIndustriesQuote()->updateOrCreate(
+                ['quotation_item_id' => $item->getKey()],
+                [
+                    ...$validated,
+                    'product_name' => filled($validated['product_name'] ?? null)
+                        ? trim($validated['product_name'])
+                        : null,
+
+                    // Kurs yang dipakai ikut dibekukan pada kuotasinya, beserta
+                    // asal dan waktu terbitnya. Tanpa itu harga yang sudah
+                    // ditawarkan tidak dapat dipertanggungjawabkan di kemudian
+                    // hari — angkanya ada, tetapi dasarnya hilang.
+                    'usd_rate' => $rate['rate'],
+                    'usd_rate_source' => $rate['source'],
+                    'usd_rate_published_at' => $rate['published_at'],
+
+                    'calculated_by' => $request->user()->id,
+                ],
+            );
+
+            // Final Price disalin ke kolom harga model supaya seluruh sistem
+            // lama — ringkasan penawaran, tagihan, PDF, tracking — membacanya
+            // seperti harga teknologi lain, tanpa cabang khusus di mana pun.
+            $item->update([
+                'estimated_cost' => $quote->final_price,
+                'cost_breakdown' => $quote->toCostBreakdown(),
+            ]);
+
+            return $quote;
+        });
+
+        // Total penawaran ikut disegarkan: harga penawaran adalah penjumlahan
+        // harga seluruh modelnya.
+        $quotation->refresh()->refreshSummary();
+
+        $this->activity->logChanges(
+            action: ActivityAction::QUOTATION_ITEM_NOTE_UPDATE,
+            before: $before,
+            after: $quote->toCostBreakdown(),
+            description: 'Menetapkan harga Kalkulator Manual model '.$item->file_name
+                .' pada penawaran '.$quotation->tracking_number.'.',
+            subject: $item,
+            actor: $request->user(),
+            module: ActivityModule::ADMIN,
+            subjectLabel: $item->file_name,
+        );
+
+        return back()->with(
+            'status',
+            'Harga model '.$item->file_name.' ditetapkan Rp'
+                .number_format($quote->final_price, 0, ',', '.').'.'
+        );
     }
 
     public function destroy(Request $request, QuotationRequest $quotation): RedirectResponse

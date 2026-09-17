@@ -91,7 +91,7 @@
             <div>
                 <label for="industry" class="field-label">Industri / Bidang Perusahaan <span class="text-brand-600">*</span></label>
                 <select id="industry" name="industry" required class="field-input">
-                    <option value="">— Pilih industri —</option>
+                    <option value="">Pilih industri</option>
                     @foreach ($industries as $industry)
                         <option value="{{ $industry }}" @selected($value('industry') === $industry)>{{ $industry }}</option>
                     @endforeach

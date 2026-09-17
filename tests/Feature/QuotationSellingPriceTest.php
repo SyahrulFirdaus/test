@@ -144,7 +144,7 @@ class QuotationSellingPriceTest extends TestCase
         $quotation = $this->quotation();
         $item = $this->addItem($quotation);
 
-        PricingFormula::where('technology', 'FDM')->update(['profit_percent' => 100]);
+        PricingFormula::general()->update(['profit_percent' => 100]);
 
         $calculation = $this->estimator()->forItem($item);
 
@@ -231,22 +231,23 @@ class QuotationSellingPriceTest extends TestCase
         $this->assertSame('Kardus XS', $this->estimator()->forItem($item)['packaging_source']);
     }
 
-    public function test_setiap_teknologi_memakai_parameternya_sendiri(): void
+    public function test_seluruh_teknologi_memakai_rumus_harga_otomatis_yang_sama(): void
     {
-        $quotation = $this->quotation(['technology' => 'SLA', 'material' => 'Standard Resin']);
+        $general = PricingFormula::general();
+        $quotation = $this->quotation(['technology' => 'MJF', 'material' => 'PA12']);
 
         $item = $this->addItem($quotation, [
-            'technology' => 'SLA',
-            'material' => 'Standard Resin',
+            'technology' => 'MJF',
+            'material' => 'PA12',
         ]);
 
         $calculation = $this->estimator()->forItem($item);
 
-        // Parameter SLA: machine cost 30.000/jam, risk 25%, profit 50%.
-        $this->assertSame('SLA', $calculation['technology']);
-        $this->assertSame(30000.0, $calculation['machine_cost']);
-        $this->assertSame(25.0, $calculation['risk_percent']);
-        $this->assertSame(60000.0, $calculation['machine_operational_cost']);
+        // Baris MJF lama (risk 15%, machine cost 45.000) tidak dibaca lagi.
+        $this->assertSame('MJF', $calculation['technology']);
+        $this->assertSame((float) $general->machine_cost, $calculation['machine_cost']);
+        $this->assertSame((float) $general->risk_percent, $calculation['risk_percent']);
+        $this->assertSame((float) $general->profit_percent, $calculation['profit_percent']);
     }
 
     public function test_penawaran_banyak_model_dijumlahkan_per_teknologi(): void
@@ -381,7 +382,7 @@ class QuotationSellingPriceTest extends TestCase
         $breakdownAwal = $quotation->items->sole()->cost_breakdown;
 
         // Parameter Price List digeser drastis SETELAH penawaran dibuat.
-        PricingFormula::where('technology', 'FDM')->update([
+        PricingFormula::general()->update([
             'profit_percent' => 100,
             'risk_percent' => 90,
             'machine_cost' => 999000,
@@ -482,12 +483,13 @@ class QuotationSellingPriceTest extends TestCase
 
         $payload = $this->estimator()->browserPayload();
 
-        foreach (PricingFormula::technologies() as $technology) {
-            $this->assertArrayHasKey($technology, $payload['formulas'], $technology.' tidak ikut terkirim');
+        foreach (['machineCost', 'materialPricePerG', 'riskPercent', 'packagingCost', 'overtimeCost', 'profitPercent'] as $key) {
+            $this->assertArrayHasKey($key, $payload['formula']);
+        }
 
-            foreach (['machineCost', 'materialPricePerG', 'riskPercent', 'packagingCost', 'overtimeCost', 'profitPercent'] as $key) {
-                $this->assertArrayHasKey($key, $payload['formulas'][$technology]);
-            }
+        // Setiap teknologi menerima rumus umum yang sama persis.
+        foreach (\App\Models\PrintTechnology::codes() as $technology) {
+            $this->assertSame($payload['formula'], $payload['formulas'][$technology], $technology.' tidak ikut terkirim');
         }
 
         // Pencocokan nama mesin diselesaikan di server, browser tinggal membaca
@@ -510,7 +512,7 @@ class QuotationSellingPriceTest extends TestCase
             ->assertOk()
             ->assertSee('Detail Perhitungan Harga')
             ->assertSee('Lihat Detail Perhitungan')
-            ->assertSee('Detail Harga — bracket.stl', false)
+            ->assertSee('Detail Harga: bracket.stl', false)
             ->assertSee('Operasional Mesin')
             ->assertSee('Risk Cost')
             ->assertSee('Basic Fee')

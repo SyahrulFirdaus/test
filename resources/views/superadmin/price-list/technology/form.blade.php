@@ -8,7 +8,7 @@
 @section('title', $isEdit ? 'Ubah Teknologi' : 'Tambah Teknologi')
 
 @section('content')
-    <a href="{{ route('superadmin.price-list.index', ['tab' => 'teknologi']) }}"
+    <a href="{{ route('superadmin.price-list.technologies.index') }}"
        class="inline-flex items-center gap-2 text-sm font-semibold text-ink-500 transition-colors hover:text-brand-600">
         &larr; Kembali ke Price List
     </a>
@@ -92,7 +92,7 @@
             <div class="mt-4 grid gap-4 sm:grid-cols-3">
                 @foreach (['x' => 'Lebar (X)', 'y' => 'Kedalaman (Y)', 'z' => 'Tinggi (Z)'] as $axis => $label)
                     <div>
-                        <label for="build_volume_{{ $axis }}" class="field-label">{{ $label }} — mm</label>
+                        <label for="build_volume_{{ $axis }}" class="field-label">{{ $label }} (mm)</label>
                         <input type="number" step="1" min="10" max="5000" required
                                id="build_volume_{{ $axis }}" name="build_volume_{{ $axis }}"
                                value="{{ old('build_volume_'.$axis, $technology->{'build_volume_'.$axis}) }}" class="field-input">
@@ -118,7 +118,7 @@
                 </div>
 
                 <div>
-                    <label for="min_wall_thickness_mm" class="field-label">Tebal Dinding Minimum — mm</label>
+                    <label for="min_wall_thickness_mm" class="field-label">Tebal Dinding Minimum (mm)</label>
                     <input type="number" step="0.1" min="0.1" max="50" required
                            id="min_wall_thickness_mm" name="min_wall_thickness_mm"
                            value="{{ old('min_wall_thickness_mm', $technology->min_wall_thickness_mm) }}" class="field-input">
@@ -150,7 +150,7 @@
                         <span>
                             <span class="font-semibold text-ink-900">Mendukung Hollow Model</span>
                             <span class="mt-0.5 block text-xs leading-relaxed text-ink-500">
-                                Untuk teknologi yang partnya mengeras padat — resin, misalnya — sehingga bagian dalamnya
+                                Untuk teknologi yang partnya mengeras padat (resin, misalnya) sehingga bagian dalamnya
                                 perlu dapat dikosongkan.
                             </span>
                         </span>
@@ -166,7 +166,7 @@
 
             <div class="mt-4 grid gap-4 sm:grid-cols-2">
                 <div>
-                    <label for="throughput_cm3_per_hour" class="field-label">Laju Cetak — cm³/jam</label>
+                    <label for="throughput_cm3_per_hour" class="field-label">Laju Cetak (cm³/jam)</label>
                     <input type="number" step="0.1" min="0.1" required
                            id="throughput_cm3_per_hour" name="throughput_cm3_per_hour"
                            value="{{ old('throughput_cm3_per_hour', $technology->throughput_cm3_per_hour) }}" class="field-input">
@@ -174,21 +174,21 @@
                 </div>
 
                 <div>
-                    <label for="setup_hours" class="field-label">Waktu Persiapan — jam</label>
+                    <label for="setup_hours" class="field-label">Waktu Persiapan (jam)</label>
                     <input type="number" step="0.1" min="0" required id="setup_hours" name="setup_hours"
                            value="{{ old('setup_hours', $technology->setup_hours) }}" class="field-input">
                     @error('setup_hours') <p class="field-error">{{ $message }}</p> @enderror
                 </div>
 
                 <div>
-                    <label for="setup_fee" class="field-label">Biaya Persiapan — Rp</label>
+                    <label for="setup_fee" class="field-label">Biaya Persiapan (Rp)</label>
                     <input type="number" step="500" min="0" required id="setup_fee" name="setup_fee"
                            value="{{ old('setup_fee', $technology->setup_fee) }}" class="field-input">
                     @error('setup_fee') <p class="field-error">{{ $message }}</p> @enderror
                 </div>
 
                 <div>
-                    <label for="machine_rate_per_hour" class="field-label">Tarif Mesin — Rp/jam</label>
+                    <label for="machine_rate_per_hour" class="field-label">Tarif Mesin (Rp/jam)</label>
                     <input type="number" step="500" min="0" required
                            id="machine_rate_per_hour" name="machine_rate_per_hour"
                            value="{{ old('machine_rate_per_hour', $technology->machine_rate_per_hour) }}" class="field-input">
@@ -196,7 +196,7 @@
                 </div>
 
                 <div>
-                    <label for="layer_height_min" class="field-label">Tebal Lapisan Minimum — mm</label>
+                    <label for="layer_height_min" class="field-label">Tebal Lapisan Minimum (mm)</label>
                     <input type="number" step="0.001" min="0.001" max="5" required
                            id="layer_height_min" name="layer_height_min"
                            value="{{ old('layer_height_min', $technology->layer_height_min) }}" class="field-input">
@@ -204,7 +204,7 @@
                 </div>
 
                 <div>
-                    <label for="layer_height_max" class="field-label">Tebal Lapisan Maksimum — mm</label>
+                    <label for="layer_height_max" class="field-label">Tebal Lapisan Maksimum (mm)</label>
                     <input type="number" step="0.001" min="0.001" max="5" required
                            id="layer_height_max" name="layer_height_max"
                            value="{{ old('layer_height_max', $technology->layer_height_max) }}" class="field-input">
@@ -217,7 +217,7 @@
             <button type="submit" class="btn-primary px-6 py-3">
                 {{ $isEdit ? 'Simpan Perubahan' : 'Simpan Teknologi' }}
             </button>
-            <a href="{{ route('superadmin.price-list.index', ['tab' => 'teknologi']) }}" class="btn-outline">Batal</a>
+            <a href="{{ route('superadmin.price-list.technologies.index') }}" class="btn-outline">Batal</a>
         </div>
     </form>
 @endsection

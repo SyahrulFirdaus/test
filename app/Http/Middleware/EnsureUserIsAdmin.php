@@ -4,6 +4,7 @@ namespace App\Http\Middleware;
 
 use Closure;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Symfony\Component\HttpFoundation\Response;
 
 /**
@@ -27,6 +28,18 @@ class EnsureUserIsAdmin
             return redirect()
                 ->route('dashboard')
                 ->with('error', 'Halaman tersebut hanya dapat diakses oleh administrator.');
+        }
+
+        // Admin yang dinonaktifkan Superadmin saat masih masuk langsung
+        // dikeluarkan pada permintaan berikutnya — tidak menunggu sesinya habis.
+        if (! $user->isActive()) {
+            Auth::guard('web')->logout();
+            $request->session()->invalidate();
+            $request->session()->regenerateToken();
+
+            return redirect()
+                ->route('admin.login')
+                ->withErrors(['email' => 'Akun tersebut sedang dinonaktifkan. Hubungi Superadmin.']);
         }
 
         return $next($request);

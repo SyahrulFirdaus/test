@@ -5,11 +5,14 @@ namespace App\Http\Controllers\SuperAdmin;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\StorePrintMaterialRequest;
 use App\Models\MachineCost;
+use App\Models\PricingFormula;
 use App\Models\PrintMaterial;
 use App\Models\PrintTechnology;
 use App\Services\ActivityLogger;
 use App\Support\ActivityAction;
 use App\Support\ActivityModule;
+use App\Support\PriceListPage;
+use App\Support\PricingMethod;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -43,14 +46,14 @@ class PriceListMaterialController extends Controller
 
         $this->activity->log(
             action: ActivityAction::PRICE_LIST_UPDATE,
-            description: 'Menambahkan material '.$technology->code.' "'.$material->material.'" pada Price List.',
+            description: 'Menambahkan material '.$this->label($technology).' "'.$material->material.'" pada Price List.',
             subject: $material,
             new: $this->snapshot($material),
             module: ActivityModule::SUPERADMIN,
             subjectLabel: $material->material,
         );
 
-        return $this->back($technology, "Material {$technology->code} berhasil ditambahkan.");
+        return $this->back($technology, "Material {$this->label($technology)} berhasil ditambahkan.");
     }
 
     public function edit(PrintTechnology $technology, PrintMaterial $material): View
@@ -71,6 +74,12 @@ class PriceListMaterialController extends Controller
             'technology' => $technology,
             'material' => $material,
             'machines' => MachineCost::with('technology')->orderBy('mesin')->get(),
+
+            // Rumus Harga Otomatis yang dipakai Kalkulator Otomatis, untuk
+            // preview rumusnya.
+            'automaticFormula' => PricingMethod::appliesTo($technology->code)
+                ? PricingFormula::general()
+                : null,
         ]);
     }
 
@@ -85,13 +94,48 @@ class PriceListMaterialController extends Controller
             action: ActivityAction::PRICE_LIST_UPDATE,
             before: $before,
             after: $this->snapshot($material->refresh()),
-            description: 'Memperbarui material '.$technology->code.' "'.$material->material.'" pada Price List.',
+            description: 'Memperbarui material '.$this->label($technology).' "'.$material->material.'" pada Price List.',
             subject: $material,
             module: ActivityModule::SUPERADMIN,
             subjectLabel: $material->material,
         );
 
-        return $this->back($technology, "Material {$technology->code} berhasil diperbarui.");
+        return $this->back($technology, "Material {$this->label($technology)} berhasil diperbarui.");
+    }
+
+    /**
+     * Nyalakan atau matikan material dari switch Status pada tabelnya.
+     *
+     * Aktif berarti tampil sebagai pilihan Material pada Edit Specification;
+     * nonaktif berarti tidak tampil dan ditolak pada penawaran baru. Penawaran
+     * yang sudah ada tetap memakai material dan harga yang tersimpan.
+     */
+    public function updateStatus(Request $request, PrintTechnology $technology, PrintMaterial $material): RedirectResponse
+    {
+        $material = $this->guard($technology, $material);
+        $active = $request->boolean('is_active');
+
+        if ($material->is_active !== $active) {
+            $material->update(['is_active' => $active]);
+            PrintTechnology::forgetCache();
+
+            $this->activity->logChanges(
+                action: ActivityAction::PRICE_LIST_UPDATE,
+                before: ['status' => $active ? 'Nonaktif' : 'Aktif'],
+                after: ['status' => $active ? 'Aktif' : 'Nonaktif'],
+                description: ($active ? 'Mengaktifkan' : 'Menonaktifkan').' material '.$this->label($technology).' "'.$material->material.'".',
+                subject: $material,
+                module: ActivityModule::SUPERADMIN,
+                subjectLabel: $material->material,
+            );
+        }
+
+        // Kembali ke halaman yang sama (pencarian & nomor halaman tetap).
+        return redirect()
+            ->back(fallback: PriceListPage::technologyUrl($technology))
+            ->with('status', 'Material "'.$material->material.'" '.($active
+                ? 'diaktifkan dan kini tampil di Edit Specification.'
+                : 'dinonaktifkan dan tidak lagi tampil di Edit Specification.'));
     }
 
     public function destroy(PrintTechnology $technology, PrintMaterial $material): RedirectResponse
@@ -105,13 +149,13 @@ class PriceListMaterialController extends Controller
 
         $this->activity->log(
             action: ActivityAction::PRICE_LIST_UPDATE,
-            description: 'Menghapus material '.$technology->code.' "'.$label.'" dari Price List.',
+            description: 'Menghapus material '.$this->label($technology).' "'.$label.'" dari Price List.',
             old: $removed,
             module: ActivityModule::SUPERADMIN,
             subjectLabel: $label,
         );
 
-        return $this->back($technology, "Material {$technology->code} berhasil dihapus.");
+        return $this->back($technology, "Material {$this->label($technology)} berhasil dihapus.");
     }
 
     /**
@@ -148,13 +192,19 @@ class PriceListMaterialController extends Controller
 
         $this->activity->log(
             action: ActivityAction::PRICE_LIST_UPDATE,
-            description: 'Menghapus '.$materials->count().' material '.$technology->code.' dari Price List: '.$labels->implode(', ').'.',
+            description: 'Menghapus '.$materials->count().' material '.$this->label($technology).' dari Price List: '.$labels->implode(', ').'.',
             old: ['materials' => $removed],
             module: ActivityModule::SUPERADMIN,
             subjectLabel: $labels->first(),
         );
 
-        return $this->back($technology, $materials->count().' material '.$technology->code.' berhasil dihapus.');
+        return $this->back($technology, $materials->count().' material '.$this->label($technology).' berhasil dihapus.');
+    }
+
+    /** Nama teknologi pada pesan: kodenya, kecuali SLA ("SLAI" hanya kode teknis). */
+    private function label(PrintTechnology $technology): string
+    {
+        return $technology->isSlaIndustries() ? $technology->name : $technology->code;
     }
 
     /** Material milik teknologi lain tidak dapat disentuh lewat URL tab ini. */
@@ -168,7 +218,7 @@ class PriceListMaterialController extends Controller
     private function back(PrintTechnology $technology, ?string $status, ?string $error = null): RedirectResponse
     {
         return redirect()
-            ->route('superadmin.price-list.index', ['tab' => $technology->tabKey()])
+            ->to(PriceListPage::technologyUrl($technology))
             ->with($error !== null ? 'error' : 'status', $error ?? $status);
     }
 
@@ -182,6 +232,8 @@ class PriceListMaterialController extends Controller
             'purchase_price' => (float) $material->purchase_price,
             'sale_price' => (float) $material->sale_price,
             'remark' => $material->remark,
+            'status' => $material->isOffered() ? 'Aktif' : 'Nonaktif',
+            ...(PricingMethod::appliesTo($material->technology?->code) ? ['pricing_method' => $material->pricing_method] : []),
         ];
     }
 }

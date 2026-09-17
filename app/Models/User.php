@@ -6,6 +6,7 @@ use App\Support\CustomerType;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Foundation\Auth\User as Authenticatable;
@@ -177,6 +178,54 @@ class User extends Authenticatable
     public function isAdmin(): bool
     {
         return in_array($this->role, [self::ROLE_ADMIN, self::ROLE_SUPERADMIN], true);
+    }
+
+    /**
+     * Hak akses yang diberikan Superadmin kepada akun Admin ini.
+     *
+     * Hanya bermakna bagi role Admin; lihat hasAdminPermission().
+     */
+    public function permissions(): BelongsToMany
+    {
+        return $this->belongsToMany(Permission::class, 'admin_permissions')->withTimestamps();
+    }
+
+    /**
+     * Boleh melakukan `$key`, mis. `quotation.view` atau `quotation.delete`.
+     *
+     *  - Superadmin: selalu boleh (akses penuh, tidak dibatasi hak akses Admin).
+     *  - Admin aktif: hanya bila Superadmin menyalakan hak aksesnya.
+     *  - Admin nonaktif dan pelanggan: tidak pernah.
+     *
+     * Pemeriksaan di route, controller, dan Blade memakai Gate yang
+     * didaftarkan AppServiceProvider untuk setiap kunci — `can:`, `@can`,
+     * `Gate::allows()` — dan semuanya berujung di sini.
+     *
+     * Daftarnya dibaca dari basis data sekali per permintaan (model User dimuat
+     * ulang pada tiap permintaan), sehingga perubahan dari Superadmin langsung
+     * berlaku dan tidak ada salinan lama yang tertinggal di session.
+     */
+    public function hasAdminPermission(string $key): bool
+    {
+        if ($this->isSuperAdmin()) {
+            return true;
+        }
+
+        if (! $this->isPlainAdmin() || ! $this->isActive()) {
+            return false;
+        }
+
+        return in_array($key, $this->adminPermissionKeys(), true);
+    }
+
+    /** @return array<int, string> */
+    public function adminPermissionKeys(): array
+    {
+        if (! $this->relationLoaded('permissions')) {
+            $this->load('permissions');
+        }
+
+        return $this->permissions->pluck('key')->all();
     }
 
     /** Admin biasa, bukan Superadmin — dipakai menu Akun Admin. */

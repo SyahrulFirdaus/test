@@ -4,6 +4,9 @@ namespace App\Providers;
 
 use App\Models\CompanyProfile;
 use App\Models\Service;
+use App\Models\User;
+use App\Support\AdminPermission;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\URL;
 use Illuminate\Support\Facades\View;
 use Illuminate\Support\ServiceProvider;
@@ -33,6 +36,15 @@ class AppServiceProvider extends ServiceProvider
         View::composer('partials.footer', function ($view) {
             $view->with('footerServices', Service::query()->active()->ordered()->get(['slug', 'title']));
         });
+
+        // Satu Gate per hak akses Admin (`quotation.view`, `quotation.delete`,
+        // …) sehingga route, controller, dan Blade (`@can`) memakai
+        // pemeriksaan yang sama. Aturannya hanya ada di
+        // User::hasAdminPermission(): Superadmin selalu lolos. Sengaja tidak
+        // memakai Gate::before agar Gate/Policy lain tidak ikut terpengaruh.
+        foreach (AdminPermission::keys() as $permission) {
+            Gate::define($permission, fn (User $user) => $user->hasAdminPermission($permission));
+        }
 
         if ($this->app->environment('production')) {
             URL::forceScheme('https');

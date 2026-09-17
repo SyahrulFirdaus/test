@@ -204,20 +204,10 @@
                         </div>
                     @endforeach
 
-                    <div class="flex items-start justify-between gap-4">
-                        <dt class="text-[0.65rem] font-semibold uppercase tracking-[0.1em] text-ink-400">Berat Model</dt>
-                        <dd class="text-right text-xs font-semibold text-ink-800" data-estimate="weight">-</dd>
-                    </div>
-
-                    <div class="flex items-start justify-between gap-4 transition-opacity duration-200" data-support-row>
-                        <dt class="text-[0.65rem] font-semibold uppercase tracking-[0.1em] text-ink-400">Berat Support</dt>
-                        <dd class="text-right text-xs font-semibold text-ink-800" data-estimate="support-weight">-</dd>
-                    </div>
-
-                    <div class="flex items-start justify-between gap-4 rounded-xl bg-brand-50 px-4 py-2.5">
-                        <dt class="text-[0.65rem] font-bold uppercase tracking-[0.1em] text-brand-700">Total Berat</dt>
-                        <dd class="text-right font-display text-sm font-bold text-brand-700" data-estimate="total-weight">-</dd>
-                    </div>
+                    {{-- Berat model, berat support, dan total berat tidak
+                         ditampilkan kepada pelanggan. Angkanya tetap dihitung
+                         karena menjadi dasar harga, tetapi hanya dipakai di
+                         sisi internal (admin dan superadmin). --}}
 
                     <div class="flex items-start justify-between gap-4">
                         <dt class="text-[0.65rem] font-semibold uppercase tracking-[0.1em] text-ink-400">Estimasi Lead Time</dt>
@@ -383,10 +373,11 @@
                         <div class="rounded-xl border border-ink-100 bg-white p-4">
                             <p class="text-[0.6rem] font-bold uppercase tracking-[0.12em] text-ink-500">Hasil Setelah Diskalakan</p>
                             <dl class="mt-3 grid gap-3 sm:grid-cols-2">
+                                {{-- Berat tidak ikut ditampilkan di sini; lihat catatan
+                                     pada ringkasan estimasi di atas. --}}
                                 @foreach ([
                                     'dimensions' => 'Dimensi',
                                     'volume' => 'Volume',
-                                    'weight' => 'Total Berat',
                                     'time' => 'Estimasi Lead Time',
                                 ] as $key => $label)
                                     <div>

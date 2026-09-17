@@ -119,6 +119,7 @@ trait HasMaterialPricing
             'max_size' => $this->maxSize($spec),
             'min_size' => $spec['minSize'] ?? null,
             'min_size_slender' => $spec['minSizeSlender'] ?? null,
+            'pricing_method' => $this->pricing_method ?? 'manual',
         ];
     }
 }

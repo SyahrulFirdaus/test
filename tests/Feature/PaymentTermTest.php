@@ -157,11 +157,11 @@ class PaymentTermTest extends TestCase
             ->get(route('dashboard.quotations.payment-term', $quotation))
             ->assertOk()
             ->assertSee('Pilih Skema Pembayaran')
-            ->assertSee('1x Pembayaran — Lunas')
-            ->assertSee('3x Pembayaran — 3 Termin')
-            ->assertSee('4x Pembayaran — 4 Termin')
+            ->assertSee('1x Pembayaran (Lunas)')
+            ->assertSee('3x Pembayaran (3 Termin)')
+            ->assertSee('4x Pembayaran (4 Termin)')
             // Nilainya Rp30 juta, jadi 5x belum terbuka.
-            ->assertDontSee('5x Pembayaran — 5 Termin');
+            ->assertDontSee('5x Pembayaran (5 Termin)');
     }
 
     /* --------------------------------------------- khusus akun Business --- */

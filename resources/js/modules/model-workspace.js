@@ -32,6 +32,7 @@ import {
     formatCurrency,
     formatLeadTime,
     formatNumber,
+    sumPrices,
 } from './print-estimator';
 
 const MAX_FILE_SIZE = 60 * 1024 * 1024; // 60 MB
@@ -781,7 +782,15 @@ export default class ModelWorkspace {
                             data-spec-technology-option="${escapeAttribute(option.code)}"
                             aria-pressed="${option.code === this.draft.technology}">
                         <span class="spec-option-title">${escapeHtml(option.label)}</span>
-                        <span class="spec-option-note">${escapeHtml(option.name)}</span>
+                        ${
+                            // Keterangan di bawah label adalah nama panjang
+                            // teknologinya. Pada teknologi yang memang dipanggil
+                            // dengan namanya - SLA Industries - keduanya sama,
+                            // dan mengulangnya hanya jadi bising.
+                            option.label.startsWith(option.name)
+                                ? ''
+                                : `<span class="spec-option-note">${escapeHtml(option.name)}</span>`
+                        }
                     </button>
                 `
             )
@@ -880,7 +889,7 @@ export default class ModelWorkspace {
 
         setText('[data-spec-model="dimensions"]', sizeText(summary.dimensions));
         setText('[data-spec-model="volume"]', `${formatNumber(summary.volumeCm3 ?? 0, 2)} cm³`);
-        setText('[data-spec-model="weight"]', `${formatNumber(summary.weightG ?? 0, 1)} gram`);
+        // Berat tidak ikut ditulis: pelanggan tidak melihat angka berat di mana pun.
 
         setText('[data-spec-material-name]', material ? materialLabel(material) : '-');
         setText('[data-spec-material-description]', material?.description ?? '');
@@ -1091,12 +1100,11 @@ export default class ModelWorkspace {
         };
 
         if (!summary) {
-            ['weight', 'time', 'cost'].forEach((key) => set(key, '-'));
+            ['time', 'cost'].forEach((key) => set(key, '-'));
 
             return;
         }
 
-        set('weight', `${formatNumber(summary.weightG, 1)} gram`);
         set('time', formatLeadTime(summary.minutes));
         set('cost', this.showsPrice ? formatCurrency(summary.cost) : 'Login dulu');
     }
@@ -1132,8 +1140,8 @@ export default class ModelWorkspace {
         // sendiri tidak lagi ditampilkan di kartu — cukup lewat Edit Specification.
         const spec = specificationOf(record);
 
-        // Berat sengaja tidak ikut: angkanya baru berarti setelah material
-        // dipilih, jadi ditampilkan pada Edit Specification saja.
+        // Berat sengaja tidak ikut: angka berat tidak ditampilkan kepada
+        // pelanggan di halaman mana pun.
         const rows = [
             ['Dimensi', dimensions],
             ['Volume', `${formatNumber(summary.volumeCm3 ?? 0, 2)} cm³`],
@@ -1214,7 +1222,7 @@ export default class ModelWorkspace {
 
                     <span class="ml-auto text-right">
                         ${this.showsPrice
-                            ? `<span class="block font-display text-sm font-bold text-brand-700">${formatCurrency(summary.cost ?? 0)}</span>`
+                            ? `<span class="block font-display text-sm font-bold text-brand-700">${formatCurrency(summary.cost)}</span>`
                             : '<span class="block text-[0.65rem] font-semibold text-ink-400">Login untuk harga</span>'}
                         <span class="block text-[0.6rem] text-ink-400">${formatLeadTime(summary.minutes ?? 0)}</span>
                     </span>
@@ -1270,18 +1278,26 @@ export default class ModelWorkspace {
      * terpisah: lead time ditentukan keseluruhan pesanan, bukan satu object.
      */
     totals() {
-        return this.readyRecords().reduce(
+        const records = this.readyRecords();
+
+        const summary = records.reduce(
             (carry, record) => {
                 const estimate = record.payload.estimate ?? {};
 
                 return {
                     weightG: carry.weightG + (record.summary.weightG ?? 0),
                     minutes: carry.minutes + (estimate.totalMinutes ?? 0),
-                    cost: carry.cost + (estimate.totalCost ?? 0),
                 };
             },
-            { weightG: 0, minutes: 0, cost: 0 }
+            { weightG: 0, minutes: 0 }
         );
+
+        // Harga dijumlahkan terpisah: satu model yang harganya belum ditetapkan
+        // membuat totalnya belum ada sama sekali, bukan sekadar lebih kecil.
+        return {
+            ...summary,
+            cost: sumPrices(records.map((record) => record.payload.estimate?.totalCost)),
+        };
     }
 
     renderSummary() {
@@ -1322,7 +1338,7 @@ export default class ModelWorkspace {
                         <td class="px-2 py-3 text-right text-ink-700">${formatCount(summary.quantity ?? 1)}</td>
                         <td class="${this.showsPrice ? 'px-2' : 'pl-2'} py-3 text-right text-ink-700">${formatLeadTime(estimate.totalMinutes ?? 0)}</td>
                         ${this.showsPrice
-                            ? `<td class="py-3 pl-2 text-right font-display font-bold text-brand-700">${formatCurrency(estimate.totalCost ?? 0)}</td>`
+                            ? `<td class="py-3 pl-2 text-right font-display font-bold text-brand-700">${formatCurrency(estimate.totalCost)}</td>`
                             : ''}
                     </tr>
                 `;

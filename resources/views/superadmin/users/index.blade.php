@@ -91,7 +91,7 @@
                                     @if ($user->whatsapp_link)
                                         <a href="{{ $user->whatsapp_link }}" target="_blank" rel="noopener noreferrer" class="viewer-tool">WhatsApp</a>
                                     @endif
-                                    <a href="{{ route('superadmin.users.show', $user) }}" class="viewer-tool">Detail</a>
+                                    <a href="{{ staff_route('users.show', $user) }}" class="viewer-tool">Detail</a>
                                 </div>
                             </td>
                         </tr>

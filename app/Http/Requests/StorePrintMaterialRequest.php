@@ -2,7 +2,9 @@
 
 namespace App\Http\Requests;
 
+use App\Models\PrintMaterial;
 use App\Models\PrintTechnology;
+use App\Support\PricingMethod;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -59,9 +61,22 @@ class StorePrintMaterialRequest extends FormRequest
             ],
             'machine_cost_id' => ['nullable', 'integer', 'exists:machine_costs,id'],
             'brand' => ['required', 'string', 'max:60'],
-            'purchase_price' => ['required', 'numeric', 'min:0', 'max:'.self::MAX_PRICE],
-            'sale_price' => ['required', 'numeric', 'min:0', 'max:'.self::MAX_PRICE],
+
+            // Harga material tidak berlaku bagi material dengan Kalkulator
+            // Manual: harganya ditetapkan tim per penawaran, jadi tidak ada
+            // harga per gram yang dikutip dari sini. Kolomnya tetap ada di basis data dan terisi nol — lihat
+            // prepareForValidation() — supaya struktur materialnya sama untuk
+            // seluruh teknologi.
+            'purchase_price' => [$this->pricesApply() ? 'required' : 'nullable', 'numeric', 'min:0', 'max:'.self::MAX_PRICE],
+            'sale_price' => [$this->pricesApply() ? 'required' : 'nullable', 'numeric', 'min:0', 'max:'.self::MAX_PRICE],
             'remark' => ['nullable', 'string', 'max:120'],
+
+            // Metode penentuan harga dimiliki material SLA, MJF, dan SLM:
+            // Kalkulator Otomatis (rumus FDM) atau Kalkulator Manual. FDM dan
+            // teknologi lain tidak mengirim maupun menyimpannya.
+            ...($this->choosesPricing() ? [
+                'pricing_method' => ['required', 'string', Rule::in(array_keys(PrintMaterial::PRICING_METHODS))],
+            ] : []),
         ];
     }
 
@@ -74,6 +89,32 @@ class StorePrintMaterialRequest extends FormRequest
         if ($this->has('machine_cost_id') && ! $this->filled('machine_cost_id')) {
             $this->merge(['machine_cost_id' => null]);
         }
+
+        // Material dengan Kalkulator Manual tidak mewajibkan kolom harga,
+        // jadi nilainya diisi nol di sini — bukan dibiarkan NULL, karena
+        // kolomnya NOT NULL dan dibaca rumus material teknologi lain.
+        if (! $this->pricesApply()) {
+            $this->merge([
+                'purchase_price' => $this->input('purchase_price', 0) ?: 0,
+                'sale_price' => $this->input('sale_price', 0) ?: 0,
+            ]);
+        }
+    }
+
+    /**
+     * Material ini dijual per gram, jadi harganya wajib diisi: seluruh
+     * teknologi selain SLA/MJF/SLM, dan material mereka dengan Kalkulator Otomatis.
+     */
+    private function pricesApply(): bool
+    {
+        return ! $this->choosesPricing() || $this->input('pricing_method') === PrintMaterial::PRICING_AUTOMATIC;
+    }
+
+    private function choosesPricing(): bool
+    {
+        $technology = $this->route('technology');
+
+        return PricingMethod::appliesTo($technology instanceof PrintTechnology ? $technology->code : null);
     }
 
     /** @return array<string, string> */
@@ -91,6 +132,8 @@ class StorePrintMaterialRequest extends FormRequest
             'purchase_price.min' => 'Harga Beli tidak boleh negatif.',
             'sale_price.min' => 'Harga Jual tidak boleh negatif.',
             'numeric' => 'Kolom ini harus berupa angka.',
+            'pricing_method.required' => 'Pilih metode penentuan harga: Kalkulator Otomatis atau Kalkulator Manual.',
+            'pricing_method.in' => 'Metode penentuan harga tidak dikenal.',
         ];
     }
 }

@@ -131,8 +131,10 @@ class MaterialDisplayNameTest extends TestCase
 
         $this->assertSame('PLA Plus Standart ESUN', $item->material_label);
 
-        $this->actingAs($quotation->user)
-            ->get(route('dashboard.quotations.show', $quotation))
+        // Halaman pelanggan hanya menampilkan volume model; nama material
+        // tetap terbaca pada detail penawaran di dashboard admin.
+        $this->actingAs(\App\Models\User::factory()->admin()->create())
+            ->get(route('admin.quotations.show', $quotation))
             ->assertOk()
             ->assertSee('PLA Plus Standart ESUN');
     }

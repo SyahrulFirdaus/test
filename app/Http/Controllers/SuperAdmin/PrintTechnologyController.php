@@ -8,6 +8,7 @@ use App\Models\PrintTechnology;
 use App\Services\ActivityLogger;
 use App\Support\ActivityAction;
 use App\Support\ActivityModule;
+use App\Support\PriceListPage;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -69,7 +70,7 @@ class PrintTechnologyController extends Controller
         );
 
         return redirect()
-            ->route('superadmin.price-list.index', ['tab' => $technology->tabKey()])
+            ->to(PriceListPage::technologyUrl($technology))
             ->with('status', "Teknologi {$technology->code} berhasil ditambahkan. Tambahkan materialnya di tab ini.");
     }
 
@@ -102,8 +103,51 @@ class PrintTechnologyController extends Controller
         );
 
         return redirect()
-            ->route('superadmin.price-list.index', ['tab' => $technology->tabKey()])
+            ->to(PriceListPage::technologyUrl($technology))
             ->with('status', "Teknologi {$technology->code} berhasil diperbarui.");
+    }
+
+    /**
+     * Nyalakan atau matikan teknologi dari switch Status.
+     *
+     * Aktif berarti tampil sebagai pilihan Technology pada Edit Specification
+     * dan diterima saat penawaran dikirim; nonaktif berarti tidak keduanya.
+     * Penawaran lama yang memakainya tetap terbaca apa adanya.
+     */
+    public function updateStatus(Request $request, PrintTechnology $technology): RedirectResponse
+    {
+        abort_if($technology->archived_at !== null, 404);
+
+        $active = $request->boolean('is_active');
+
+        // Edit Specification butuh setidaknya satu teknologi untuk dipilih.
+        if (! $active && PrintTechnology::query()->active()->whereKeyNot($technology->getKey())->doesntExist()) {
+            return redirect()
+                ->route('superadmin.price-list.technologies.index')
+                ->with('error', "Teknologi {$technology->code} adalah satu-satunya yang aktif, jadi tidak dapat dinonaktifkan.");
+        }
+
+        if ($technology->is_active === $active) {
+            return redirect()->route('superadmin.price-list.technologies.index');
+        }
+
+        $technology->update(['is_active' => $active]);
+
+        $this->activity->logChanges(
+            action: ActivityAction::TECHNOLOGY_UPDATE,
+            before: ['status' => $active ? 'Nonaktif' : 'Aktif'],
+            after: ['status' => $active ? 'Aktif' : 'Nonaktif'],
+            description: ($active ? 'Mengaktifkan' : 'Menonaktifkan').' teknologi '.$technology->code.'.',
+            subject: $technology,
+            module: ActivityModule::SUPERADMIN,
+            subjectLabel: $technology->code,
+        );
+
+        return redirect()
+            ->route('superadmin.price-list.technologies.index')
+            ->with('status', "Teknologi {$technology->code} ".($active
+                ? 'diaktifkan dan kini tampil di Edit Specification.'
+                : 'dinonaktifkan dan tidak lagi tampil di Edit Specification.'));
     }
 
     public function destroy(Request $request, PrintTechnology $technology): RedirectResponse
@@ -113,7 +157,7 @@ class PrintTechnologyController extends Controller
         // bukan sekadar disembunyikan tombolnya.
         if ($technology->isInUse()) {
             return redirect()
-                ->route('superadmin.price-list.index', ['tab' => 'teknologi'])
+                ->route('superadmin.price-list.technologies.index')
                 ->with('error', "Teknologi {$technology->code} sudah dipakai penawaran, jadi tidak dapat dihapus.");
         }
 
@@ -134,7 +178,7 @@ class PrintTechnologyController extends Controller
         );
 
         return redirect()
-            ->route('superadmin.price-list.index', ['tab' => 'teknologi'])
+            ->route('superadmin.price-list.technologies.index')
             ->with('status', "Teknologi {$code} berhasil dihapus.");
     }
 

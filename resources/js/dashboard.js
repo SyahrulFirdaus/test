@@ -9,13 +9,17 @@
  *  5. tombol salin (mis. nomor rekening);
  *  6. pengalih mode terang/gelap;
  *  7. penghapusan massal pada tabel Price List;
- *  8. expand detail mesin pada tabel Machine Cost.
+ *  8. expand detail mesin pada tabel Machine Cost;
+ *  9. perhitungan realtime Rumus Harga SLA Industries.
  *
  * Notifikasi ditarik berkala (polling) alih-alih lewat WebSocket supaya
  * pemberitahuan terasa langsung tanpa menuntut server tambahan. Endpointnya
  * hanya mengembalikan notifikasi yang belum dibaca milik akun yang sedang
  * masuk.
  */
+
+import initRupiahInputs from './modules/rupiah-input';
+import initSlaIndustriesFormulas from './modules/sla-industries-formula';
 
 const POLL_INTERVAL_MS = 20000;
 
@@ -24,10 +28,12 @@ initSidebar();
 initNotifications();
 initPaymentCountdown();
 initCopyButtons();
-initPriceListTabs();
-initFormulaTabs();
 initBulkDelete();
+initAutoSubmit();
 initMachineDetails();
+// Input rupiah dipasang lebih dulu: rumus di bawah membaca nilai mentahnya.
+initRupiahInputs();
+initSlaIndustriesFormulas();
 
 /**
  * Mode terang/gelap.
@@ -105,32 +111,111 @@ function initThemeToggle() {
     render();
 }
 
-/** Sidebar tersembunyi di layar kecil dan dibuka lewat tombol menu. */
+/**
+ * Sidebar dashboard.
+ *
+ *  - Di bawah md tersembunyi dan dibuka lewat tombol menu; di tablet tampil
+ *    icon-only dan tombol yang sama membukanya penuh (`.is-open`).
+ *  - Di desktop dapat diciutkan menjadi icon-only; pilihannya disimpan di
+ *    localStorage dan dipulihkan skrip inline di <head> sebelum digambar.
+ *  - Grup accordion (Price List): hanya satu yang terbuka pada satu waktu.
+ */
 function initSidebar() {
     const toggle = document.querySelector('[data-sidebar-toggle]');
     const sidebar = document.querySelector('[data-sidebar]');
     const backdrop = document.querySelector('[data-sidebar-backdrop]');
+    const collapse = document.querySelector('[data-sidebar-collapse]');
+    const root = document.documentElement;
 
-    if (!toggle || !sidebar) {
+    if (!sidebar) {
         return;
     }
 
+    const desktop = window.matchMedia('(min-width: 64rem)');
+
+    const isOpen = () => sidebar.classList.contains('is-open');
+
     const setOpen = (open) => {
         sidebar.classList.toggle('-translate-x-full', !open);
+        sidebar.classList.toggle('is-open', open);
         backdrop?.classList.toggle('hidden', !open);
-        toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+        toggle?.setAttribute('aria-expanded', open ? 'true' : 'false');
     };
 
-    toggle.addEventListener('click', () => {
-        setOpen(sidebar.classList.contains('-translate-x-full'));
-    });
+    // Sidebar sedang tampil sebagai deretan ikon saja.
+    const isRail = () => {
+        if (isOpen()) {
+            return false;
+        }
 
+        return desktop.matches
+            ? root.classList.contains('sidebar-collapsed')
+            : window.matchMedia('(min-width: 48rem)').matches;
+    };
+
+    const renderCollapse = () => {
+        const collapsed = root.classList.contains('sidebar-collapsed');
+        const label = collapsed ? 'Lebarkan sidebar' : 'Ciutkan sidebar';
+
+        collapse?.setAttribute('aria-pressed', collapsed ? 'true' : 'false');
+        collapse?.setAttribute('aria-label', label);
+        collapse?.setAttribute('title', label);
+    };
+
+    const setCollapsed = (collapsed) => {
+        root.classList.toggle('sidebar-collapsed', collapsed);
+        renderCollapse();
+
+        try {
+            localStorage.setItem('nusama-sidebar', collapsed ? 'collapsed' : 'expanded');
+        } catch (error) {
+            // Penyimpanan diblokir: pilihannya berlaku sampai halaman ditutup.
+        }
+    };
+
+    toggle?.addEventListener('click', () => setOpen(!isOpen()));
     backdrop?.addEventListener('click', () => setOpen(false));
+    collapse?.addEventListener('click', () => setCollapsed(!root.classList.contains('sidebar-collapsed')));
+    document.addEventListener('sidebar:close', () => setOpen(false));
 
     document.addEventListener('keydown', (event) => {
         if (event.key === 'Escape') {
             setOpen(false);
         }
+    });
+
+    renderCollapse();
+
+    // --- grup accordion ------------------------------------------------------
+    const groups = sidebar.querySelectorAll('[data-sidebar-group]');
+
+    const openGroup = (group, open) => {
+        group.querySelector('[data-sidebar-group-list]')?.classList.toggle('hidden', !open);
+        group.querySelector('[data-sidebar-group-toggle]')?.setAttribute('aria-expanded', open ? 'true' : 'false');
+    };
+
+    const showOnly = (target) => {
+        groups.forEach((group) => openGroup(group, group === target));
+    };
+
+    groups.forEach((group) => {
+        const button = group.querySelector('[data-sidebar-group-toggle]');
+
+        button?.addEventListener('click', () => {
+            // Dalam mode ikon, isi grup tidak punya tempat: lebarkan dulu.
+            if (isRail()) {
+                desktop.matches ? setCollapsed(false) : setOpen(true);
+                showOnly(group);
+
+                return;
+            }
+
+            const expanded = button.getAttribute('aria-expanded') === 'true';
+
+            expanded ? openGroup(group, false) : showOnly(group);
+        });
+
+        group.addEventListener('sidebar:open', () => showOnly(group));
     });
 }
 
@@ -350,59 +435,6 @@ function initMachineDetails() {
     });
 }
 
-function initPriceListTabs() {
-    const tabs = document.querySelectorAll('[data-price-list-tab]');
-    const panels = document.querySelectorAll('[data-price-list-panel]');
-
-    if (!tabs.length) {
-        return;
-    }
-
-    const activate = (name) => {
-        tabs.forEach((tab) => tab.setAttribute('aria-selected', String(tab.dataset.priceListTab === name)));
-        panels.forEach((panel) => panel.classList.toggle('hidden', panel.dataset.priceListPanel !== name));
-    };
-
-    tabs.forEach((tab) => {
-        tab.addEventListener('click', () => activate(tab.dataset.priceListTab));
-    });
-
-    const requested = new URLSearchParams(window.location.search).get('tab');
-
-    if (requested && [...tabs].some((tab) => tab.dataset.priceListTab === requested)) {
-        activate(requested);
-    }
-}
-
-/**
- * Sub-tab teknologi (FDM/SLA/MJF/SLM) di dalam tab Harga pada Price List.
- * Pola sama persis dengan initPriceListTabs — lihat komentarnya di atas —
- * hanya kunci query string-nya `?formula=` alih-alih `?tab=`.
- */
-function initFormulaTabs() {
-    const tabs = document.querySelectorAll('[data-formula-tab]');
-    const panels = document.querySelectorAll('[data-formula-panel]');
-
-    if (!tabs.length) {
-        return;
-    }
-
-    const activate = (name) => {
-        tabs.forEach((tab) => tab.setAttribute('aria-selected', String(tab.dataset.formulaTab === name)));
-        panels.forEach((panel) => panel.classList.toggle('hidden', panel.dataset.formulaPanel !== name));
-    };
-
-    tabs.forEach((tab) => {
-        tab.addEventListener('click', () => activate(tab.dataset.formulaTab));
-    });
-
-    const requested = new URLSearchParams(window.location.search).get('formula');
-
-    if (requested && [...tabs].some((tab) => tab.dataset.formulaTab === requested)) {
-        activate(requested);
-    }
-}
-
 /** Tombol salin sederhana; labelnya kembali semula setelah dua detik. */
 function initCopyButtons() {
     document.querySelectorAll('[data-copy]').forEach((button) => {
@@ -530,4 +562,19 @@ function escapeHtml(value) {
 
 function escapeAttribute(value) {
     return escapeHtml(value).replace(/"/g, '&quot;');
+}
+
+/**
+ * Kirim formulir begitu kontrol bertanda `data-auto-submit` diubah, mis. switch
+ * Status pada tabel Teknologi. Tanpa JavaScript formulirnya tetap sah, hanya
+ * tidak terkirim otomatis.
+ */
+function initAutoSubmit() {
+    document.addEventListener('change', (event) => {
+        const control = event.target.closest('[data-auto-submit]');
+
+        if (control?.form) {
+            control.form.requestSubmit();
+        }
+    });
 }

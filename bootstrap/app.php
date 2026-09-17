@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Middleware\EnsureAdminPermission;
 use App\Http\Middleware\EnsureUserIsAdmin;
 use App\Http\Middleware\EnsureUserIsBusiness;
 use App\Http\Middleware\EnsureUserIsCustomer;
@@ -17,6 +18,8 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware) {
         $middleware->alias([
             'admin' => EnsureUserIsAdmin::class,
+            // Hak akses menu Admin per akun: ->middleware('admin.permission:penawaran').
+            'admin.permission' => EnsureAdminPermission::class,
             'superadmin' => EnsureUserIsSuperAdmin::class,
             'customer' => EnsureUserIsCustomer::class,
             'business' => EnsureUserIsBusiness::class,

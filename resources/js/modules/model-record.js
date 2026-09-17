@@ -40,11 +40,14 @@ export function toRecord(card, { id, position, name, size }) {
         summary: {
             dimensions: card.dimensions ? { ...card.dimensions } : null,
             volumeCm3: card.estimate?.modelVolumeCm3 ?? 0,
-            // Berat yang ditampilkan adalah berat seluruh unit, sama seperti
-            // pada tabel ringkasan penawaran.
+            // Berat seluruh unit. Tidak pernah ditampilkan kepada pelanggan —
+            // hanya dipakai sebagai dasar harga dan ikut dikirim ke server saat
+            // penawaran dibuat, tempat admin memakainya untuk proses internal.
             weightG: (card.estimate?.totalWeightG ?? 0) * quantity,
             minutes: card.estimate?.totalMinutes ?? 0,
-            cost: card.estimate?.totalCost ?? 0,
+            // null berarti harganya memang belum ada (teknologi yang
+            // ditetapkan tim), bukan nol — jangan dipaksa menjadi angka.
+            cost: card.estimate?.totalCost ?? null,
             technology: card.settings.technology,
             material: card.settings.material,
             color: card.settings.color,

@@ -31,6 +31,10 @@
         @endforeach
     </div>
 
+    {{-- Daftar dan tautan penawaran di bawah hanya untuk yang berhak atas menu
+         Penawaran (Superadmin selalu berhak). Kartu statistik di atas tetap. --}}
+    @if (auth()->user()->can(\App\Support\AdminPermission::QUOTATION_VIEW))
+
     {{-- ================= PERMINTAAN PEMBATALAN ================= --}}
     @if ($pending_cancellations->isNotEmpty())
         <section class="mt-6 rounded-2xl border-2 border-amber-300 bg-amber-50 p-6 shadow-card">
@@ -172,7 +176,7 @@
                             </td>
                             <td class="px-6 py-3 font-semibold text-ink-800">{{ $quotation->name }}</td>
                             <td class="px-6 py-3 text-ink-600">{{ $quotation->items_count }} file</td>
-                            <td class="px-6 py-3 font-semibold text-ink-800">{{ $rupiah($quotation->display_price) }}</td>
+                            <td class="px-6 py-3 font-semibold text-ink-800">{{ harga_penawaran($quotation->display_price, 'Menunggu Perhitungan') }}</td>
                             <td class="px-6 py-3">
                                 <span class="rounded-full border border-ink-200 bg-ink-50 px-3 py-1 text-xs font-semibold text-ink-600">
                                     {{ $quotation->status_label }}
@@ -196,4 +200,5 @@
             </table>
         </div>
     </section>
+    @endif
 @endsection

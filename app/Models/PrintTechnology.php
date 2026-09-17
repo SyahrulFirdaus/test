@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Support\SlaIndustries;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -48,6 +49,8 @@ class PrintTechnology extends Model
         'setup_fee',
         'machine_rate_per_hour',
         'allows_hollow',
+        'is_active',
+        'archived_at',
         'sort_order',
     ];
 
@@ -68,6 +71,8 @@ class PrintTechnology extends Model
             'setup_fee' => 'float',
             'machine_rate_per_hour' => 'float',
             'allows_hollow' => 'boolean',
+            'is_active' => 'boolean',
+            'archived_at' => 'datetime',
             'sort_order' => 'integer',
         ];
     }
@@ -96,6 +101,35 @@ class PrintTechnology extends Model
     }
 
     /**
+     * Teknologi yang masih ditawarkan.
+     *
+     * Teknologi nonaktif — mis. SLA lama yang digabung ke SLA — tidak tampil
+     * di Edit Specification maupun Price List, tetapi barisnya tetap ada agar
+     * penawaran lama yang menunjuk kodenya tetap terbaca.
+     */
+    public function scopeActive(Builder $query): Builder
+    {
+        return $query->where('is_active', true)->whereNull('archived_at');
+    }
+
+    /**
+     * Teknologi yang dikelola Superadmin, aktif maupun nonaktif.
+     *
+     * Hanya teknologi yang diarsipkan (digabung ke teknologi lain) yang
+     * disembunyikan dari menu Teknologi dan Price List.
+     */
+    public function scopeManaged(Builder $query): Builder
+    {
+        return $query->whereNull('archived_at');
+    }
+
+    /** Aktif: dapat dipilih pada Edit Specification. */
+    public function isOffered(): bool
+    {
+        return $this->is_active !== false && $this->archived_at === null;
+    }
+
+    /**
      * Kunci tab pada halaman Price List, mis. "fdm".
      *
      * Diturunkan dari kodenya supaya tab lama (fdm/sla) tetap beralamat
@@ -104,6 +138,39 @@ class PrintTechnology extends Model
     public function tabKey(): string
     {
         return strtolower($this->code);
+    }
+
+    /**
+     * Potongan alamat halaman Price List teknologi ini, mis. `/price-list/fdm`.
+     *
+     * SLA memakai `sla`, bukan kodenya (`SLAI`): kode itu hanya singkatan
+     * teknis. Teknologi SLA lama yang sudah digabung tidak lagi aktif, jadi
+     * alamatnya tidak bertabrakan.
+     */
+    public function slug(): string
+    {
+        return $this->isSlaIndustries() ? 'sla' : strtolower($this->code);
+    }
+
+    /**
+     * Tulisan pada tab Price List.
+     *
+     * Cukup nama teknologinya ("FDM"), tanpa awalan "Material". Teknologi
+     * biasa memakai kodenya karena kode itulah yang dikenal tim; SLA dipanggil
+     * dengan namanya karena kodenya ("SLAI") hanya singkatan teknis.
+     */
+    public function tabLabel(): string
+    {
+        return $this->isSlaIndustries() ? $this->name : $this->code;
+    }
+
+    /**
+     * Teknologi dengan alur harga tersendiri — dipesan ke vendor, bukan
+     * dicetak sendiri. Lihat App\Support\SlaIndustries.
+     */
+    public function isSlaIndustries(): bool
+    {
+        return SlaIndustries::is($this->code);
     }
 
     /** Sudah dipakai penawaran, sehingga kodenya tidak boleh berubah lagi. */
@@ -130,16 +197,8 @@ class PrintTechnology extends Model
         static::saved(fn () => static::forgetCache());
         static::deleted(fn () => static::forgetCache());
 
-        // Tab Harga menampilkan satu baris rumus per teknologi. Barisnya dibuat
-        // di sini, bukan dituntut diisi Superadmin lebih dulu, supaya teknologi
-        // baru langsung punya parameter yang dapat disunting dan tab Harga
-        // tidak pernah menemukan teknologi tanpa baris.
-        static::created(function (self $technology) {
-            PricingFormula::firstOrCreate(
-                ['technology' => $technology->code],
-                PricingFormula::defaultsFor($technology),
-            );
-        });
+        // Teknologi baru tidak dibuatkan baris rumus sendiri: seluruh teknologi
+        // memakai satu Rumus Harga Otomatis (PricingFormula::GENERAL).
     }
 
     public static function forgetCache(): void
@@ -174,14 +233,18 @@ class PrintTechnology extends Model
     /** @return array<int, string> kode seluruh teknologi, untuk validasi & tab */
     public static function codes(): array
     {
-        return static::cached()->keys()->all();
+        return static::cached()
+            ->filter(fn (self $technology) => $technology->isOffered())
+            ->keys()
+            ->values()
+            ->all();
     }
 
     /** @return array<int, string> teknologi yang menyediakan Hollow Model */
     public static function hollowCodes(): array
     {
         return static::cached()
-            ->filter(fn (self $technology) => $technology->allows_hollow)
+            ->filter(fn (self $technology) => $technology->allows_hollow && $technology->isOffered())
             ->keys()
             ->values()
             ->all();
@@ -236,6 +299,10 @@ class PrintTechnology extends Model
             // menambahkan "PLA+" untuk mesin kedua tidak menggeser harga
             // penawaran yang sudah berjalan.
             'materials' => $this->materials
+                // Material yang dinonaktifkan lewat switch Status pada Price
+                // List tidak ditawarkan: tidak tampil di Edit Specification
+                // dan ditolak saat penawaran baru dikirim.
+                ->filter(fn (PrintMaterial $material) => $material->isOffered())
                 // Urutan tampilnya tetap menurut nama material seperti semula;
                 // `sortBy('id')` hanya dipakai sesaat untuk menentukan baris
                 // mana yang menang ketika satu nama dipakai beberapa mesin.

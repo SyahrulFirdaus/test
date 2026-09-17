@@ -357,7 +357,10 @@
                         <tr>
                             <td class="px-6 py-4 font-mono text-xs font-semibold text-brand-600">{{ $quotation->tracking_number }}</td>
                             <td class="px-6 py-4 whitespace-nowrap text-ink-600">{{ $quotation->created_at->translatedFormat('d M Y') }}</td>
-                            <td class="px-6 py-4 whitespace-nowrap font-semibold text-ink-900">{{ $ringkas($quotation->display_price) }}</td>
+                            <td class="px-6 py-4 whitespace-nowrap font-semibold text-ink-900">
+                                {{-- Harga SLA Industries yang belum ditetapkan tidak punya angka untuk diringkas. --}}
+                                {{ $quotation->display_price === null ? 'Menunggu' : $ringkas($quotation->display_price) }}
+                            </td>
                             <td class="px-6 py-4 whitespace-nowrap text-ink-600">
                                 @if ($quotation->paymentTerm?->isApproved())
                                     {{ $quotation->paymentTerm->isCompleted() ? 'Paid' : $quotation->paymentTerm->installment_count.'x' }}
@@ -366,7 +369,7 @@
                                 @elseif ($quotation->payment_verified_at)
                                     Paid
                                 @else
-                                    &mdash;
+                                    -
                                 @endif
                             </td>
                             <td class="px-6 py-4">

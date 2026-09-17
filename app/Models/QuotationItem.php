@@ -6,8 +6,11 @@ use App\Models\Concerns\DescribesPrintJob;
 use App\Support\Finishing;
 use App\Support\InfillPattern;
 use App\Support\MaterialColor;
+use App\Support\PricingMethod;
+use App\Support\SlaIndustries;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Support\Facades\Storage;
 
 /**
@@ -94,6 +97,55 @@ class QuotationItem extends Model
     public function quotationRequest(): BelongsTo
     {
         return $this->belongsTo(QuotationRequest::class);
+    }
+
+    /**
+     * Kuotasi JLC model ini, bila teknologinya SLA Industries dan tim sudah
+     * menghitungnya. Teknologi lain tidak pernah memilikinya.
+     */
+    public function slaIndustriesQuote(): HasOne
+    {
+        return $this->hasOne(SlaIndustriesQuote::class, 'quotation_item_id');
+    }
+
+    public function isSlaIndustries(): bool
+    {
+        return SlaIndustries::is($this->technology);
+    }
+
+    /**
+     * Harga model ini ditetapkan tim lewat Kalkulator Manual (kuotasi JLC).
+     *
+     * Hanya model SLA/MJF/SLM yang materialnya memakai Kalkulator Manual. Keputusan
+     * yang tersimpan pada `cost_breakdown` saat penawaran dihitung didahulukan,
+     * sehingga mengganti metode harga material di Price List kemudian tidak
+     * mengubah penawaran yang sudah berjalan.
+     */
+    public function usesManualPricing(): bool
+    {
+        if (! PricingMethod::appliesTo($this->technology)) {
+            return false;
+        }
+
+        $stored = $this->cost_breakdown;
+
+        if (is_array($stored) && array_key_exists('selling_price', $stored)) {
+            return (bool) ($stored['manual_pricing'] ?? false);
+        }
+
+        return $this->slaIndustriesQuote !== null
+            || PricingMethod::usesManualPricing($this->technology, $this->material);
+    }
+
+    /**
+     * Harganya belum ditetapkan tim, jadi belum boleh ditampilkan.
+     *
+     * Hanya berlaku bagi material dengan Kalkulator Manual: model lain
+     * harganya sudah dihitung Calculator sejak permintaan dibuat.
+     */
+    public function awaitsPricing(): bool
+    {
+        return $this->usesManualPricing() && $this->slaIndustriesQuote === null;
     }
 
     /**

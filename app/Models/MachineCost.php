@@ -22,7 +22,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class MachineCost extends Model
 {
     /** Ditampilkan menggantikan spesifikasi yang belum diisi. */
-    public const UNSET = '—';
+    public const UNSET = '-';
 
     protected $fillable = [
         'mesin',

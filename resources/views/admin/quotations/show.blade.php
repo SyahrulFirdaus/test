@@ -33,6 +33,7 @@
                             </div>
                         @endif
 
+                        @can(\App\Support\AdminPermission::QUOTATION_UPDATE_STATUS)
                         <div class="mt-5 grid gap-3 sm:grid-cols-2">
                             <form method="POST" action="{{ staff_route('quotations.cancellation.approve', $quotation) }}"
                                   onsubmit="return confirm('Setujui pembatalan penawaran {{ $quotation->tracking_number }}?');">
@@ -48,6 +49,9 @@
                                 <button type="submit" class="btn-outline mt-3 w-full">Tolak Pembatalan</button>
                             </form>
                         </div>
+                        @else
+                            <p class="mt-5 text-xs font-semibold text-amber-800">Anda tidak memiliki hak akses Update Status untuk memutuskan pembatalan ini.</p>
+                        @endcan
 
                         @if ($quotation->whatsapp_link)
                             <p class="mt-4 text-xs text-amber-800">
@@ -92,6 +96,7 @@
                     Lihat {{ $quotation->items->count() }} Model
                 </a>
 
+                @can(\App\Support\AdminPermission::QUOTATION_DELETE)
                 <form method="POST" action="{{ staff_route('quotations.destroy', $quotation) }}"
                       onsubmit="return confirm('Hapus permintaan {{ $quotation->tracking_number }} beserta berkas modelnya? Tindakan ini tidak dapat dibatalkan.');">
                     @csrf
@@ -100,6 +105,7 @@
                         Hapus
                     </button>
                 </form>
+                @endcan
             </div>
         </div>
 
@@ -177,10 +183,22 @@
                     // Harga Jual per model, dikunci pada id modelnya supaya tabel
                     // ringkas dan kartu tiap model memakai angka yang sama persis
                     // dengan accordion rinciannya.
+                    //
+                    // null berarti harganya memang BELUM ADA - model SLA
+                    // Industries yang kuotasi JLC-nya belum diisi. Dibedakan
+                    // tegas dari Rp0 supaya tidak pernah terbaca sebagai gratis.
                     $hargaJualModel = $sellingPrice['models']
                         ->mapWithKeys(fn (array $entry) => [
-                            $entry['item']->id => (float) $entry['calculation']['selling_price'],
+                            $entry['item']->id => $entry['item']->awaitsPricing()
+                                ? null
+                                : (float) $entry['calculation']['selling_price'],
                         ]);
+
+                    // Satu model tanpa harga membuat TOTAL penawaran belum ada juga.
+                    $menungguHarga = $quotation->awaitsPricing();
+                    $hargaLabel = fn ($value) => $value === null
+                        ? 'Menunggu Perhitungan'
+                        : 'Rp'.number_format((float) $value, 0, ',', '.');
                 @endphp
 
                 <section id="daftar-model" class="scroll-mt-24 rounded-2xl border border-ink-100 bg-white p-6 shadow-card sm:p-7">
@@ -216,8 +234,8 @@
                                         </td>
                                         <td class="px-3 py-3 text-right text-ink-600">{{ $item->quantity }} unit</td>
                                         <td class="px-3 py-3 text-right text-ink-600">{{ $fmt($item->total_weight_g * $item->quantity, 1) }} gr</td>
-                                        <td class="py-3 pl-3 text-right font-semibold text-brand-700">
-                                            Rp{{ number_format($hargaJualModel[$item->id] ?? 0, 0, ',', '.') }}
+                                        <td class="py-3 pl-3 text-right font-semibold {{ ($hargaJualModel[$item->id] ?? null) === null ? 'text-amber-700' : 'text-brand-700' }}">
+                                            {{ $hargaLabel($hargaJualModel[$item->id] ?? null) }}
                                         </td>
                                     </tr>
                                 @endforeach
@@ -229,8 +247,8 @@
                                     <td class="px-3 py-3 text-right text-ink-800">
                                         {{ $fmt($quotation->items->sum(fn ($item) => $item->total_weight_g * $item->quantity), 1) }} gr
                                     </td>
-                                    <td class="py-3 pl-3 text-right text-brand-700">
-                                        Rp{{ number_format($hargaJualPenawaran, 0, ',', '.') }}
+                                    <td class="py-3 pl-3 text-right {{ $menungguHarga ? 'text-amber-700' : 'text-brand-700' }}">
+                                        {{ $hargaLabel($menungguHarga ? null : $hargaJualPenawaran) }}
                                     </td>
                                 </tr>
                             </tfoot>
@@ -371,7 +389,7 @@
                                     'Berat Support' => $fmt($item->support_weight_g, 1).' gram',
                                     'Total Berat / unit' => $fmt($item->total_weight_g, 1).' gram',
                                     'Estimasi Waktu' => $item->estimated_duration ?? '-',
-                                    'Harga Jual' => 'Rp'.number_format($hargaJualModel[$item->id] ?? 0, 0, ',', '.'),
+                                    'Harga Jual' => $hargaLabel($hargaJualModel[$item->id] ?? null),
                                 ] as $label => $value)
                                     <div>
                                         <dt class="text-[0.6rem] font-semibold uppercase tracking-[0.12em] text-ink-400">{{ $label }}</dt>
@@ -418,9 +436,94 @@
                             @endif
                         </div>
 
+                        {{-- ===== Form Perhitungan Kalkulator Manual =====
+
+                             Hanya muncul pada model berteknologi SLA Industries.
+                             Part-nya dipesan ke vendor, jadi harganya TIDAK
+                             dihitung Calculator - ditetapkan di sini dari kuotasi
+                             JLC. Selama belum diisi, pelanggan melihat
+                             "Menunggu Perhitungan", bukan angka.
+
+                             INTERNAL: seluruh rincian di dalamnya - Harga JLC,
+                             ongkir, bea masuk, HPP, margin - tidak pernah
+                             ditampilkan kepada pelanggan. Yang sampai ke
+                             pelanggan hanya Final Price. --}}
+                        @if ($item->usesManualPricing())
+                            @php $slaQuote = $item->slaIndustriesQuote; @endphp
+
+                            <div class="mt-6 border-t border-ink-100 pt-6">
+                                <div class="flex flex-wrap items-start justify-between gap-3">
+                                    <div>
+                                        <h3 class="font-display text-sm font-bold text-ink-900">Form Perhitungan Kalkulator Manual</h3>
+                                        <p class="mt-1 text-xs leading-relaxed text-ink-400">
+                                            Isi kuotasi JLC model ini; Final Price menjadi harga penawaran resmi bagi pelanggan.
+                                        </p>
+                                    </div>
+                                    <span class="inline-flex items-center gap-1.5 rounded-full bg-amber-100 px-3 py-1 text-[0.6rem] font-bold uppercase tracking-[0.12em] text-amber-800">
+                                        Internal &middot; Tidak Terlihat Pelanggan
+                                    </span>
+                                </div>
+
+                                @if ($slaQuote === null)
+                                    <p class="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-4 text-xs leading-relaxed text-amber-900">
+                                        Harga model ini <span class="font-semibold">belum ditetapkan</span>. Pelanggan melihat
+                                        keterangan &ldquo;Menunggu Perhitungan&rdquo;, dan penawaran belum dapat dilanjutkan ke
+                                        tahap pembayaran sampai formulir ini disimpan.
+                                        Nilai di bawah diambil dari parameter bawaan pada Price List.
+                                    </p>
+                                @else
+                                    @php $slaRate = $slaQuote->usdRateInfo(); @endphp
+
+                                    <p class="mt-4 text-xs text-ink-400">
+                                        Terakhir ditetapkan
+                                        {{ $slaQuote->updated_at->translatedFormat('d F Y, H:i') }} WIB
+                                        @if ($slaQuote->calculatedBy)
+                                            oleh {{ $slaQuote->calculatedBy->name }}
+                                        @endif
+                                        &middot; mengisi ulang formulir ini mengganti harganya.
+                                    </p>
+
+                                    {{-- Kurs yang benar-benar dipakai harga yang
+                                         berlaku sekarang. Dicatat terpisah karena
+                                         formulir di bawah memakai kurs HARI INI:
+                                         menyimpan ulang berarti menghitung ulang,
+                                         dan perhitungan baru memakai kurs baru. --}}
+                                    <p class="mt-2 rounded-xl border border-ink-100 bg-ink-50/70 px-4 py-3 text-xs leading-relaxed text-ink-500">
+                                        Harga yang berlaku sekarang dihitung dengan kurs
+                                        <span class="font-mono font-semibold text-ink-800">Rp{{ number_format((float) $slaQuote->usd_rate, 0, ',', '.') }}</span>
+                                        @if ($slaQuote->usd_rate_source)
+                                            &middot; sumber {{ $slaQuote->usd_rate_source }}
+                                        @endif
+                                        @if ($slaQuote->usd_rate_published_at)
+                                            &middot; terbit {{ $slaQuote->usd_rate_published_at->timezone('Asia/Jakarta')->translatedFormat('d F Y, H:i') }} WIB
+                                        @endif.
+                                        Menyimpan ulang formulir di bawah akan memakai kurs yang berlaku saat itu.
+                                    </p>
+                                @endif
+
+                                @can(\App\Support\AdminPermission::QUOTATION_EDIT)
+                                <div class="mt-4">
+                                    @include('partials.sla-industries-formula', [
+                                        'action' => staff_route('quotations.items.sla-industries', [$quotation, $item]),
+                                        'values' => $slaQuote ?? $slaIndustriesDefaults,
+                                        'uid' => 'sla-item-'.$item->id,
+                                        'showProductName' => true,
+                                        'productName' => $slaQuote?->product_name ?? $item->file_name,
+                                        'submitLabel' => $slaQuote === null ? 'Tetapkan Harga Model Ini' : 'Perbarui Harga Model Ini',
+                                        'usdRate' => $slaIndustriesUsdRate,
+                                        'rateEndpoint' => $usdRateEndpoint,
+                                    ])
+                                </div>
+                                @else
+                                    <p class="mt-4 text-xs text-ink-400">Anda tidak memiliki hak akses Edit untuk menetapkan harga model ini.</p>
+                                @endcan
+                            </div>
+                        @endif
+
                         {{-- Catatan admin khusus model ini. Harganya tidak dapat
-                             disunting: seluruh harga penawaran mengikuti estimasi
-                             sistem yang dihitung saat permintaan dikirim. --}}
+                             disunting di sini: teknologi yang dicetak sendiri
+                             mengikuti estimasi sistem saat permintaan dikirim,
+                             dan SLA Industries memakai formulir di atas. --}}
                         <form method="POST" action="{{ staff_route('quotations.items.update', [$quotation, $item]) }}"
                               class="mt-6 grid gap-4 border-t border-ink-100 pt-6 sm:grid-cols-2">
                             @csrf
@@ -430,24 +533,32 @@
                                 <p class="block text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-ink-400">
                                     Harga Model Ini
                                 </p>
-                                <p class="mt-2 font-display text-lg font-bold text-ink-900">
-                                    Rp{{ number_format($hargaJualModel[$item->id] ?? 0, 0, ',', '.') }}
+                                <p class="mt-2 font-display text-lg font-bold {{ ($hargaJualModel[$item->id] ?? null) === null ? 'text-amber-700' : 'text-ink-900' }}">
+                                    {{ $hargaLabel($hargaJualModel[$item->id] ?? null) }}
                                 </p>
-                                <p class="mt-1 text-[0.65rem] text-ink-400">Dihitung sistem dari specification model ini.</p>
+                                <p class="mt-1 text-[0.65rem] text-ink-400">
+                                    @if ($item->usesManualPricing())
+                                        Ditetapkan tim lewat Form Perhitungan Kalkulator Manual di atas.
+                                    @else
+                                        Dihitung sistem dari specification model ini.
+                                    @endif
+                                </p>
                             </div>
 
                             <div>
                                 <label for="item-note-{{ $item->id }}" class="block text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-ink-400">
                                     Catatan Model Ini
                                 </label>
-                                <textarea id="item-note-{{ $item->id }}" name="admin_note" rows="2"
+                                <textarea id="item-note-{{ $item->id }}" name="admin_note" rows="2" @cannot(\App\Support\AdminPermission::QUOTATION_EDIT) disabled @endcannot
                                           class="mt-2 w-full rounded-xl border border-ink-200 px-4 py-2.5 text-sm focus:border-brand-600 focus:outline-none"
                                           placeholder="Misalnya: dinding terlalu tipis, sarankan naik ke 1,2 mm.">{{ $item->admin_note }}</textarea>
                             </div>
 
+                            @can(\App\Support\AdminPermission::QUOTATION_EDIT)
                             <div class="sm:col-span-2">
                                 <button type="submit" class="viewer-tool">Simpan Catatan Model {{ $item->position }}</button>
                             </div>
+                            @endcan
                         </form>
                     </section>
                 @endforeach
@@ -486,15 +597,24 @@
                          supaya tidak dikira dua angka yang berbeda. Angkanya
                          dibaca dari perhitungan yang sama dengan tabel Detail
                          Perhitungan Harga — lihat $hargaJualPenawaran. --}}
-                    <div class="mt-5 rounded-xl bg-brand-600 p-5 text-white">
+                    <div class="mt-5 rounded-xl {{ $menungguHarga ? 'bg-amber-600' : 'bg-brand-600' }} p-5 text-white">
                         <p class="text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-white/70">Harga Jual &middot; Harga Estimasi</p>
-                        <p class="mt-1.5 font-display text-2xl font-bold">Rp{{ number_format($hargaJualPenawaran, 0, ',', '.') }}</p>
+                        <p class="mt-1.5 font-display {{ $menungguHarga ? 'text-lg' : 'text-2xl' }} font-bold">
+                            {{ $hargaLabel($menungguHarga ? null : $hargaJualPenawaran) }}
+                        </p>
                         <p class="mt-1 text-xs text-white/70">
                             {{ $quotation->items->count() }} model &middot; {{ $quotation->quantity }} unit total
                         </p>
                         <p class="mt-2 border-t border-white/20 pt-2 text-[0.65rem] text-white/70">
-                            Subtotal + Profit + Basic Fee &middot;
-                            <a href="#rincian-harga" class="font-semibold underline">lihat rinciannya</a>
+                            @if ($menungguHarga)
+                                {{-- Harga penawaran belum lengkap selama ada model SLA
+                                     Industries yang kuotasi vendornya belum diisi. --}}
+                                Isi dulu Form Perhitungan Kalkulator Manual pada
+                                <a href="#daftar-model" class="font-semibold underline">model yang belum dihitung</a>.
+                            @else
+                                Subtotal + Profit + Basic Fee &middot;
+                                <a href="#rincian-harga" class="font-semibold underline">lihat rinciannya</a>
+                            @endif
                         </p>
                     </div>
                 </section>
@@ -532,6 +652,7 @@
                         catatan per model diatur di kartu masing-masing model.
                     </p>
 
+                    @can(\App\Support\AdminPermission::QUOTATION_UPDATE_STATUS)
                     <form method="POST" action="{{ staff_route('quotations.update', $quotation) }}" class="mt-5 space-y-4" enctype="multipart/form-data">
                         @csrf
                         @method('PATCH')
@@ -635,6 +756,12 @@
 
                         <button type="submit" class="btn-primary w-full">Simpan Perubahan</button>
                     </form>
+                    @else
+                        <p class="mt-5 rounded-xl border border-ink-100 bg-ink-50/70 px-4 py-3 text-xs text-ink-500">
+                            Status saat ini: <span class="font-semibold text-ink-800">{{ $quotation->status_label }}</span>.
+                            Anda tidak memiliki hak akses Update Status.
+                        </p>
+                    @endcan
 
                     <div class="mt-5 border-t border-ink-100 pt-5">
                         <a href="{{ route('tracking.show', $quotation->tracking_number) }}" target="_blank" rel="noopener noreferrer"
@@ -658,8 +785,8 @@
                             Balas via Email
                         </a>
 
-                        @if ($quotation->user)
-                            <a href="{{ route('superadmin.users.show', $quotation->user) }}" class="viewer-tool justify-center">
+                        @if ($quotation->user && auth()->user()->can(\App\Support\AdminPermission::USER_VIEW))
+                            <a href="{{ staff_route('users.show', $quotation->user) }}" class="viewer-tool justify-center">
                                 Lihat Profil &amp; Riwayat Pelanggan
                             </a>
                         @endif

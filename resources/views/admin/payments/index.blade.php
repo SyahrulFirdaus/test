@@ -93,7 +93,9 @@
                         </dl>
 
                         <div class="mt-5 flex flex-wrap items-center gap-2 border-t border-ink-100 pt-5">
+                            @can(\App\Support\AdminPermission::PAYMENT_TERM_VIEW)
                             <a href="{{ staff_route('payment-terms.show', $term) }}" class="viewer-tool">Kelola Payment Term</a>
+                            @endcan
 
                             @if ($proof)
                                 <a href="{{ staff_route('payments.installments.proof', [$installment, $proof]) }}"
@@ -108,6 +110,7 @@
 
                         {{-- Menerima termin ini sekaligus mengaktifkan termin
                              berikutnya sesuai jadwal. --}}
+                        @can(\App\Support\AdminPermission::PAYMENT_VERIFY)
                         <div class="mt-5 grid gap-4 rounded-2xl border border-ink-100 bg-ink-50/70 p-5 lg:grid-cols-2">
                             <form method="POST" action="{{ staff_route('payments.installments.approve', $installment) }}">
                                 @csrf
@@ -131,6 +134,7 @@
                                 <button type="submit" class="btn-outline mt-3 w-full">Tolak Pembayaran</button>
                             </form>
                         </div>
+                        @endcan
                     </article>
                 @empty
                     <p class="rounded-2xl border border-dashed border-ink-200 bg-white p-10 text-center text-sm text-ink-500">
@@ -190,7 +194,9 @@
                     @endif
 
                     <div class="mt-5 flex flex-wrap items-center gap-2 border-t border-ink-100 pt-5">
+                        @can(\App\Support\AdminPermission::QUOTATION_VIEW)
                         <a href="{{ staff_route('quotations.show', $quotation) }}" class="viewer-tool">Detail Penawaran</a>
+                        @endcan
 
                         @if ($quotation->hasPaymentProof())
                             <a href="{{ staff_route('payments.proof', $quotation) }}"
@@ -207,7 +213,7 @@
 
                     {{-- Dua keputusan admin. Penolakan menuntut alasan agar
                          pelanggan tahu apa yang harus diperbaiki. --}}
-                    @if ($quotation->status === \App\Support\QuotationStatus::PAYMENT_REVIEW)
+                    @if ($quotation->status === \App\Support\QuotationStatus::PAYMENT_REVIEW && auth()->user()->can(\App\Support\AdminPermission::PAYMENT_VERIFY))
                         <div class="mt-5 grid gap-4 rounded-2xl border border-ink-100 bg-ink-50/70 p-5 lg:grid-cols-2">
                             <form method="POST" action="{{ staff_route('payments.approve', $quotation) }}">
                                 @csrf

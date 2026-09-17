@@ -69,7 +69,7 @@ class MaterialPriceListSyncTest extends TestCase
             'remark' => 'Engineering Material',
         ]);
 
-        $this->assertContains('Flexible Resin', $this->offered('SLA'));
+        $this->assertContains('Flexible Resin', $this->offered(SlaMaterial::TECHNOLOGY));
     }
 
     /* ------------------------------------------------- hapus material --- */
@@ -91,7 +91,7 @@ class MaterialPriceListSyncTest extends TestCase
 
         $material->delete();
 
-        $this->assertNotContains($material->material, $this->offered('SLA'));
+        $this->assertNotContains($material->material, $this->offered(SlaMaterial::TECHNOLOGY));
     }
 
     /** Penghapusan massal pun ikut, karena sumbernya tabel yang sama. */
@@ -112,7 +112,7 @@ class MaterialPriceListSyncTest extends TestCase
     public function test_material_fdm_tidak_pernah_muncul_pada_sla(): void
     {
         $fdm = $this->offered('FDM');
-        $sla = $this->offered('SLA');
+        $sla = $this->offered(SlaMaterial::TECHNOLOGY);
 
         $this->assertNotEmpty($fdm);
         $this->assertNotEmpty($sla);
@@ -133,7 +133,7 @@ class MaterialPriceListSyncTest extends TestCase
         ]);
 
         $this->assertContains('Material Uji FDM', $this->offered('FDM'));
-        $this->assertNotContains('Material Uji FDM', $this->offered('SLA'));
+        $this->assertNotContains('Material Uji FDM', $this->offered(SlaMaterial::TECHNOLOGY));
     }
 
     /* ------------------------------------------------------------ harga --- */

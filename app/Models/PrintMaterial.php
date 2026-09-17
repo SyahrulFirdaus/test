@@ -25,13 +25,71 @@ class PrintMaterial extends Model
 
     protected $table = 'print_materials';
 
+    /** Kalkulator Otomatis: rumus Harga Jual yang sama dengan FDM. */
+    public const PRICING_AUTOMATIC = 'automatic';
+
+    /** Kalkulator Manual: harga ditetapkan tim lewat kuotasi JLC. */
+    public const PRICING_MANUAL = 'manual';
+
+    /** @var array<string, string> */
+    public const PRICING_METHODS = [
+        self::PRICING_AUTOMATIC => 'Kalkulator Otomatis',
+        self::PRICING_MANUAL => 'Kalkulator Manual',
+    ];
+
     public function __construct(array $attributes = [])
     {
         parent::__construct($attributes);
 
         // Trait menetapkan kolom komersialnya; kepemilikan teknologi dan mesin
         // ditambahkan di sini agar trait itu tetap dipakai bersama apa adanya.
-        $this->mergeFillable(['print_technology_id', 'machine_cost_id']);
+        $this->mergeFillable(['print_technology_id', 'machine_cost_id', 'pricing_method', 'is_active']);
+    }
+
+    /**
+     * Metode penentuan harga material ini.
+     *
+     * Hanya dibaca untuk teknologi SLA (lihat App\Support\SlaIndustries);
+     * teknologi lain selalu dihitung otomatis apa pun isinya.
+     */
+    public function usesAutomaticPricing(): bool
+    {
+        return $this->pricing_method === self::PRICING_AUTOMATIC;
+    }
+
+    public function getPricingMethodLabelAttribute(): string
+    {
+        return self::PRICING_METHODS[$this->pricing_method] ?? self::PRICING_METHODS[self::PRICING_MANUAL];
+    }
+
+    /**
+     * Metode harga material bernama `$material` milik satu teknologi.
+     *
+     * Satu nama boleh dipakai beberapa mesin; yang berlaku baris TERTUA, sama
+     * seperti PrintTechnology::toEstimatorArray(). Null bila tidak ditemukan.
+     */
+    public static function pricingMethodFor(string $technology, string $material): ?string
+    {
+        return PrintTechnology::findByCode($technology)?->materials
+            ->sortBy('id')
+            ->firstWhere('material', $material)
+            ?->pricing_method;
+    }
+
+    protected function casts(): array
+    {
+        return [
+            'purchase_price' => 'decimal:2',
+            'sale_price' => 'decimal:2',
+            'technical_spec' => 'array',
+            'is_active' => 'boolean',
+        ];
+    }
+
+    /** Aktif: dapat dipilih pada Edit Specification. */
+    public function isOffered(): bool
+    {
+        return $this->is_active !== false;
     }
 
     public function technology(): BelongsTo

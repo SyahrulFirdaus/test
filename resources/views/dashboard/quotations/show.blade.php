@@ -78,7 +78,7 @@
                         @if ($quotation->status === \App\Support\QuotationStatus::PAYMENT_REVIEW)
                             Bukti pembayaran Anda sedang diverifikasi admin.
                         @elseif ($quotation->status === \App\Support\QuotationStatus::PAYMENT_REJECTED)
-                            Bukti pembayaran ditolak — silakan unggah ulang.
+                            Bukti pembayaran ditolak. Silakan unggah ulang.
                         @else
                             Penawaran Anda menunggu pembayaran.
                         @endif
@@ -140,12 +140,13 @@
             <section class="rounded-2xl border border-ink-100 bg-white p-6 shadow-card">
                 <h3 class="font-display text-base font-bold text-ink-900">Ringkasan Penawaran</h3>
 
-                <dl class="mt-5 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+                {{-- Total berat tidak ditampilkan kepada pelanggan; angkanya tetap
+                     dihitung sistem dan tetap terlihat di dashboard admin. --}}
+                <dl class="mt-5 grid gap-5 sm:grid-cols-3">
                     @foreach ([
                         'Jumlah File' => $quotation->items->count().' file',
                         'Total Unit' => $quotation->quantity.' unit',
-                        'Total Berat' => $angka($quotation->total_weight_g, 1).' gram',
-                        'Total Estimasi Biaya' => $rupiah($quotation->display_price),
+                        'Total Estimasi Biaya' => harga_penawaran($quotation->display_price),
                     ] as $label => $value)
                         <div>
                             <dt class="text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-ink-400">{{ $label }}</dt>
@@ -154,7 +155,15 @@
                     @endforeach
                 </dl>
 
-                @if ($quotation->estimated_price !== null)
+                @if ($quotation->awaitsPricing())
+                    {{-- Model SLA Industries dipesan ke mitra produksi, jadi
+                         harganya baru ada setelah tim menerima kuotasi vendor.
+                         Pelanggan diberi tahu apa adanya, bukan diberi angka
+                         sementara yang nanti berubah. --}}
+                    <p class="mt-5 rounded-xl bg-amber-50 p-4 text-xs leading-relaxed text-amber-900">
+                        Harga sedang dihitung oleh tim kami untuk model dengan material tertentu pada penawaran ini. Harga penawaran akan muncul di halaman ini begitu perhitungannya selesai.
+                    </p>
+                @elseif ($quotation->estimated_price !== null)
                     <p class="mt-5 rounded-xl bg-brand-50 p-4 text-xs leading-relaxed text-brand-800">
                         Angka di atas adalah harga penawaran resmi, dihitung sistem dari spesifikasi yang Anda pilih.
                     </p>
@@ -201,21 +210,18 @@
                                         <span class="font-mono text-[0.65rem] text-ink-400">#{{ $item->position }}</span>
                                         <span class="truncate font-bold text-ink-900">{{ $item->file_name }}</span>
                                     </p>
+                                    {{-- Pelanggan hanya melihat volume object-nya; detail
+                                         produksi (mesin, resolusi, infill, dll.) urusan tim. --}}
                                     <p class="mt-1 text-xs text-ink-500">
-                                        {{ $item->printer_name }} &middot; {{ $item->technology }} &middot; {{ $item->material_label }} &middot;
-                                        {{ $item->quantity }} unit &middot; {{ $item->resolution_label }}
-                                    </p>
-                                    <p class="mt-0.5 text-xs text-ink-400">
-                                        Infill {{ $item->infill_label }} &middot; Skala {{ $item->scale_label }} &middot;
-                                        Support {{ $item->support_enabled ? 'aktif' : 'nonaktif' }} &middot;
-                                        Warna {{ $item->material_color_label }} &middot;
-                                        Finishing {{ $item->finishing_label }}
+                                        Volume {{ number_format((float) $item->model_volume_cm3, 2, ',', '.') }} cm³
                                     </p>
                                 </div>
 
                                 <div class="text-right">
-                                    <p class="font-display text-sm font-bold text-brand-700">{{ $rupiah($item->display_price) }}</p>
-                                    <p class="mt-0.5 text-xs text-ink-400">{{ $angka($item->total_weight_g, 1) }} g &middot; {{ $item->lead_time ?? '-' }}</p>
+                                    <p class="font-display text-sm font-bold {{ $item->display_price === null ? 'text-amber-700' : 'text-brand-700' }}">
+                                        {{ harga_penawaran($item->display_price) }}
+                                    </p>
+                                    <p class="mt-0.5 text-xs text-ink-400">{{ $item->lead_time ?? '-' }}</p>
                                 </div>
                             </div>
 

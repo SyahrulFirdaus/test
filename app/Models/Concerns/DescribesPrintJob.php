@@ -128,12 +128,34 @@ trait DescribesPrintJob
         return round((float) $this->estimated_weight_g + (float) $this->support_weight_g, 2);
     }
 
-    /** Harga yang ditawarkan admin bila sudah ditetapkan, jika belum pakai estimasi sistem. */
+    /**
+     * Harga yang ditawarkan admin bila sudah ditetapkan, jika belum pakai estimasi sistem.
+     *
+     * Bernilai null selama harganya belum dapat ditetapkan sama sekali —
+     * teknologi SLA Industries menunggu kuotasi vendor diisi tim. Pemanggilnya
+     * harus menampilkan keterangan "Menunggu Perhitungan", BUKAN Rp0: angka nol
+     * terbaca sebagai harga yang sudah pasti.
+     */
     public function getDisplayPriceAttribute(): ?float
     {
+        if ($this->awaitsPricing()) {
+            return null;
+        }
+
         return $this->estimated_price !== null
             ? (float) $this->estimated_price
             : ($this->estimated_cost !== null ? (float) $this->estimated_cost : null);
+    }
+
+    /**
+     * Harganya belum dapat ditetapkan dan tidak boleh ditampilkan.
+     *
+     * Nilai bawaannya false; App\Models\QuotationItem dan
+     * App\Models\QuotationRequest menimpanya masing-masing.
+     */
+    public function awaitsPricing(): bool
+    {
+        return false;
     }
 
     /** Berkas model disimpan pada disk privat, tidak dapat diakses lewat URL. */

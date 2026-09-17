@@ -1,41 +1,68 @@
 {
-  "_model-record-yCt2bmEW.js": {
-    "file": "assets/model-record-yCt2bmEW.js",
-    "name": "model-record"
+  "_model-record-Bfk_1G00.js": {
+    "file": "assets/model-record-Bfk_1G00.js",
+    "name": "model-record",
+    "imports": [
+      "_three.module-UX2nf8Un.js"
+    ]
+  },
+  "_three.module-UX2nf8Un.js": {
+    "file": "assets/three.module-UX2nf8Un.js",
+    "name": "three.module"
   },
   "resources/css/app.css": {
-    "file": "assets/app-Bq8mboPQ.css",
+    "file": "assets/app-CN2FtNlZ.css",
     "src": "resources/css/app.css",
     "isEntry": true
   },
   "resources/js/app.js": {
-    "file": "assets/app-CVUT0yJo.js",
+    "file": "assets/app-BTqHjmLT.js",
     "name": "app",
     "src": "resources/js/app.js",
     "isEntry": true
   },
+  "resources/js/auth-scene.js": {
+    "file": "assets/auth-scene-DUgeJd9_.js",
+    "name": "auth-scene",
+    "src": "resources/js/auth-scene.js",
+    "isEntry": true,
+    "dynamicImports": [
+      "resources/js/modules/print-showcase.js"
+    ]
+  },
   "resources/js/dashboard.js": {
-    "file": "assets/dashboard-B39kbpog.js",
+    "file": "assets/dashboard-C34k0fF2.js",
     "name": "dashboard",
     "src": "resources/js/dashboard.js",
     "isEntry": true
   },
   "resources/js/model-detail.js": {
-    "file": "assets/model-detail-boJviDzn.js",
+    "file": "assets/model-detail-CSpB5pSB.js",
     "name": "model-detail",
     "src": "resources/js/model-detail.js",
     "isEntry": true,
     "imports": [
-      "_model-record-yCt2bmEW.js"
+      "_model-record-Bfk_1G00.js",
+      "_three.module-UX2nf8Un.js"
     ]
   },
   "resources/js/model-viewer.js": {
-    "file": "assets/model-viewer-xtQwh4m6.js",
+    "file": "assets/model-viewer-CyBHFkui.js",
     "name": "model-viewer",
     "src": "resources/js/model-viewer.js",
     "isEntry": true,
     "imports": [
-      "_model-record-yCt2bmEW.js"
+      "_model-record-Bfk_1G00.js",
+      "_three.module-UX2nf8Un.js"
+    ]
+  },
+  "resources/js/modules/print-showcase.js": {
+    "file": "assets/print-showcase-DohADSjK.js",
+    "name": "print-showcase",
+    "src": "resources/js/modules/print-showcase.js",
+    "isDynamicEntry": true,
+    "imports": [
+      "_three.module-UX2nf8Un.js"
     ]
   }
 }

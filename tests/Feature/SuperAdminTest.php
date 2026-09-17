@@ -127,7 +127,11 @@ class SuperAdminTest extends TestCase
     {
         return [
             'dashboard' => ['superadmin.dashboard'],
-            'price list' => ['superadmin.price-list.index'],
+            'price list · teknologi' => ['superadmin.price-list.technologies.index'],
+            'price list · machine cost' => ['superadmin.price-list.machine-cost.index'],
+            'price list · rumus harga otomatis' => ['superadmin.price-list.harga'],
+            'price list · rumus harga manual' => ['superadmin.price-list.harga-manual'],
+            'price list · packaging' => ['superadmin.price-list.packaging.index'],
             'user' => ['superadmin.users.index'],
             'activity log' => ['superadmin.activity-logs.index'],
             'akun admin' => ['superadmin.admins.index'],
@@ -216,7 +220,8 @@ class SuperAdminTest extends TestCase
         // bersama Admin — Superadmin tidak pernah terlempar ke /admin.
         foreach ([
             'superadmin.dashboard', 'superadmin.quotations.index', 'superadmin.payments.index',
-            'superadmin.payment-terms.index', 'superadmin.price-list.index', 'superadmin.users.index',
+            'superadmin.payment-terms.index', 'superadmin.price-list.machine-cost.index', 'superadmin.price-list.harga',
+            'superadmin.price-list.technologies.index', 'superadmin.users.index',
             'superadmin.activity-logs.index', 'superadmin.notifications.index', 'superadmin.profile.edit',
             'superadmin.password.edit', 'superadmin.admins.index',
         ] as $route) {
@@ -492,7 +497,9 @@ class SuperAdminTest extends TestCase
 
         // Kata sandi tidak pernah ikut tersimpan pada jejak audit.
         $this->assertArrayNotHasKey('password', (array) $log->new_values);
-        $this->assertSame(['name', 'email', 'is_active'], array_keys((array) $log->new_values));
+        $this->assertSame(['name', 'email', 'status', ...\App\Support\AdminPermission::keys()], array_keys((array) $log->new_values));
+        // Profil › Ganti Password tetap tercatat meski pencatat membuang kolom bernama "password".
+        $this->assertSame('OFF',$log->new_values[\App\Support\AdminPermission::PROFILE_SECURITY]);
     }
 
     public function test_perubahan_price_list_tercatat_sebagai_aktivitas_superadmin(): void

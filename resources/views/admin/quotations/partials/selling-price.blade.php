@@ -11,6 +11,10 @@
     $rupiah = fn ($value) => 'Rp'.number_format((float) $value, 0, ',', '.');
     $models = $sellingPrice['models'];
     $groups = $sellingPrice['groups'];
+
+    // Satu model SLA yang belum dikuotasi membuat TOTAL penawaran
+    // belum berarti; menjumlahkan sisanya akan terbaca sebagai harga penuh.
+    $awaitsPricing = $quotation->awaitsPricing();
 @endphp
 
 <div id="rincian-harga" class="mt-8 scroll-mt-24 border-t border-ink-100 pt-6">
@@ -58,14 +62,17 @@
                                 {{ $item->file_name }}
                             </p>
                             <p class="mt-0.5 truncate text-[0.65rem] text-ink-400">
-                                {{ $calculation['technology'] }} &middot; {{ $calculation['material_source'] }} &middot;
-                                {{ $calculation['quantity'] }} unit &middot; {{ $item->printer_name }}
+                                {{ $calculation['technology'] ?? $item->technology }} &middot;
+                                {{ $calculation['material_source'] ?? $item->material }} &middot;
+                                {{ $calculation['quantity'] ?? $item->quantity }} unit &middot; {{ $item->printer_name }}
                             </p>
                         </div>
 
                         <div class="text-right">
                             <p class="text-[0.6rem] font-semibold uppercase tracking-[0.12em] text-ink-400">Harga Penawaran</p>
-                            <p class="font-display text-base font-bold text-brand-700">{{ $rupiah($calculation['selling_price']) }}</p>
+                            <p class="font-display text-base font-bold {{ $item->awaitsPricing() ? 'text-amber-700' : 'text-brand-700' }}">
+                                {{ $item->awaitsPricing() ? 'Menunggu Perhitungan' : $rupiah($calculation['selling_price']) }}
+                            </p>
                             <p class="mt-0.5 text-[0.65rem] font-semibold text-ink-400">
                                 Lihat Detail Perhitungan
                                 <span class="inline-block transition-transform group-open:rotate-180">&#9660;</span>
@@ -86,10 +93,23 @@
                             @endforeach
                         </dl>
 
+                        @if (empty($entry['rows']))
+                            {{-- SLA Industries: harganya satu angka dari kuotasi
+                                 vendor, tanpa komponen material/mesin/risk. Yang
+                                 merincinya adalah Form Perhitungan pada kartu
+                                 modelnya, bukan tabel ini. --}}
+                            <p class="border-t border-ink-100 bg-white px-5 py-4 text-xs leading-relaxed text-ink-500">
+                                Harga model {{ $calculation['technology'] }} ini ditetapkan tim dari kuotasi vendor, bukan dihitung dari
+                                material dan waktu mesin. Rincian lengkapnya
+                                (Harga JLC, ongkir, DHL Beacukai, HPP, dan margin) ada pada
+                                <a href="#model-{{ $item->id }}" class="font-semibold text-brand-600 hover:text-brand-800">Form Perhitungan {{ $calculation['technology'] }}</a>
+                                di kartu model ini.
+                            </p>
+                        @else
                         <div class="overflow-x-auto border-t border-ink-100 bg-white">
                             <table class="w-full min-w-[520px] text-left text-sm">
                                 <caption class="px-5 pt-4 text-left text-[0.6rem] font-bold uppercase tracking-[0.12em] text-ink-500">
-                                    Detail Harga — {{ $item->file_name }}
+                                    Detail Harga: {{ $item->file_name }}
                                 </caption>
                                 <thead>
                                     <tr class="border-b border-ink-100 text-[0.6rem] uppercase tracking-[0.14em] text-ink-400">
@@ -109,6 +129,7 @@
                                 </tbody>
                             </table>
                         </div>
+                        @endif
 
                         @if ($calculation['formula_missing'] ?? false)
                             <p class="border-t border-ink-100 bg-white px-5 py-3 text-[0.65rem] font-semibold text-amber-700">
@@ -148,7 +169,9 @@
             <div class="flex flex-wrap items-end justify-between gap-4">
                 <div>
                     <p class="text-[0.6rem] font-semibold uppercase tracking-[0.12em] text-brand-700/70">Total Penawaran</p>
-                    <p class="mt-1 font-display text-2xl font-bold text-brand-700">{{ $rupiah($sellingPrice['selling_price']) }}</p>
+                    <p class="mt-1 font-display text-2xl font-bold {{ $awaitsPricing ? 'text-amber-700' : 'text-brand-700' }}">
+                        {{ $awaitsPricing ? 'Menunggu Perhitungan' : $rupiah($sellingPrice['selling_price']) }}
+                    </p>
                     <p class="mt-1 text-[0.65rem] text-ink-500">
                         Penjumlahan Harga Jual {{ $models->count() }} model &middot; {{ $sellingPrice['totals']['quantity'] }} unit
                     </p>
@@ -156,8 +179,16 @@
 
                 <div class="text-right">
                     <p class="text-[0.6rem] font-semibold uppercase tracking-[0.12em] text-ink-400">Tercatat pada Penawaran</p>
-                    <p class="mt-1 font-display text-lg font-bold text-ink-900">{{ $rupiah($sellingPrice['quotation_total']) }}</p>
-                    @if (abs($sellingPrice['difference']) < 0.01)
+                    <p class="mt-1 font-display text-lg font-bold text-ink-900">
+                        {{ $awaitsPricing ? 'Belum ada' : $rupiah($sellingPrice['quotation_total']) }}
+                    </p>
+                    @if ($awaitsPricing)
+                        {{-- Tidak ada yang dapat dibandingkan: harga penawarannya
+                             memang belum ditetapkan, bukan berbeda. --}}
+                        <p class="mt-1 text-[0.65rem] font-semibold text-amber-700">
+                            Menunggu Form Perhitungan Kalkulator Manual diisi.
+                        </p>
+                    @elseif (abs($sellingPrice['difference']) < 0.01)
                         <p class="mt-1 text-[0.65rem] font-semibold text-emerald-700">&check; Cocok dengan rincian di atas</p>
                     @else
                         <p class="mt-1 text-[0.65rem] font-semibold text-amber-700">
@@ -170,7 +201,7 @@
             <p class="mt-4 border-t border-brand-200/70 pt-3 text-[0.65rem] leading-relaxed text-ink-500">
                 Harga ditetapkan saat pelanggan mengirim permintaan dan perhitungannya ikut tersimpan, jadi membuka halaman ini
                 tidak menghitung ulang apa pun. Parameter yang dipakai dikelola di
-                <a href="{{ route('superadmin.price-list.index', ['tab' => 'harga']) }}" class="font-semibold text-brand-600 underline">Price List</a>;
+                <a href="{{ route('superadmin.price-list.harga') }}" class="font-semibold text-brand-600 underline">Price List</a>;
                 mengubahnya hanya memengaruhi penawaran berikutnya.
             </p>
         </div>

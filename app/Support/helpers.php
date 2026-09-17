@@ -46,3 +46,27 @@ if (! function_exists('staff_route')) {
         return route(staff_route_name($name), $parameters, $absolute);
     }
 }
+
+if (! function_exists('harga_penawaran')) {
+    /**
+     * Harga penawaran siap tampil, termasuk saat harganya memang belum ada.
+     *
+     * Model dengan Kalkulator Manual (SLA/MJF/SLM) baru berharga setelah tim
+     * mengisi Form Perhitungan (lihat App\Support\PricingMethod), dan sampai saat itu
+     * `display_price` bernilai null. Menuliskannya sebagai "Rp0" akan terbaca
+     * sebagai gratis, jadi yang keluar keterangan bahwa harganya sedang
+     * dihitung.
+     *
+     * Dipakai di SELURUH tampilan harga penawaran — dashboard pelanggan,
+     * tracking, dokumen PDF, dan daftar admin — supaya keterangannya persis
+     * sama di mana pun, bukan versi yang perlahan berbeda karena disalin.
+     */
+    function harga_penawaran(mixed $value, string $pending = 'Harga sedang dihitung oleh tim kami'): string
+    {
+        if ($value === null) {
+            return $pending;
+        }
+
+        return 'Rp'.number_format((float) $value, 0, ',', '.');
+    }
+}

@@ -51,7 +51,27 @@ class UserFactory extends Factory
     {
         return $this->state(fn (array $attributes) => [
             'role' => User::ROLE_ADMIN,
-        ]);
+        ])->afterCreating(function (User $user) {
+            // Admin buatan factory diberi seluruh hak akses, setara Admin yang
+            // sudah ada sebelum fitur hak akses dipasang. Pakai
+            // withPermissions() untuk kombinasi tertentu.
+            $user->permissions()->sync(\App\Models\Permission::syncDefinitions()->pluck('id'));
+        });
+    }
+
+    /**
+     * Admin dengan hak akses tertentu saja.
+     *
+     * @param  array<int, string>  $keys  kunci App\Support\AdminPermission
+     */
+    public function withPermissions(array $keys): static
+    {
+        return $this->admin()->afterCreating(function (User $user) use ($keys) {
+            $user->permissions()->sync(
+                \App\Models\Permission::syncDefinitions()->toBase()->only($keys)->pluck('id')
+            );
+            $user->unsetRelation('permissions');
+        });
     }
 
     /**

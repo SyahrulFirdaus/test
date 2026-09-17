@@ -72,18 +72,18 @@ class PrintTechnologyCrudTest extends TestCase
 
         $this->actingAs($superAdmin)
             ->post(route('superadmin.price-list.technologies.store'), $this->payload())
-            ->assertRedirect(route('superadmin.price-list.index', ['tab' => 'dlp']));
+            ->assertRedirect(route('superadmin.price-list.technology', ['slug' => 'dlp']));
 
         $technology = PrintTechnology::where('code', 'DLP')->sole();
         $this->assertTrue($technology->allows_hollow);
 
         $this->actingAs($superAdmin)
-            ->get(route('superadmin.price-list.index'))
+            ->get(route('superadmin.price-list.technology', ['slug' => 'dlp']))
             ->assertOk()
-            // Tabnya muncul beserta panel materialnya.
-            ->assertSee('data-price-list-tab="dlp"', false)
-            ->assertSee('data-price-list-panel="dlp"', false)
-            ->assertSee('Material DLP');
+            // Halaman materialnya sendiri, dan menunya ikut muncul di sidebar.
+            ->assertSee('data-price-list-link="dlp"', false)
+            ->assertSee('Material DLP')
+            ->assertDontSee('Material FDM');
     }
 
     public function test_teknologi_baru_langsung_muncul_di_edit_specification(): void
@@ -103,16 +103,14 @@ class PrintTechnologyCrudTest extends TestCase
         $this->assertContains('DLP', PrintTechnology::codes());
     }
 
-    public function test_teknologi_baru_langsung_punya_baris_pada_tab_harga(): void
+    /** Seluruh teknologi memakai satu Rumus Harga Otomatis; tidak ada baris rumus per teknologi. */
+    public function test_teknologi_baru_memakai_rumus_harga_otomatis_umum(): void
     {
         $this->actingAs($this->superAdmin())
             ->post(route('superadmin.price-list.technologies.store'), $this->payload());
 
-        $formula = PricingFormula::where('technology', 'DLP')->sole();
-
-        // Machine Cost-nya mengikuti tarif mesin teknologinya sendiri.
-        $this->assertSame(28000.0, (float) $formula->machine_cost);
-        $this->assertContains('DLP', PricingFormula::technologies());
+        $this->assertFalse(PricingFormula::where('technology', 'DLP')->exists());
+        $this->assertSame(PricingFormula::GENERAL, \App\Services\SellingPriceEstimator::formulaCode('DLP'));
     }
 
     public function test_kode_wajib_unik_dan_tanpa_spasi(): void
@@ -151,7 +149,7 @@ class PrintTechnologyCrudTest extends TestCase
                 'build_volume_z' => 400,
                 'allows_hollow' => '0',
             ]))
-            ->assertRedirect(route('superadmin.price-list.index', ['tab' => 'fdm']));
+            ->assertRedirect(route('superadmin.price-list.technology', ['slug' => 'fdm']));
 
         $payload = app(PrintEstimator::class)->browserPayload();
 
@@ -197,7 +195,7 @@ class PrintTechnologyCrudTest extends TestCase
 
         $this->actingAs($superAdmin)
             ->delete(route('superadmin.price-list.technologies.destroy', $technology))
-            ->assertRedirect(route('superadmin.price-list.index', ['tab' => 'teknologi']));
+            ->assertRedirect(route('superadmin.price-list.technologies.index'));
 
         $this->assertDatabaseMissing('print_technologies', ['code' => 'DLP']);
         $this->assertDatabaseMissing('print_materials', ['id' => $materialId]);
@@ -233,7 +231,7 @@ class PrintTechnologyCrudTest extends TestCase
                 'purchase_price' => 400000,
                 'sale_price' => 1600,
             ])
-            ->assertRedirect(route('superadmin.price-list.index', ['tab' => 'dlp']));
+            ->assertRedirect(route('superadmin.price-list.technology', ['slug' => 'dlp']));
 
         $payload = app(PrintEstimator::class)->browserPayload();
 

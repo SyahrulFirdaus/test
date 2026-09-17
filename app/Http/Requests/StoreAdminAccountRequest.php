@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests;
 
+use App\Support\AdminPermission;
 use App\Support\PasswordPolicy;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -17,8 +18,10 @@ class StoreAdminAccountRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        // Route-nya sudah dijaga middleware `superadmin`.
-        return true;
+        // Route-nya sudah dijaga middleware `superadmin`; diperiksa lagi di sini
+        // supaya pengelolaan akun dan hak akses Admin tidak pernah terbuka bagi
+        // Admin biasa meski route-nya kelak dipindah.
+        return (bool) $this->user()?->isSuperAdmin();
     }
 
     /** @return array<string, mixed> */
@@ -29,6 +32,10 @@ class StoreAdminAccountRequest extends FormRequest
             'email' => ['required', 'string', 'email', 'max:190', Rule::unique('users', 'email')],
             'password' => ['required', 'confirmed', ...PasswordPolicy::rules()],
             'is_active' => ['nullable', 'boolean'],
+
+            // Hak akses `<modul>.<aksi>` yang menyala. Yang mati tidak terkirim.
+            'permissions' => ['nullable', 'array'],
+            'permissions.*' => ['string', 'distinct', Rule::in(AdminPermission::keys())],
         ];
     }
 
@@ -50,6 +57,7 @@ class StoreAdminAccountRequest extends FormRequest
             'email.email' => 'Format email belum benar.',
             'email.unique' => 'Email tersebut sudah dipakai akun lain.',
             ...PasswordPolicy::messages('password'),
+            'permissions.*.in' => 'Hak akses yang dipilih tidak dikenal.',
         ];
     }
 }

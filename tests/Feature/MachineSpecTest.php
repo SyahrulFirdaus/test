@@ -93,7 +93,7 @@ class MachineSpecTest extends TestCase
         $machine = $this->mesin(['width_mm' => 389]);
 
         $html = $this->actingAs($this->superAdmin)
-            ->get(route('superadmin.price-list.index', ['tab' => 'machine-cost']))
+            ->get(route('superadmin.price-list.machine-cost.index'))
             ->assertOk()
             ->getContent();
 
@@ -120,7 +120,7 @@ class MachineSpecTest extends TestCase
         ]);
 
         $response = $this->actingAs($this->superAdmin)
-            ->get(route('superadmin.price-list.index', ['tab' => 'machine-cost']))
+            ->get(route('superadmin.price-list.machine-cost.index'))
             ->assertOk();
 
         foreach (['Bagian', 'Ukuran', 'Lebar (W)', 'Kedalaman (D)', 'Tinggi (H)', 'Berat', 'Volume cetak'] as $label) {
@@ -139,7 +139,7 @@ class MachineSpecTest extends TestCase
         $machine = $this->mesin();
 
         $this->actingAs($this->superAdmin)
-            ->get(route('superadmin.price-list.index', ['tab' => 'machine-cost']))
+            ->get(route('superadmin.price-list.machine-cost.index'))
             ->assertOk()
             ->assertSee('Detail mesin belum diisi.')
             ->assertSee(route('superadmin.price-list.machine-cost.edit', $machine), false);
@@ -153,7 +153,7 @@ class MachineSpecTest extends TestCase
         $this->mesin(['mesin' => 'Mesin SLA Satu', 'technology' => 'SLA']);
 
         $html = $this->actingAs($this->superAdmin)
-            ->get(route('superadmin.price-list.index', ['tab' => 'machine-cost']))
+            ->get(route('superadmin.price-list.machine-cost.index'))
             ->assertOk()
             ->getContent();
 
@@ -175,7 +175,7 @@ class MachineSpecTest extends TestCase
         $this->mesin(['mesin' => 'Mesin Yatim']);
 
         $html = $this->actingAs($this->superAdmin)
-            ->get(route('superadmin.price-list.index', ['tab' => 'machine-cost']))
+            ->get(route('superadmin.price-list.machine-cost.index'))
             ->assertOk()
             ->getContent();
 
@@ -208,7 +208,7 @@ class MachineSpecTest extends TestCase
                 'build_volume_z' => 256,
             ])
             ->assertSessionHasNoErrors()
-            ->assertRedirect(route('superadmin.price-list.index'));
+            ->assertRedirect(route('superadmin.price-list.machine-cost.index'));
 
         $machine = MachineCost::where('mesin', 'Bambu Lab X1 Carbon')->sole();
 
@@ -253,7 +253,7 @@ class MachineSpecTest extends TestCase
     private function detailPanel(MachineCost $machine): string
     {
         $html = $this->actingAs($this->superAdmin)
-            ->get(route('superadmin.price-list.index', ['tab' => 'machine-cost']))
+            ->get(route('superadmin.price-list.machine-cost.index'))
             ->assertOk()
             ->getContent();
 
@@ -357,7 +357,7 @@ class MachineSpecTest extends TestCase
         $machine = $this->mesin(['watt_kwh' => 0.35, 'harga_listrik' => 1700, 'depresiasi' => 5300]);
 
         $response = $this->actingAs($this->superAdmin)
-            ->get(route('superadmin.price-list.index', ['tab' => 'machine-cost']))
+            ->get(route('superadmin.price-list.machine-cost.index'))
             ->assertOk();
 
         foreach (['Watt (KWH)', 'Harga Listrik', 'Depresiasi', 'Listrik/Hour', 'Machine Cost', 'Pembulatan'] as $kolom) {
@@ -376,7 +376,7 @@ class MachineSpecTest extends TestCase
         $this->mesin(['mesin' => 'Elegoo Saturn 4', 'technology' => 'SLA']);
 
         $this->actingAs($this->superAdmin)
-            ->get(route('superadmin.price-list.index', ['tab' => 'machine-cost', 'machine_q' => 'Bambu']))
+            ->get(route('superadmin.price-list.machine-cost.index', ['machine_q' => 'Bambu']))
             ->assertOk()
             ->assertSee('Bambu Lab P1S')
             ->assertDontSee('Elegoo Saturn 4');

@@ -166,7 +166,9 @@ class ActivityLog extends Model
 
             return [
                 'key' => $key,
-                'label' => Str::title(str_replace('_', ' ', $key)),
+                // Kunci hak akses Admin (`quotation.view`) ditampilkan apa
+                // adanya: itulah nama yang dipakai sistem.
+                'label' => str_contains($key, '.') ? $key : Str::title(str_replace('_', ' ', $key)),
                 'old' => $before,
                 'new' => $after,
                 // Hanya ditandai berubah bila keduanya memang ada dan berbeda,

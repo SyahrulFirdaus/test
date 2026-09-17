@@ -10,19 +10,20 @@ use App\Support\ActivityAction;
 use Illuminate\Http\RedirectResponse;
 
 /**
- * Parameter rumus Harga Jual per teknologi, tab "Harga" pada Price List.
+ * Rumus Harga Otomatis pada Price List — satu rumus untuk seluruh teknologi.
  *
- * Hanya empat baris tetap (FDM/SLA/MJF/SLM, dibuat lewat migrasi) — tidak ada
- * tambah/hapus, admin hanya mengubah parameternya. Murni referensi/simulasi:
- * TIDAK menyentuh PrintEstimator, Calculator, atau Quotation manapun.
+ * Tidak ada tambah/hapus; admin hanya mengubah parameternya. Nilainya dipakai
+ * Kalkulator Otomatis (App\Services\SellingPriceEstimator) untuk penawaran
+ * berikutnya; penawaran lama tetap memakai rincian yang sudah tersimpan.
  */
 class PricingFormulaController extends Controller
 {
     public function __construct(private readonly ActivityLogger $activity) {}
 
-    public function update(UpdatePricingFormulaRequest $request, string $technology): RedirectResponse
+    /** Simpan Rumus Harga Otomatis yang berlaku umum untuk seluruh teknologi. */
+    public function update(UpdatePricingFormulaRequest $request): RedirectResponse
     {
-        $formula = PricingFormula::where('technology', $technology)->firstOrFail();
+        $formula = PricingFormula::general();
 
         $before = $this->snapshot($formula);
 
@@ -32,14 +33,14 @@ class PricingFormulaController extends Controller
             action: ActivityAction::PRICE_LIST_UPDATE,
             before: $before,
             after: $this->snapshot($formula->refresh()),
-            description: 'Memperbarui rumus Harga Jual '.$technology.' pada Price List.',
+            description: 'Memperbarui Rumus Harga Otomatis pada Price List.',
             subject: $formula,
-            subjectLabel: 'Rumus Harga '.$technology,
+            subjectLabel: 'Rumus Harga Otomatis',
         );
 
         return redirect()
-            ->route('superadmin.price-list.index', ['tab' => 'harga', 'formula' => $technology])
-            ->with('status', 'Rumus Harga '.$technology.' berhasil diperbarui.');
+            ->route('superadmin.price-list.harga')
+            ->with('status', 'Rumus Harga Otomatis berhasil diperbarui.');
     }
 
     /** @return array<string, mixed> */

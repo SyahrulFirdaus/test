@@ -5,7 +5,9 @@ use App\Http\Controllers\Admin;
 use App\Http\Controllers\Auth;
 use App\Http\Controllers\Dashboard;
 use App\Http\Controllers\HomeController;
+use App\Http\Controllers\LegacyPathRedirectController;
 use App\Http\Controllers\ModelCheckController;
+use App\Support\AdminPermission;
 use App\Http\Controllers\QuotationRequestController;
 use App\Http\Controllers\QuotationTrackingController;
 use App\Http\Controllers\RegionController;
@@ -264,37 +266,107 @@ Route::middleware(['auth', 'customer'])->prefix('dashboard')->group(function () 
 | lihat app/Support/helpers.php.
 */
 $staffRoutes = function () {
-    Route::get('permintaan', [Admin\QuotationRequestController::class, 'index'])->name('quotations.index');
-    Route::get('permintaan/{quotation}', [Admin\QuotationRequestController::class, 'show'])->name('quotations.show');
-    Route::patch('permintaan/{quotation}', [Admin\QuotationRequestController::class, 'update'])->name('quotations.update');
-    Route::get('permintaan/{quotation}/unduh', [Admin\QuotationRequestController::class, 'download'])->name('quotations.download');
-    Route::delete('permintaan/{quotation}', [Admin\QuotationRequestController::class, 'destroy'])->name('quotations.destroy');
+    /*
+    | Setiap menu staf dijaga hak aksesnya sendiri (`admin.permission`), yang
+    | diatur Superadmin per akun Admin. Superadmin selalu lolos. Lihat
+    | App\Support\AdminPermission.
+    */
+    /*
+    | Menu staf dikelompokkan di sidebar — Akun, Penawaran, Pembayaran — dan
+    | alamatnya mengikuti kelompok itu. Alamat lama diteruskan ke alamat baru
+    | (lihat LegacyPathRedirectController) karena notifikasi yang sudah
+    | tersimpan dan bookmark masih menunjuknya. Hanya GET: formulir selalu
+    | dibangun dari nama route, jadi sudah memakai alamat baru.
+    */
+    foreach ([
+        'permintaan' => 'penawaran/penawaran',
+        'verifikasi-pembayaran' => 'pembayaran/verifikasi',
+        'payment-terms' => 'pembayaran/payment-term',
+        'notifikasi' => 'penawaran/notifikasi',
+        'profil' => 'akun/profil',
+        'ganti-password' => 'akun/ganti-password',
+    ] as $from => $to) {
+        Route::get($from.'/{legacyPath?}', LegacyPathRedirectController::class)
+            ->where('legacyPath', '.*')
+            ->defaults('from', $from)
+            ->defaults('to', $to);
+    }
 
-    // Keputusan atas permintaan pembatalan yang diajukan pelanggan.
-    Route::post('permintaan/{quotation}/pembatalan/setujui', [Admin\QuotationRequestController::class, 'approveCancellation'])->name('quotations.cancellation.approve');
-    Route::post('permintaan/{quotation}/pembatalan/tolak', [Admin\QuotationRequestController::class, 'rejectCancellation'])->name('quotations.cancellation.reject');
+    /*
+    | Hak akses Admin berbentuk `<modul>.<aksi>` (App\Support\AdminPermission).
+    | Setiap grup menu dijaga hak MELIHAT-nya (`*.view`); setiap route yang
+    | mengubah data dijaga lagi oleh hak TINDAKAN-nya sendiri, sehingga Admin
+    | yang hanya boleh melihat tetap ditolak (403) bila memanggil endpoint
+    | edit/hapus secara manual. Superadmin selalu lolos.
+    */
+    $can = fn (string $permission) => 'admin.permission:'.$permission;
 
-    // Satu penawaran dapat berisi beberapa model; tiap model punya berkas,
-    // estimasi, dan catatannya sendiri.
-    Route::get('permintaan/{quotation}/model/{item}/unduh', [Admin\QuotationRequestController::class, 'downloadItem'])
-        ->scopeBindings()
-        ->name('quotations.items.download');
-    Route::patch('permintaan/{quotation}/model/{item}', [Admin\QuotationRequestController::class, 'updateItem'])
-        ->scopeBindings()
-        ->name('quotations.items.update');
+    // Penawaran.
+    Route::middleware($can(AdminPermission::QUOTATION_VIEW))->group(function () use ($can) {
+        Route::get('penawaran/penawaran', [Admin\QuotationRequestController::class, 'index'])->name('quotations.index');
+        Route::get('penawaran/penawaran/{quotation}', [Admin\QuotationRequestController::class, 'show'])->name('quotations.show');
+        Route::get('penawaran/penawaran/{quotation}/unduh', [Admin\QuotationRequestController::class, 'download'])->name('quotations.download');
+
+        // Tindak lanjut status (beserta estimasi, catatan, dan foto prosesnya).
+        Route::patch('penawaran/penawaran/{quotation}', [Admin\QuotationRequestController::class, 'update'])
+            ->middleware($can(AdminPermission::QUOTATION_UPDATE_STATUS))
+            ->name('quotations.update');
+        Route::delete('penawaran/penawaran/{quotation}', [Admin\QuotationRequestController::class, 'destroy'])
+            ->middleware($can(AdminPermission::QUOTATION_DELETE))
+            ->name('quotations.destroy');
+
+        // Keputusan atas permintaan pembatalan yang diajukan pelanggan — ikut
+        // mengubah status penawaran.
+        Route::post('penawaran/penawaran/{quotation}/pembatalan/setujui', [Admin\QuotationRequestController::class, 'approveCancellation'])
+            ->middleware($can(AdminPermission::QUOTATION_UPDATE_STATUS))
+            ->name('quotations.cancellation.approve');
+        Route::post('penawaran/penawaran/{quotation}/pembatalan/tolak', [Admin\QuotationRequestController::class, 'rejectCancellation'])
+            ->middleware($can(AdminPermission::QUOTATION_UPDATE_STATUS))
+            ->name('quotations.cancellation.reject');
+
+        // Satu penawaran dapat berisi beberapa model; tiap model punya berkas,
+        // estimasi, dan catatannya sendiri.
+        Route::get('penawaran/penawaran/{quotation}/model/{item}/unduh', [Admin\QuotationRequestController::class, 'downloadItem'])
+            ->scopeBindings()
+            ->name('quotations.items.download');
+        Route::patch('penawaran/penawaran/{quotation}/model/{item}', [Admin\QuotationRequestController::class, 'updateItem'])
+            ->scopeBindings()
+            ->middleware($can(AdminPermission::QUOTATION_EDIT))
+            ->name('quotations.items.update');
+
+        /*
+        | Kurs USD/IDR untuk Form Perhitungan SLA Industries. Dibaca formulirnya
+        | saat dibuka, pada tiap penyegaran berkala, dan oleh tombol "Coba Lagi".
+        | Hanya dipakai formulir penetapan harga, jadi mengikuti hak Edit.
+        */
+        Route::get('kurs-usd', [Admin\ExchangeRateController::class, 'usd'])
+            ->middleware($can(AdminPermission::QUOTATION_EDIT))
+            ->name('exchange-rate.usd');
+
+        // Form Perhitungan SLA Industries satu model: kuotasi JLC yang menetapkan
+        // harganya. Hanya berlaku bagi model berteknologi SLA Industries;
+        // controllernya menolak sisanya.
+        Route::patch('penawaran/penawaran/{quotation}/model/{item}/sla-industries', [Admin\QuotationRequestController::class, 'updateSlaIndustriesQuote'])
+            ->scopeBindings()
+            ->middleware($can(AdminPermission::QUOTATION_EDIT))
+            ->name('quotations.items.sla-industries');
+    });
 
     // Verifikasi Pembayaran: bukti transfer yang masuk beserta keputusan
     // terima atau tolak.
-    Route::get('verifikasi-pembayaran', [Admin\PaymentController::class, 'index'])->name('payments.index');
-    Route::get('verifikasi-pembayaran/{quotation}/bukti', [Admin\PaymentController::class, 'proof'])->name('payments.proof');
-    Route::post('verifikasi-pembayaran/{quotation}/terima', [Admin\PaymentController::class, 'approve'])->name('payments.approve');
-    Route::post('verifikasi-pembayaran/{quotation}/tolak', [Admin\PaymentController::class, 'reject'])->name('payments.reject');
+    Route::middleware($can(AdminPermission::PAYMENT_VIEW))->group(function () use ($can) {
+        Route::get('pembayaran/verifikasi', [Admin\PaymentController::class, 'index'])->name('payments.index');
+        Route::get('pembayaran/verifikasi/{quotation}/bukti', [Admin\PaymentController::class, 'proof'])->name('payments.proof');
+        Route::get('pembayaran/verifikasi/termin/{installment}/bukti/{proof}', [Admin\PaymentController::class, 'installmentProof'])->name('payments.installments.proof');
 
-    // Verifikasi bukti pembayaran per termin, satu antrean dengan menu di
-    // atas namun pada tab tersendiri.
-    Route::get('verifikasi-pembayaran/termin/{installment}/bukti/{proof}', [Admin\PaymentController::class, 'installmentProof'])->name('payments.installments.proof');
-    Route::post('verifikasi-pembayaran/termin/{installment}/terima', [Admin\PaymentController::class, 'approveInstallment'])->name('payments.installments.approve');
-    Route::post('verifikasi-pembayaran/termin/{installment}/tolak', [Admin\PaymentController::class, 'rejectInstallment'])->name('payments.installments.reject');
+        // Keputusan pembayaran penuh maupun per termin.
+        Route::middleware($can(AdminPermission::PAYMENT_VERIFY))->group(function () {
+            Route::post('pembayaran/verifikasi/{quotation}/terima', [Admin\PaymentController::class, 'approve'])->name('payments.approve');
+            Route::post('pembayaran/verifikasi/{quotation}/tolak', [Admin\PaymentController::class, 'reject'])->name('payments.reject');
+            Route::post('pembayaran/verifikasi/termin/{installment}/terima', [Admin\PaymentController::class, 'approveInstallment'])->name('payments.installments.approve');
+            Route::post('pembayaran/verifikasi/termin/{installment}/tolak', [Admin\PaymentController::class, 'rejectInstallment'])->name('payments.installments.reject');
+        });
+    });
 
     /*
     | Payment Terms: seluruh penawaran Business yang memakai pembayaran
@@ -303,26 +375,53 @@ $staffRoutes = function () {
     | Route pengaturan didaftarkan sebelum route berparameter agar
     | "pengaturan" tidak tertangkap sebagai id payment term.
     */
-    Route::get('payment-terms', [Admin\PaymentTermController::class, 'index'])->name('payment-terms.index');
-    Route::get('payment-terms/pengaturan', [Admin\PaymentTermSettingController::class, 'edit'])->name('payment-terms.settings.edit');
-    Route::patch('payment-terms/pengaturan', [Admin\PaymentTermSettingController::class, 'update'])->name('payment-terms.settings.update');
+    Route::middleware($can(AdminPermission::PAYMENT_TERM_VIEW))->group(function () use ($can) {
+        Route::get('pembayaran/payment-term', [Admin\PaymentTermController::class, 'index'])->name('payment-terms.index');
+        Route::get('pembayaran/payment-term/pengaturan', [Admin\PaymentTermSettingController::class, 'edit'])
+            ->middleware($can(AdminPermission::PAYMENT_TERM_EDIT))
+            ->name('payment-terms.settings.edit');
+        Route::patch('pembayaran/payment-term/pengaturan', [Admin\PaymentTermSettingController::class, 'update'])
+            ->middleware($can(AdminPermission::PAYMENT_TERM_EDIT))
+            ->name('payment-terms.settings.update');
 
-    Route::get('payment-terms/{term}', [Admin\PaymentTermController::class, 'show'])->name('payment-terms.show');
-    Route::post('payment-terms/{term}/setujui', [Admin\PaymentTermController::class, 'approve'])->name('payment-terms.approve');
-    Route::post('payment-terms/{term}/tolak', [Admin\PaymentTermController::class, 'reject'])->name('payment-terms.reject');
-    Route::patch('payment-terms/{term}/jadwal', [Admin\PaymentTermController::class, 'updateSchedule'])->name('payment-terms.schedule');
-    Route::post('payment-terms/{term}/termin/{installment}/aktifkan', [Admin\PaymentTermController::class, 'activate'])->name('payment-terms.installments.activate');
+        Route::get('pembayaran/payment-term/{term}', [Admin\PaymentTermController::class, 'show'])->name('payment-terms.show');
 
-    Route::get('notifikasi', [Admin\NotificationController::class, 'index'])->name('notifications.index');
-    Route::get('notifikasi/terbaru', [Admin\NotificationController::class, 'latest'])->name('notifications.latest');
-    Route::post('notifikasi/baca-semua', [Admin\NotificationController::class, 'readAll'])->name('notifications.read-all');
-    Route::post('notifikasi/{notification}/baca', [Admin\NotificationController::class, 'read'])->name('notifications.read');
+        Route::middleware($can(AdminPermission::PAYMENT_TERM_EDIT))->group(function () {
+            Route::post('pembayaran/payment-term/{term}/setujui', [Admin\PaymentTermController::class, 'approve'])->name('payment-terms.approve');
+            Route::post('pembayaran/payment-term/{term}/tolak', [Admin\PaymentTermController::class, 'reject'])->name('payment-terms.reject');
+            Route::patch('pembayaran/payment-term/{term}/jadwal', [Admin\PaymentTermController::class, 'updateSchedule'])->name('payment-terms.schedule');
+            Route::post('pembayaran/payment-term/{term}/termin/{installment}/aktifkan', [Admin\PaymentTermController::class, 'activate'])->name('payment-terms.installments.activate');
+        });
+    });
 
-    Route::get('profil', [Admin\ProfileController::class, 'edit'])->name('profile.edit');
-    Route::patch('profil', [Admin\ProfileController::class, 'update'])->name('profile.update');
+    // Notifikasi (juga lonceng di header).
+    Route::middleware($can(AdminPermission::NOTIFICATION_VIEW))->group(function () {
+        Route::get('penawaran/notifikasi', [Admin\NotificationController::class, 'index'])->name('notifications.index');
+        Route::get('penawaran/notifikasi/terbaru', [Admin\NotificationController::class, 'latest'])->name('notifications.latest');
+        Route::post('penawaran/notifikasi/baca-semua', [Admin\NotificationController::class, 'readAll'])->name('notifications.read-all');
+        Route::post('penawaran/notifikasi/{notification}/baca', [Admin\NotificationController::class, 'read'])->name('notifications.read');
+    });
 
-    Route::get('ganti-password', [Auth\PasswordController::class, 'edit'])->name('password.edit');
-    Route::put('ganti-password', [Auth\PasswordController::class, 'update'])->name('password.update');
+    /*
+    | User: daftar pelanggan dan detailnya, hanya membaca. Sebelumnya khusus
+    | Superadmin; kini juga dapat dibuka Admin yang diberi hak `user.view`.
+    */
+    Route::middleware($can(AdminPermission::USER_VIEW))->group(function () {
+        Route::get('akun/user', [SuperAdmin\UserController::class, 'index'])->name('users.index');
+        Route::get('akun/user/{user}', [SuperAdmin\UserController::class, 'show'])->name('users.show');
+    });
+
+    // Profil.
+    Route::middleware($can(AdminPermission::PROFILE_EDIT))->group(function () {
+        Route::get('akun/profil', [Admin\ProfileController::class, 'edit'])->name('profile.edit');
+        Route::patch('akun/profil', [Admin\ProfileController::class, 'update'])->name('profile.update');
+    });
+
+    // Ganti Password.
+    Route::middleware($can(AdminPermission::PROFILE_SECURITY))->group(function () {
+        Route::get('akun/ganti-password', [Auth\PasswordController::class, 'edit'])->name('password.edit');
+        Route::put('akun/ganti-password', [Auth\PasswordController::class, 'update'])->name('password.update');
+    });
 };
 
 Route::prefix('admin')->name('admin.')->group(function () use ($staffRoutes) {
@@ -357,6 +456,10 @@ Route::prefix('admin')->name('admin.')->group(function () use ($staffRoutes) {
 | disembunyikan dari sidebar.
 */
 
+// Halaman masuk Superadmin — formulir yang sama dengan /admin/login. Sengaja
+// di luar grup berikutnya, yang mewajibkan sudah masuk.
+Route::get('superadmin/login', [Admin\LoginController::class, 'create'])->name('superadmin.login');
+
 Route::prefix('superadmin')->name('superadmin.')->middleware(['auth', 'superadmin'])->group(function () use ($staffRoutes) {
     // Alamat sendiri untuk seluruh menu operasional, isinya sama persis
     // dengan milik Admin.
@@ -364,22 +467,42 @@ Route::prefix('superadmin')->name('superadmin.')->middleware(['auth', 'superadmi
 
     Route::get("/", [SuperAdmin\DashboardController::class, "index"])->name("dashboard");
 
+    // Alamat lama menu Akun milik Superadmin, diteruskan ke alamat barunya.
+    foreach (['akun-admin' => 'akun/admin', 'pengguna' => 'akun/user', 'activity-logs' => 'akun/activity-log'] as $from => $to) {
+        Route::get($from.'/{legacyPath?}', LegacyPathRedirectController::class)
+            ->where('legacyPath', '.*')
+            ->defaults('from', $from)
+            ->defaults('to', $to);
+    }
+
     /*
     | Akun Admin: satu-satunya tempat akun pengelola dibuat, disunting, dan
     | dinonaktifkan. Akun Superadmin sendiri tidak dapat disentuh dari sini.
     */
-    Route::get("akun-admin", [SuperAdmin\AdminAccountController::class, "index"])->name("admins.index");
-    Route::get("akun-admin/tambah", [SuperAdmin\AdminAccountController::class, "create"])->name("admins.create");
-    Route::post("akun-admin", [SuperAdmin\AdminAccountController::class, "store"])->name("admins.store");
-    Route::get("akun-admin/{admin}/edit", [SuperAdmin\AdminAccountController::class, "edit"])->name("admins.edit");
-    Route::patch("akun-admin/{admin}", [SuperAdmin\AdminAccountController::class, "update"])->name("admins.update");
-    Route::delete("akun-admin/{admin}", [SuperAdmin\AdminAccountController::class, "destroy"])->name("admins.destroy");
+    Route::get("akun/admin", [SuperAdmin\AdminAccountController::class, "index"])->name("admins.index");
+    Route::get("akun/admin/tambah", [SuperAdmin\AdminAccountController::class, "create"])->name("admins.create");
+    Route::post("akun/admin", [SuperAdmin\AdminAccountController::class, "store"])->name("admins.store");
+    Route::get("akun/admin/{admin}/edit", [SuperAdmin\AdminAccountController::class, "edit"])->name("admins.edit");
+    Route::patch("akun/admin/{admin}", [SuperAdmin\AdminAccountController::class, "update"])->name("admins.update");
+    Route::delete("akun/admin/{admin}", [SuperAdmin\AdminAccountController::class, "destroy"])->name("admins.destroy");
     /*
-    | Price List: harga material FDM/SLA, packaging, dan mesin — sumber
-    | data Calculator/Quotation. Empat tabel dikelola terpisah lewat
-    | controller masing-masing; halaman index menampilkan keempatnya.
+    | Price List: harga material, packaging, dan mesin — sumber data
+    | Calculator/Quotation. Tiap item menu sidebar punya halamannya sendiri
+    | (lihat App\Support\PriceListPage). Alamat lama /price-list?tab=…
+    | diteruskan ke halaman barunya.
+    |
+    | Halaman per teknologi (/price-list/fdm, /price-list/sla, …) didaftarkan
+    | PALING AKHIR di bawah, supaya alamat tetap seperti /price-list/harga
+    | tidak tertangkap sebagai kode teknologi.
     */
     Route::get('price-list', [SuperAdmin\PriceListController::class, 'index'])->name('price-list.index');
+    Route::get('price-list/machine-cost', [SuperAdmin\PriceListController::class, 'machineCost'])->name('price-list.machine-cost.index');
+    Route::get('price-list/rumus-harga-otomatis', [SuperAdmin\PriceListController::class, 'harga'])->name('price-list.harga');
+    Route::get('price-list/rumus-harga-manual', [SuperAdmin\PriceListController::class, 'hargaManual'])->name('price-list.harga-manual');
+    // Alamat lama halaman Harga.
+    Route::redirect('price-list/harga', '/superadmin/price-list/rumus-harga-otomatis');
+    Route::get('price-list/packaging', [SuperAdmin\PriceListController::class, 'packaging'])->name('price-list.packaging.index');
+    Route::get('price-list/teknologi', [SuperAdmin\PriceListController::class, 'technologies'])->name('price-list.technologies.index');
 
     /*
     | Teknologi cetak: menambah satu di sini langsung memunculkan tabnya
@@ -393,6 +516,8 @@ Route::prefix('superadmin')->name('superadmin.')->middleware(['auth', 'superadmi
     Route::post('price-list/teknologi', [SuperAdmin\PrintTechnologyController::class, 'store'])->name('price-list.technologies.store');
     Route::get('price-list/teknologi/{technology}/edit', [SuperAdmin\PrintTechnologyController::class, 'edit'])->name('price-list.technologies.edit');
     Route::patch('price-list/teknologi/{technology}', [SuperAdmin\PrintTechnologyController::class, 'update'])->name('price-list.technologies.update');
+    // Switch Status pada tabel Teknologi: aktif = tampil di Edit Specification.
+    Route::patch('price-list/teknologi/{technology}/status', [SuperAdmin\PrintTechnologyController::class, 'updateStatus'])->name('price-list.technologies.status');
     Route::delete('price-list/teknologi/{technology}', [SuperAdmin\PrintTechnologyController::class, 'destroy'])->name('price-list.technologies.destroy');
 
     /*
@@ -405,6 +530,8 @@ Route::prefix('superadmin')->name('superadmin.')->middleware(['auth', 'superadmi
     Route::delete('price-list/material/{technology}/hapus-terpilih', [SuperAdmin\PriceListMaterialController::class, 'destroyMany'])->name('price-list.materials.destroy-many');
     Route::get('price-list/material/{technology}/{material}/edit', [SuperAdmin\PriceListMaterialController::class, 'edit'])->name('price-list.materials.edit');
     Route::patch('price-list/material/{technology}/{material}', [SuperAdmin\PriceListMaterialController::class, 'update'])->name('price-list.materials.update');
+    // Switch Status material: aktif = tampil di Edit Specification.
+    Route::patch('price-list/material/{technology}/{material}/status', [SuperAdmin\PriceListMaterialController::class, 'updateStatus'])->name('price-list.materials.status');
     Route::delete('price-list/material/{technology}/{material}', [SuperAdmin\PriceListMaterialController::class, 'destroy'])->name('price-list.materials.destroy');
 
 
@@ -426,16 +553,27 @@ Route::prefix('superadmin')->name('superadmin.')->middleware(['auth', 'superadmi
     Route::patch('price-list/machine-cost/{machineCost}', [SuperAdmin\MachineCostController::class, 'update'])->name('price-list.machine-cost.update');
     Route::delete('price-list/machine-cost/{machineCost}', [SuperAdmin\MachineCostController::class, 'destroy'])->name('price-list.machine-cost.destroy');
 
+    /*
+    | Rumus Harga SLA Industries: parameter BAWAAN yang mengisi form
+    | perhitungan tiap model saat Admin membukanya pertama kali. Satu baris
+    | saja, jadi hanya ada aksi simpan — tanpa tambah maupun hapus.
+    */
+    Route::patch('price-list/sla-industries/rumus', [SuperAdmin\SlaIndustriesFormulaController::class, 'update'])
+        ->name('price-list.sla-industries.update');
+
     // Tab Harga: rumus & parameter simulasi Harga Jual per teknologi.
     // Satu baris per teknologi, dibuat otomatis saat teknologinya ditambah;
     // tidak ada tambah/hapus dari sini. Kode teknologi selalu huruf kapital,
     // keberadaannya diperiksa controller karena daftarnya kini dapat berubah.
-    Route::patch('price-list/harga/{technology}', [SuperAdmin\PricingFormulaController::class, 'update'])
-        ->where('technology', '[A-Z0-9]+')
+    Route::patch('price-list/rumus-harga-otomatis', [SuperAdmin\PricingFormulaController::class, 'update'])
         ->name('price-list.harga.update');
 
-    Route::get('pengguna', [SuperAdmin\UserController::class, 'index'])->name('users.index');
-    Route::get('pengguna/{user}', [SuperAdmin\UserController::class, 'show'])->name('users.show');
+    // Material satu teknologi, mis. /price-list/fdm. Terakhir — lihat catatan di atas.
+    Route::get('price-list/{slug}', [SuperAdmin\PriceListController::class, 'technology'])
+        ->where('slug', '[a-z0-9]+')
+        ->name('price-list.technology');
+
+    // Menu User (akun/user) kini didaftarkan lewat $staffRoutes di atas.
 
     /*
     | Activity Logs: jejak audit seluruh aktivitas penting pelanggan dan
@@ -445,7 +583,7 @@ Route::prefix('superadmin')->name('superadmin.')->middleware(['auth', 'superadmi
     | maupun penghapusan dengan sengaja — riwayat yang dapat diubah tidak
     | lagi dapat dijadikan bukti.
     */
-    Route::get('activity-logs', [SuperAdmin\ActivityLogController::class, 'index'])->name('activity-logs.index');
-    Route::get('activity-logs/{activityLog}', [SuperAdmin\ActivityLogController::class, 'show'])->name('activity-logs.show');
+    Route::get('akun/activity-log', [SuperAdmin\ActivityLogController::class, 'index'])->name('activity-logs.index');
+    Route::get('akun/activity-log/{activityLog}', [SuperAdmin\ActivityLogController::class, 'show'])->name('activity-logs.show');
 
 });

@@ -146,7 +146,6 @@ export default class PrinterCard {
         this.quantityInput = q('[data-quantity-input]');
         this.supportCheckbox = q('[data-support-toggle]');
         this.supportNoteEl = q('[data-support-note]');
-        this.supportRow = q('[data-support-row]');
         this.resolutionInputs = this.root.querySelectorAll('[data-resolution-option]');
         this.resolutionNotice = q('[data-resolution-notice]');
 
@@ -1736,15 +1735,13 @@ export default class PrinterCard {
         this.setEstimate('material', materialLabel(this.material() ?? { name: this.settings.material }));
         this.setEstimate('quality', resolution?.quality ?? '-');
         this.setEstimate('volume', `${formatNumber(result.totalMaterialVolumeCm3, 2)} cm³`);
-        this.setEstimate('weight', `${formatNumber(result.weightG, 1)} gram`);
-        this.setEstimate('support-weight', `${formatNumber(result.supportWeightG, 1)} gram`);
-        this.setEstimate('total-weight', `${formatNumber(result.totalWeightG, 1)} gram`);
+        // Berat tidak pernah ditulis ke DOM halaman pelanggan. Angkanya tetap
+        // ada di `result` karena menjadi dasar perhitungan harga dan tetap
+        // dikirim ke server saat penawaran dibuat.
         this.setEstimate('time', formatLeadTime(result.totalMinutes));
         this.setEstimate('cost', formatCurrency(result.totalCost));
         this.setEstimate('quantity', `${this.settings.quantity} pcs`);
         this.setEstimate('support', this.supportEnabled() ? 'Ya' : 'Tidak');
-
-        this.supportRow?.classList.toggle('opacity-40', result.supportWeightG <= 0);
 
         this.setText('[data-infill-fill]', result.hollowEnabled
             ? 'Hollow'
@@ -1764,7 +1761,6 @@ export default class PrinterCard {
 
         this.setText('[data-scale-result="dimensions"]', `${formatNumber(x, 1)} × ${formatNumber(z, 1)} × ${formatNumber(y, 1)} mm`);
         this.setText('[data-scale-result="volume"]', `${formatNumber(this.estimate.modelVolumeCm3, 2)} cm³`);
-        this.setText('[data-scale-result="weight"]', `${formatNumber(this.estimate.totalWeightG, 1)} gram`);
         this.setText('[data-scale-result="time"]', formatLeadTime(this.estimate.totalMinutes));
     }
 

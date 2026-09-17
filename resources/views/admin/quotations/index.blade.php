@@ -88,8 +88,8 @@
                         @forelse ($quotations as $quotation)
                             <tr class="transition-colors hover:bg-brand-50/40">
                                 <td class="px-5 py-4">
-                                    @if ($quotation->user_id)
-                                        <a href="{{ route('superadmin.users.show', $quotation->user_id) }}" class="font-semibold text-ink-900 transition-colors hover:text-brand-600">
+                                    @if ($quotation->user_id && auth()->user()->can(\App\Support\AdminPermission::USER_VIEW))
+                                        <a href="{{ staff_route('users.show', $quotation->user_id) }}" class="font-semibold text-ink-900 transition-colors hover:text-brand-600">
                                             {{ $quotation->name }}
                                         </a>
                                     @else

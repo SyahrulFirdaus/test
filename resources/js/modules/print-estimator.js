@@ -118,6 +118,8 @@ export function estimate(technology, material, geometryVolumeCm3, quantity = 1, 
     const totalMinutes = Math.max(1, Math.round((totalHours + finishingHours) * 60));
     const breakdown = sellingPrice({
         technology: technology.code,
+        // Metode harga ditentukan per material (SLA: Kalkulator Otomatis/Manual).
+        manualPricing: material.manualPricing === true || technology.manualPricing === true,
         materialPricePerGram: material.pricePerGram,
         printerKey: options.printerKey ?? null,
         quantity: qty,
@@ -163,7 +165,12 @@ export function estimate(technology, material, geometryVolumeCm3, quantity = 1, 
 
         // Harga Estimasi yang dilihat pelanggan adalah Harga Jual itu sendiri,
         // bukan angka lain yang dihitung terpisah.
+        //
+        // Bernilai null pada teknologi yang harganya ditetapkan tim; seluruh
+        // penampilnya lewat formatCurrency(), yang menulis "Menunggu
+        // Perhitungan" untuk nilai seperti itu.
         totalCost: breakdown.selling_price,
+        manualPricing: breakdown.manual_pricing === true,
         breakdown,
     };
 }
@@ -219,8 +226,51 @@ function clamp(value, fallback, min, max) {
     return Number.isFinite(numeric) ? Math.min(max, Math.max(min, numeric)) : fallback;
 }
 
+/**
+ * Keterangan pengganti harga yang memang belum ada.
+ *
+ * Dipakai teknologi yang harganya ditetapkan tim setelah penawaran masuk
+ * (SLA Industries). Sengaja BUKAN "Rp0": angka nol terbaca sebagai harga yang
+ * sudah pasti, dan gratis.
+ */
+export const PENDING_PRICE_LABEL = 'Harga sedang dihitung oleh tim kami';
+
+/**
+ * Rupiah siap tampil.
+ *
+ * Nilai null/undefined — dan NaN yang lahir dari penjumlahan yang memuat null —
+ * berarti harganya belum ada, bukan nol, jadi yang keluar keterangannya.
+ */
 export function formatCurrency(value) {
+    if (value === null || value === undefined || !Number.isFinite(Number(value))) {
+        return PENDING_PRICE_LABEL;
+    }
+
     return currencyFormatter.format(Math.round(value));
+}
+
+/**
+ * Jumlahkan harga beberapa model.
+ *
+ * Satu harga yang belum ada membuat TOTALNYA belum ada juga — menjumlahkan
+ * sisanya akan menghasilkan angka yang terbaca sebagai harga penuh padahal
+ * belum lengkap.
+ *
+ * @param {Array<number|null|undefined>} values
+ * @returns {number|null}
+ */
+export function sumPrices(values) {
+    let total = 0;
+
+    for (const value of values) {
+        if (value === null || value === undefined || !Number.isFinite(Number(value))) {
+            return null;
+        }
+
+        total += Number(value);
+    }
+
+    return total;
 }
 
 export function formatNumber(value, digits = 2) {
@@ -292,7 +342,7 @@ export function formatLeadTime(minutes) {
     const tier = leadTimeTier(minutes);
     const range = `${tier.minDays === tier.maxDays ? tier.minDays : `${tier.minDays}–${tier.maxDays}`} ${leadTimeConfig.unit}`;
 
-    return tier.name ? `${tier.name} — ${range}` : range;
+    return tier.name ? `${tier.name} (${range})` : range;
 }
 
 export function formatDuration(minutes) {

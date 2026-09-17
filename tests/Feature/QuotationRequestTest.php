@@ -507,7 +507,7 @@ class QuotationRequestTest extends TestCase
     {
         $response = $this->postJson(route('quotations.store'), $this->multiPayload([
             $this->item('gear.stl', ['quantity' => 2, 'model_volume_cm3' => 120]),
-            $this->item('cover.obj', ['technology' => 'SLA', 'material' => 'Standard Resin Plus Sunlu', 'model_volume_cm3' => 80]),
+            $this->item('cover.obj', ['technology' => 'SLAI', 'material' => 'Standard Resin Plus Sunlu', 'model_volume_cm3' => 80]),
             $this->item('bracket.stl', ['model_volume_cm3' => 60, 'resolution' => '0.10']),
         ]));
 
@@ -534,7 +534,7 @@ class QuotationRequestTest extends TestCase
     {
         $this->postJson(route('quotations.store'), $this->multiPayload([
             $this->item('gear.stl', ['technology' => 'FDM', 'material' => 'PLA Plus Standart ESUN', 'resolution' => '0.50', 'quantity' => 2]),
-            $this->item('cover.obj', ['technology' => 'SLA', 'material' => 'Standard Resin Plus Sunlu', 'resolution' => '0.05', 'quantity' => 5]),
+            $this->item('cover.obj', ['technology' => 'SLAI', 'material' => 'Standard Resin Plus Sunlu', 'resolution' => '0.05', 'quantity' => 5]),
         ]))->assertCreated();
 
         [$gear, $cover] = QuotationRequest::sole()->items->all();
@@ -544,7 +544,7 @@ class QuotationRequestTest extends TestCase
         $this->assertSame('0.50', $gear->resolution);
         $this->assertSame(2, $gear->quantity);
 
-        $this->assertSame('SLA', $cover->technology);
+        $this->assertSame('SLAI', $cover->technology);
         $this->assertSame('Standard Resin Plus Sunlu', $cover->material);
         $this->assertSame('0.05', $cover->resolution);
         $this->assertSame(5, $cover->quantity);
@@ -851,8 +851,8 @@ class QuotationRequestTest extends TestCase
         $estimator = app(PrintEstimator::class);
 
         // SLA shell_ratio 1,0 — resin mengeras padat, infill tidak berperan.
-        $penuh = $estimator->estimate('SLA', 'Standard Resin Plus Sunlu', 100, 1, ['infill_density' => 1.0]);
-        $ringan = $estimator->estimate('SLA', 'Standard Resin Plus Sunlu', 100, 1, ['infill_density' => 0.10]);
+        $penuh = $estimator->estimate('SLAI', 'Standard Resin Plus Sunlu', 100, 1, ['infill_density' => 1.0]);
+        $ringan = $estimator->estimate('SLAI', 'Standard Resin Plus Sunlu', 100, 1, ['infill_density' => 0.10]);
 
         $this->assertEqualsWithDelta($penuh['material_volume_cm3'], $ringan['material_volume_cm3'], 0.001);
     }
@@ -861,8 +861,8 @@ class QuotationRequestTest extends TestCase
     {
         $estimator = app(PrintEstimator::class);
 
-        $padat = $estimator->estimate('SLA', 'Standard Resin Plus Sunlu', 500, 1, ['surface_area_cm2' => 300]);
-        $kosong = $estimator->estimate('SLA', 'Standard Resin Plus Sunlu', 500, 1, [
+        $padat = $estimator->estimate('SLAI', 'Standard Resin Plus Sunlu', 500, 1, ['surface_area_cm2' => 300]);
+        $kosong = $estimator->estimate('SLAI', 'Standard Resin Plus Sunlu', 500, 1, [
             'surface_area_cm2' => 300,
             'hollow' => ['enabled' => true, 'wall_thickness_mm' => 2.0],
         ]);
@@ -877,8 +877,8 @@ class QuotationRequestTest extends TestCase
         $this->assertLessThan($padat['weight_g'], $kosong['weight_g']);
         $this->assertLessThan($padat['total_minutes'], $kosong['total_minutes']);
         $this->assertLessThan(
-            $this->sellingPrice($padat, 'SLA', 'Standard Resin Plus Sunlu'),
-            $this->sellingPrice($kosong, 'SLA', 'Standard Resin Plus Sunlu'),
+            $this->sellingPrice($padat, 'SLAI', 'Standard Resin Plus Sunlu'),
+            $this->sellingPrice($kosong, 'SLAI', 'Standard Resin Plus Sunlu'),
         );
     }
 
@@ -896,7 +896,7 @@ class QuotationRequestTest extends TestCase
     public function test_hollow_tidak_pernah_melebihi_volume_padat(): void
     {
         // Pada part tipis, mengosongkan bagian dalam tidak menyisakan apa pun.
-        $estimate = app(PrintEstimator::class)->estimate('SLA', 'Standard Resin Plus Sunlu', 5, 1, [
+        $estimate = app(PrintEstimator::class)->estimate('SLAI', 'Standard Resin Plus Sunlu', 5, 1, [
             'surface_area_cm2' => 400,
             'hollow' => ['enabled' => true, 'wall_thickness_mm' => 5.0],
         ]);
@@ -908,7 +908,7 @@ class QuotationRequestTest extends TestCase
     {
         $this->postJson(route('quotations.store'), $this->multiPayload([
             $this->item('cover.obj', [
-                'technology' => 'SLA',
+                'technology' => 'SLAI',
                 'material' => 'Standard Resin Plus Sunlu',
                 'hollow_enabled' => '1',
                 'hollow_wall_thickness_mm' => '1.6',
@@ -1086,7 +1086,7 @@ class QuotationRequestTest extends TestCase
         // Clear Resin hanya tersedia bening, jadi pilihan merah diperbaiki.
         $this->postJson(route('quotations.store'), $this->multiPayload([
             $this->item('lens.stl', [
-                'technology' => 'SLA',
+                'technology' => 'SLAI',
                 'material' => 'Standard Resin High Clear Sunlu',
                 'material_color' => 'merah',
             ]),

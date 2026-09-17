@@ -329,8 +329,9 @@
                                 <p class="mt-4 truncate font-display text-sm font-bold text-ink-900" data-spec-file>model.stl</p>
 
                                 <dl class="mt-3 space-y-1.5">
-                                    {{-- Berat tidak ikut di sini: angkanya bergantung pada material,
-                                         jadi ditampilkan pada pratinjau estimasi di panel kanan. --}}
+                                    {{-- Berat model tidak ditampilkan kepada pelanggan di mana pun.
+                                         Angkanya tetap dihitung sebagai dasar harga dan tetap terlihat
+                                         oleh admin serta superadmin. --}}
                                     @foreach (['dimensions' => 'Dimensi', 'volume' => 'Volume'] as $key => $label)
                                         <div class="spec-info-row">
                                             <dt class="text-ink-400">{{ $label }}</dt>
@@ -481,10 +482,10 @@
                                     </div>
 
                                     {{-- Pratinjau angka sebelum disimpan; harga hanya untuk yang sudah masuk. --}}
-                                    <dl class="grid gap-4 rounded-2xl border border-ink-100 bg-ink-50/70 p-5 sm:grid-cols-3">
+                                    <dl class="grid gap-4 rounded-2xl border border-ink-100 bg-ink-50/70 p-5 sm:grid-cols-2">
                                         @foreach (auth()->check()
-                                            ? ['weight' => 'Estimasi Berat', 'time' => 'Estimasi Lead Time', 'cost' => 'Estimasi Harga']
-                                            : ['weight' => 'Estimasi Berat', 'time' => 'Estimasi Lead Time']
+                                            ? ['time' => 'Estimasi Lead Time', 'cost' => 'Estimasi Harga']
+                                            : ['time' => 'Estimasi Lead Time']
                                         as $key => $label)
                                             <div>
                                                 <dt class="text-[0.6rem] font-semibold uppercase tracking-[0.14em] text-ink-400">{{ $label }}</dt>
@@ -762,7 +763,7 @@
                                                                 <span class="text-ink-800">{{ $address->detail }}</span>
 
                                                                 <span class="font-semibold uppercase tracking-[0.1em] text-ink-400">Wilayah</span>
-                                                                <span class="text-ink-800">{{ $address->region_line ?: '—' }}</span>
+                                                                <span class="text-ink-800">{{ $address->region_line ?: '-' }}</span>
 
                                                                 @if ($address->note)
                                                                     <span class="font-semibold uppercase tracking-[0.1em] text-ink-400">Catatan</span>
@@ -796,6 +797,23 @@
 
                             {{-- Kesalahan yang menyangkut berkas atau pengaturan salah satu printer --}}
                             <p class="field-error" style="display: none" data-error-for="items"></p>
+
+                            {{-- Progres unggah. File model bisa berukuran ratusan MB, jadi
+                                 pengiriman diberi bar dan persentase supaya jelas bahwa
+                                 permintaannya sedang berjalan — bukan macet. --}}
+                            <div class="mt-6" style="display: none" data-quotation-progress>
+                                <div class="flex items-center justify-between gap-3 text-xs font-semibold text-ink-500">
+                                    <span data-quotation-progress-label>Mengunggah file model…</span>
+                                    <span class="font-mono text-ink-700" data-quotation-progress-value>0%</span>
+                                </div>
+                                <div class="mt-2 h-1.5 overflow-hidden rounded-full bg-ink-100">
+                                    <div class="h-full w-0 rounded-full bg-brand-600 transition-[width] duration-150 ease-out"
+                                         data-quotation-progress-bar></div>
+                                </div>
+                                <p class="mt-2 text-[0.7rem] leading-relaxed text-ink-400">
+                                    Jangan tutup atau muat ulang halaman ini sampai unggahan selesai.
+                                </p>
+                            </div>
 
                             <div class="mt-7 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
                                 <button type="button" class="btn-outline w-full sm:w-auto" data-quotation-close>Batal</button>

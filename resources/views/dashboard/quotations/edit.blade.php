@@ -93,7 +93,7 @@
 
                     <div class="flex flex-wrap items-center gap-2">
                         <span class="rounded-full border border-ink-200 bg-white px-3 py-1 text-xs font-bold text-brand-700">
-                            {{ $rupiah($item->display_price) }}
+                            {{ harga_penawaran($item->display_price) }}
                         </span>
 
                         @if ($itemCount > 1)
@@ -255,11 +255,11 @@
 
                     <div class="mt-6 flex flex-wrap items-center justify-between gap-4 border-t border-ink-100 pt-5">
                         <dl class="flex flex-wrap gap-x-8 gap-y-2 text-xs">
+                            {{-- Berat tidak ikut ditampilkan kepada pelanggan. --}}
                             @foreach ([
                                 'Spesifikasi' => $item->specification_summary,
-                                'Berat' => $angka($item->total_weight_g, 1).' g',
                                 'Lead Time' => $item->lead_time ?? '-',
-                                'Harga Penawaran' => $rupiah($item->display_price),
+                                'Harga Penawaran' => harga_penawaran($item->display_price),
                             ] as $label => $value)
                                 <div>
                                     <dt class="text-[0.6rem] font-semibold uppercase tracking-[0.14em] text-ink-400">{{ $label }}</dt>

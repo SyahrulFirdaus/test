@@ -7,7 +7,7 @@
 @section('content')
     @php $value = fn (string $field, $fallback = '') => old($field, $machineCost->{$field} ?? $fallback); @endphp
 
-    <a href="{{ route('superadmin.price-list.index') }}" class="inline-flex items-center gap-2 text-sm font-semibold text-ink-500 transition-colors hover:text-brand-600">
+    <a href="{{ route('superadmin.price-list.machine-cost.index') }}" class="inline-flex items-center gap-2 text-sm font-semibold text-ink-500 transition-colors hover:text-brand-600">
         &larr; Kembali ke Price List
     </a>
 
@@ -40,11 +40,11 @@
                 <div>
                     <label for="print_technology_id" class="field-label">Teknologi</label>
                     <select id="print_technology_id" name="print_technology_id" class="field-input">
-                        <option value="">— Tanpa teknologi —</option>
+                        <option value="">Tanpa teknologi</option>
                         @foreach ($technologies as $technology)
                             <option value="{{ $technology->id }}"
                                     @selected((string) $value('print_technology_id') === (string) $technology->id)>
-                                {{ $technology->code }} — {{ $technology->name }}
+                                {{ $technology->code }} ({{ $technology->name }})
                             </option>
                         @endforeach
                     </select>
@@ -82,9 +82,9 @@
 
                 <div class="mt-5 grid gap-5 sm:grid-cols-2">
                     @foreach ([
-                        'width_mm' => 'Lebar (W) — mm',
-                        'depth_mm' => 'Kedalaman (D) — mm',
-                        'height_mm' => 'Tinggi (H) — mm',
+                        'width_mm' => 'Lebar W (mm)',
+                        'depth_mm' => 'Kedalaman D (mm)',
+                        'height_mm' => 'Tinggi H (mm)',
                     ] as $field => $label)
                         <div>
                             <label for="{{ $field }}" class="field-label">{{ $label }}</label>
@@ -95,14 +95,14 @@
                     @endforeach
 
                     <div>
-                        <label for="weight_kg" class="field-label">Berat — kg</label>
+                        <label for="weight_kg" class="field-label">Berat (kg)</label>
                         <input type="number" id="weight_kg" name="weight_kg" value="{{ $value('weight_kg') }}"
                                min="0" max="9999" step="0.01" class="field-input" placeholder="mis. 12.95">
                         @error('weight_kg') <p class="field-error">{{ $message }}</p> @enderror
                     </div>
 
                     <div class="sm:col-span-2">
-                        <span class="field-label">Volume Cetak — mm</span>
+                        <span class="field-label">Volume Cetak (mm)</span>
                         <div class="mt-2 grid grid-cols-3 gap-3">
                             @foreach ([
                                 'build_volume_x' => 'Lebar meja',
@@ -112,7 +112,7 @@
                                 <div>
                                     <input type="number" id="{{ $field }}" name="{{ $field }}" value="{{ $value($field) }}"
                                            min="1" max="100000" step="1" class="field-input" placeholder="256"
-                                           aria-label="Volume cetak — {{ $hint }}">
+                                           aria-label="Volume cetak: {{ $hint }}">
                                     <p class="mt-1 text-[0.65rem] text-ink-400">{{ $hint }}</p>
                                 </div>
                             @endforeach
@@ -128,7 +128,7 @@
             </div>
 
             <div class="mt-7 flex flex-wrap items-center justify-end gap-3">
-                <a href="{{ route('superadmin.price-list.index') }}" class="btn-outline">Batal</a>
+                <a href="{{ route('superadmin.price-list.machine-cost.index') }}" class="btn-outline">Batal</a>
                 <button type="submit" class="btn-primary">{{ $isEdit ? 'Simpan Perubahan' : 'Simpan Mesin' }}</button>
             </div>
         </form>

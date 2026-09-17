@@ -15,7 +15,7 @@
         <div>
             <h2 class="text-2xl font-bold tracking-tight text-ink-900 sm:text-3xl">Activity Logs</h2>
             <p class="mt-2 text-sm text-ink-500">
-                Riwayat aktivitas penting seluruh akun Personal, Business, dan Admin — beserta data yang berubah pada setiap aktivitas.
+                Riwayat aktivitas penting seluruh akun Personal, Business, dan Admin, beserta data yang berubah pada setiap aktivitas.
             </p>
         </div>
     </div>

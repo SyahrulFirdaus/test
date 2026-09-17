@@ -188,7 +188,7 @@
                             <tr>
                                 <td class="px-6 py-4 font-mono text-xs font-semibold text-brand-600">{{ $quotation->tracking_number }}</td>
                                 <td class="px-6 py-4 text-ink-600">{{ $quotation->created_at->translatedFormat('d M Y') }}</td>
-                                <td class="px-6 py-4 font-semibold text-ink-900">{{ $rupiah($quotation->display_price) }}</td>
+                                <td class="px-6 py-4 font-semibold text-ink-900">{{ harga_penawaran($quotation->display_price) }}</td>
                                 <td class="px-6 py-4">
                                     <span class="inline-flex whitespace-nowrap rounded-full border px-3 py-1 text-xs font-bold {{ $badge($quotation->status) }}">
                                         {{ $quotation->status_label }}

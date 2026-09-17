@@ -319,7 +319,7 @@
 
             <p class="mt-6 text-sm leading-relaxed text-ink-500" data-aos="fade-up">
                 Support dapat Anda aktifkan atau matikan sendiri lewat <span class="font-semibold text-ink-700">Edit Specification</span>
-                pada setiap model, dan pengaruhnya terhadap berat, waktu, serta biaya langsung terlihat pada estimasi.
+                pada setiap model, dan pengaruhnya terhadap waktu dan biaya langsung terlihat pada estimasi.
             </p>
         </div>
     </section>

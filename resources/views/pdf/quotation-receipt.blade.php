@@ -191,13 +191,14 @@
         <table class="data items">
             <thead>
                 <tr>
-                    <th style="width: 7%;">Printer</th>
-                    <th style="width: 27%;">Nama File</th>
-                    <th style="width: 24%;">Mesin, Teknologi &amp; Material</th>
-                    <th style="width: 11%;">Resolusi</th>
-                    <th style="width: 9%;" class="num">Jumlah</th>
-                    <th style="width: 10%;" class="num">Berat</th>
-                    <th style="width: 12%;" class="num">Estimasi</th>
+                    {{-- Kolom Berat ditiadakan: bukti ini dipegang pelanggan, dan
+                         pelanggan tidak melihat berat model di mana pun. --}}
+                    <th style="width: 8%;">Printer</th>
+                    <th style="width: 30%;">Nama File</th>
+                    <th style="width: 27%;">Mesin, Teknologi &amp; Material</th>
+                    <th style="width: 12%;">Resolusi</th>
+                    <th style="width: 10%;" class="num">Jumlah</th>
+                    <th style="width: 13%;" class="num">Estimasi</th>
                 </tr>
             </thead>
             <tbody>
@@ -224,8 +225,7 @@
                         </td>
                         <td>{{ $item->resolution_label }}</td>
                         <td class="num">{{ $item->quantity }} unit</td>
-                        <td class="num">{{ number_format($item->total_weight_g * $item->quantity, 1, ',', '.') }} gr</td>
-                        <td class="num">Rp{{ number_format((float) $item->display_price, 0, ',', '.') }}</td>
+                        <td class="num">{{ harga_penawaran($item->display_price) }}</td>
                     </tr>
                 @endforeach
             </tbody>
@@ -233,9 +233,6 @@
                 <tr>
                     <td colspan="4" style="text-transform: uppercase; letter-spacing: 1px; font-size: 8.5px;">Total</td>
                     <td class="num">{{ $quotation->quantity }} unit</td>
-                    <td class="num">
-                        {{ number_format($quotation->items->sum(fn ($item) => $item->total_weight_g * $item->quantity), 1, ',', '.') }} gr
-                    </td>
                     <td class="num">
                         @if ($quotation->display_price !== null)
                             Rp{{ number_format($quotation->display_price, 0, ',', '.') }}

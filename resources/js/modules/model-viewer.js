@@ -12,6 +12,7 @@ import {
     formatDuration,
     formatNumber,
     formatPercent,
+    sumPrices,
 } from './print-estimator';
 import { estimateSupport, isSupportRequired, supportNote } from './support-estimator';
 import { buildSupport, disposeSupport } from './support-builder';
@@ -2277,7 +2278,9 @@ export default class ModelViewer {
     totals() {
         const breakdown = Object.fromEntries([...COST_COMPONENTS.map(([key]) => [key, 0]), ['total', 0]]);
 
-        const summary = this.readyItems().reduce(
+        const items = this.readyItems();
+
+        const summary = items.reduce(
             (carry, item) => {
                 COST_COMPONENTS.forEach(([key]) => {
                     breakdown[key] += item.estimate.breakdown?.[key] ?? 0;
@@ -2288,13 +2291,16 @@ export default class ModelViewer {
                 return {
                     weightG: carry.weightG + item.estimate.totalWeightG * item.settings.quantity,
                     minutes: carry.minutes + item.estimate.totalMinutes,
-                    cost: carry.cost + item.estimate.totalCost,
                 };
             },
-            { weightG: 0, minutes: 0, cost: 0 }
+            { weightG: 0, minutes: 0 }
         );
 
-        return { ...summary, breakdown };
+        // Satu model yang harganya belum ditetapkan tim membuat total harganya
+        // belum ada — bukan nol, dan bukan jumlah model lainnya saja.
+        const cost = sumPrices(items.map((item) => item.estimate.totalCost));
+
+        return { ...summary, cost, breakdown };
     }
 
     /** Rincian biaya gabungan seluruh model pada ringkasan penawaran. */
@@ -2955,12 +2961,19 @@ export default class ModelViewer {
         // Baris berat support hanya relevan bila supportnya aktif dan terbentuk.
         this.supportRow?.classList.toggle('opacity-40', result.supportWeightG <= 0);
 
-        // Rincian biaya diperbarui bersamaan dengan totalnya.
+        // Rincian biaya diperbarui bersamaan dengan totalnya. Teknologi yang
+        // harganya ditetapkan tim tidak punya komponen sama sekali — bukan
+        // komponen bernilai nol — jadi seluruh barisnya ditulis "-".
         COST_COMPONENTS.forEach(([key]) => {
-            this.setCost(key, formatCurrency(result.breakdown?.[key] ?? 0));
+            this.setCost(key, result.manualPricing ? '-' : formatCurrency(result.breakdown?.[key] ?? 0));
         });
 
-        this.setCost('total', formatCurrency(result.breakdown?.total ?? result.totalCost));
+        this.setCost(
+            'total',
+            result.manualPricing
+                ? formatCurrency(null)
+                : formatCurrency(result.breakdown?.total ?? result.totalCost)
+        );
 
         const fillEl = this.root.querySelector('[data-infill-fill]');
 

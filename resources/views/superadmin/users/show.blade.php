@@ -5,7 +5,7 @@
 @section('content')
     @php $rupiah = fn ($value) => 'Rp'.number_format((float) $value, 0, ',', '.'); @endphp
 
-    <a href="{{ route('superadmin.users.index') }}" class="inline-flex items-center gap-2 text-sm font-semibold text-ink-500 transition-colors hover:text-brand-600">
+    <a href="{{ staff_route('users.index') }}" class="inline-flex items-center gap-2 text-sm font-semibold text-ink-500 transition-colors hover:text-brand-600">
         &larr; Kembali ke daftar user
     </a>
 
@@ -120,14 +120,16 @@
                                     <td class="px-6 py-3 font-mono text-xs font-semibold text-brand-600">{{ $quotation->tracking_number }}</td>
                                     <td class="px-6 py-3 text-xs text-ink-500">{{ $quotation->created_at->translatedFormat('d M Y') }}</td>
                                     <td class="px-6 py-3 text-ink-600">{{ $quotation->items_count }} file</td>
-                                    <td class="px-6 py-3 font-semibold text-ink-800">{{ $rupiah($quotation->display_price) }}</td>
+                                    <td class="px-6 py-3 font-semibold text-ink-800">{{ harga_penawaran($quotation->display_price, 'Menunggu Perhitungan') }}</td>
                                     <td class="px-6 py-3">
                                         <span class="rounded-full border border-ink-200 bg-ink-50 px-3 py-1 text-xs font-semibold text-ink-600">
                                             {{ $quotation->status_label }}
                                         </span>
                                     </td>
                                     <td class="px-6 py-3 text-right">
+                                        @can(\App\Support\AdminPermission::QUOTATION_VIEW)
                                         <a href="{{ staff_route('quotations.show', $quotation) }}" class="viewer-tool">Detail</a>
+                                        @endcan
                                     </td>
                                 </tr>
                             @empty

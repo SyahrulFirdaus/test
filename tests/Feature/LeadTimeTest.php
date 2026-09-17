@@ -35,13 +35,13 @@ class LeadTimeTest extends TestCase
     public function test_batas_dua_puluh_jam(): void
     {
         $cases = [
-            'tanpa waktu' => [0, 'Express — 1 Hari Kerja'],
-            'satu jam' => [1 * self::JAM, 'Express — 1 Hari Kerja'],
-            'sembilan belas jam' => [19 * self::JAM, 'Express — 1 Hari Kerja'],
-            'tepat dua puluh jam' => [20 * self::JAM, 'Express — 1 Hari Kerja'],
-            'lewat satu menit' => [20 * self::JAM + 1, 'Standard — 3–5 Hari Kerja'],
-            'dua puluh dua jam' => [22 * self::JAM, 'Standard — 3–5 Hari Kerja'],
-            'seratus jam' => [100 * self::JAM, 'Standard — 3–5 Hari Kerja'],
+            'tanpa waktu' => [0, 'Express (1 Hari Kerja)'],
+            'satu jam' => [1 * self::JAM, 'Express (1 Hari Kerja)'],
+            'sembilan belas jam' => [19 * self::JAM, 'Express (1 Hari Kerja)'],
+            'tepat dua puluh jam' => [20 * self::JAM, 'Express (1 Hari Kerja)'],
+            'lewat satu menit' => [20 * self::JAM + 1, 'Standard (3–5 Hari Kerja)'],
+            'dua puluh dua jam' => [22 * self::JAM, 'Standard (3–5 Hari Kerja)'],
+            'seratus jam' => [100 * self::JAM, 'Standard (3–5 Hari Kerja)'],
         ];
 
         foreach ($cases as $nama => [$menit, $label]) {
@@ -111,7 +111,7 @@ class LeadTimeTest extends TestCase
         $quotation = $this->penawaran([8, 6, 5]);
 
         $this->assertSame(19 * self::JAM, (int) $quotation->estimated_minutes);
-        $this->assertSame('Express — 1 Hari Kerja', $quotation->lead_time);
+        $this->assertSame('Express (1 Hari Kerja)', $quotation->lead_time);
     }
 
     public function test_contoh_spesifikasi_sepuluh_tujuh_lima_jam_menjadi_standard(): void
@@ -120,7 +120,7 @@ class LeadTimeTest extends TestCase
         $quotation = $this->penawaran([10, 7, 5]);
 
         $this->assertSame(22 * self::JAM, (int) $quotation->estimated_minutes);
-        $this->assertSame('Standard — 3–5 Hari Kerja', $quotation->lead_time);
+        $this->assertSame('Standard (3–5 Hari Kerja)', $quotation->lead_time);
     }
 
     /**
@@ -132,8 +132,8 @@ class LeadTimeTest extends TestCase
     {
         $quotation = $this->penawaran([7, 7, 7]);
 
-        $this->assertSame('Express — 1 Hari Kerja', LeadTime::label(7 * self::JAM));
-        $this->assertSame('Standard — 3–5 Hari Kerja', $quotation->lead_time);
+        $this->assertSame('Express (1 Hari Kerja)', LeadTime::label(7 * self::JAM));
+        $this->assertSame('Standard (3–5 Hari Kerja)', $quotation->lead_time);
     }
 
     public function test_yang_ditampilkan_bukan_jam_atau_menit(): void
@@ -144,7 +144,7 @@ class LeadTimeTest extends TestCase
 
         $this->get(route('tracking.show', $quotation->tracking_number))
             ->assertOk()
-            ->assertSee('Express — 1 Hari Kerja')
+            ->assertSee('Express (1 Hari Kerja)')
             // Jam mesin tetap tersimpan, tetapi tidak dipakai sebagai lead time.
             ->assertDontSee('19 jam');
     }

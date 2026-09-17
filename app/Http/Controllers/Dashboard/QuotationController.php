@@ -224,7 +224,7 @@ class QuotationController extends Controller
                 'status' => 'warn',
                 'message' => $measurable
                     ? 'Volume dan dimensi diukur di server. Kelayakan cetak akan dipastikan engineer kami.'
-                    : 'Berkas CAD '.strtoupper($extension).' belum diukur otomatis. Estimasi ditetapkan engineer kami setelah file ditinjau — atau unggah lewat halaman 3D Models agar terukur langsung di browser.',
+                    : 'Berkas CAD '.strtoupper($extension).' belum diukur otomatis. Estimasi ditetapkan engineer kami setelah file ditinjau, atau unggah lewat halaman 3D Models agar terukur langsung di browser.',
             ]],
 
             'material_color' => $settings['material_color'],

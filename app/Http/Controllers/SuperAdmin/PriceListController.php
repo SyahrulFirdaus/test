@@ -8,65 +8,87 @@ use App\Models\PackagingItem;
 use App\Models\PricingFormula;
 use App\Models\PrintMaterial;
 use App\Models\PrintTechnology;
+use App\Models\SlaIndustriesFormula;
+use App\Services\UsdRate;
+use App\Support\PriceListPage;
 use Illuminate\Contracts\View\View;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 
 /**
  * Halaman Price List — sumber data Calculator/Quotation.
  *
- * Tabnya TIDAK lagi tetap. Satu tab material dibangkitkan untuk tiap teknologi
- * yang ada di basis data, jadi menambah teknologi lewat tab "Teknologi"
- * langsung memunculkan tabnya sendiri tanpa perubahan kode. Packaging, Machine
- * Cost, Harga, dan Teknologi menutup deretan tab itu.
+ * Tiap item menu di sidebar punya route dan halamannya sendiri: satu halaman
+ * per teknologi (hanya material teknologi itu), Machine Cost, Harga, Packaging,
+ * dan Teknologi. Tidak ada lagi satu halaman bertab yang memuat semuanya.
  *
- * Tiap tab material punya pencarian dan halamannya sendiri; nama parameternya
- * diturunkan dari kode teknologi (`fdm_q`, `fdm_page`) sehingga tautan lama ke
- * tab FDM/SLA tetap berlaku.
+ * Halaman teknologi dibangkitkan dari basis data, jadi teknologi yang
+ * ditambahkan Superadmin langsung punya halamannya sendiri tanpa kode baru.
+ *
+ * Nama parameter pencarian dan halaman tetap seperti sebelumnya (`fdm_q`,
+ * `fdm_page`, `machine_q`, …) supaya tautan lama tetap berlaku.
  */
 class PriceListController extends Controller
 {
     /** Banyaknya baris per halaman pada tiap tabel. */
     private const PER_PAGE = 15;
 
-    public function index(Request $request): View
+    /**
+     * Alamat lama `/price-list?tab=…` diteruskan ke halaman barunya.
+     *
+     * Tanpa `tab`, halaman teknologi pertama yang dibuka. Query lain (pencarian,
+     * nomor halaman) ikut dibawa, begitu pula pesan status yang sedang dikirim.
+     */
+    public function index(Request $request): RedirectResponse
     {
-        $technologies = PrintTechnology::query()
-            ->withCount('materials')
-            ->ordered()
-            ->get();
+        $tab = (string) $request->query('tab', '');
+        $key = PriceListPage::exists($tab)
+            ? $tab
+            : (PriceListPage::technologies()->first()?->tabKey() ?? PriceListPage::TEKNOLOGI);
 
-        // Satu paginator per teknologi, masing-masing dengan kunci halaman dan
-        // kunci pencariannya sendiri agar tab lain tidak ikut berpindah halaman.
-        $materials = $technologies->mapWithKeys(function (PrintTechnology $technology) use ($request) {
-            $tab = $technology->tabKey();
+        $request->session()->reflash();
 
-            return [$technology->code => $technology->materials()
-                ->search($request->query($tab.'_q'))
-                ->with('machine.technology')
-                ->orderedByMachine()
-                ->paginate(self::PER_PAGE, ['*'], $tab.'_page')
-                ->withQueryString()];
-        });
+        return redirect()->to(PriceListPage::url($key, $request->except('tab')));
+    }
+
+    /** Material satu teknologi saja, mis. /price-list/fdm. */
+    public function technology(Request $request, string $slug): View
+    {
+        $technology = PriceListPage::technologyForSlug($slug);
+
+        abort_if($technology === null, 404);
+
+        $tab = $technology->tabKey();
+        $search = $request->query($tab.'_q');
+
+        $materials = $technology->materials()
+            ->search($search)
+            ->with('machine.technology')
+            ->orderedByMachine()
+            ->paginate(self::PER_PAGE, ['*'], $tab.'_page')
+            ->withQueryString();
 
         // Nomor material dihitung ulang dari AWAL pada tiap kelompok mesin, dan
         // dihitung atas seluruh material teknologinya — bukan atas halaman yang
         // sedang tampil. Kalau dihitung per halaman, kelompok yang terpotong
         // paginasi akan mengulang dari 1 di halaman berikutnya.
-        $materialNumbers = $technologies->mapWithKeys(fn (PrintTechnology $technology) => [
-            $technology->code => $this->numberPerMachine(
-                $technology->materials()
-                    ->search($request->query($technology->tabKey().'_q'))
-                    ->orderedByMachine()
-                    ->get(['print_materials.id', 'print_materials.machine_cost_id'])
-            ),
+        $numbers = $this->numberPerMachine(
+            $technology->materials()
+                ->search($search)
+                ->orderedByMachine()
+                ->get(['print_materials.id', 'print_materials.machine_cost_id'])
+        );
+
+        return view('superadmin.price-list.technology', [
+            'technology' => $technology->loadCount('materials'),
+            'materials' => $materials,
+            'materialNumbers' => $numbers,
+            'search' => (string) $search,
         ]);
+    }
 
-        $packaging = PackagingItem::search($request->query('packaging_q'))
-            ->orderBy('item')
-            ->orderBy('ukuran')
-            ->paginate(self::PER_PAGE, ['*'], 'packaging_page')
-            ->withQueryString();
-
+    public function machineCost(Request $request): View
+    {
         // Mesin diurutkan mengikuti teknologinya supaya barisnya berkelompok
         // rapat di bawah judul masing-masing; teknologinya ikut dimuat karena
         // tiap baris menampilkan nama kelompok dan detail mesinnya.
@@ -76,38 +98,56 @@ class PriceListController extends Controller
             ->paginate(self::PER_PAGE, ['*'], 'machine_page')
             ->withQueryString();
 
-        $formulas = PricingFormula::whereIn('technology', PricingFormula::technologies())
-            ->get()
-            ->keyBy('technology');
-
-        // Tab yang terbuka saat halaman dimuat: mengikuti ?tab= bila dikenal,
-        // kalau tidak teknologi pertama.
-        $tabs = $technologies->map(fn (PrintTechnology $technology) => $technology->tabKey())
-            ->merge(['packaging', 'machine-cost', 'harga', 'teknologi'])
-            ->all();
-
-        $active = in_array($request->query('tab'), $tabs, true)
-            ? (string) $request->query('tab')
-            : ($tabs[0] ?? 'teknologi');
-
-        return view('superadmin.price-list.index', [
-            'technologies' => $technologies,
-            'materials' => $materials,
-            'materialNumbers' => $materialNumbers,
-            'packaging' => $packaging,
+        return view('superadmin.price-list.machine-cost', [
             'machineCosts' => $machineCosts,
-            'formulas' => $formulas,
-            'activeTab' => $active,
+            'search' => (string) $request->query('machine_q', ''),
+        ]);
+    }
 
-            'filters' => $technologies
-                ->mapWithKeys(fn (PrintTechnology $technology) => [
-                    $technology->tabKey().'_q' => (string) $request->query($technology->tabKey().'_q', ''),
-                ])
-                ->merge([
-                    'packaging_q' => (string) $request->query('packaging_q', ''),
-                    'machine_q' => (string) $request->query('machine_q', ''),
-                ])
-                ->all(),
+    public function packaging(Request $request): View
+    {
+        $packaging = PackagingItem::search($request->query('packaging_q'))
+            ->orderBy('item')
+            ->orderBy('ukuran')
+            ->paginate(self::PER_PAGE, ['*'], 'packaging_page')
+            ->withQueryString();
+
+        return view('superadmin.price-list.packaging', [
+            'packaging' => $packaging,
+            'search' => (string) $request->query('packaging_q', ''),
+        ]);
+    }
+
+    /** Rumus Harga Otomatis: satu rumus yang berlaku untuk seluruh teknologi. */
+    public function harga(): View
+    {
+        return view('superadmin.price-list.harga', [
+            'formula' => PricingFormula::general(),
+        ]);
+    }
+
+    /**
+     * Rumus Harga Manual — parameter BAWAAN Form Perhitungan Kalkulator Manual
+     * (dahulu "Rumus Harga SLA" di halaman SLA). Dipakai material SLA, MJF, dan
+     * SLM yang memilih Kalkulator Manual.
+     */
+    public function hargaManual(UsdRate $rates): View
+    {
+        return view('superadmin.price-list.harga-manual', [
+            'slaIndustriesFormula' => SlaIndustriesFormula::current(),
+
+            // Kurs USD/IDR tidak diketik; nilainya dibaca sistem. Alamat
+            // penyegarannya ikut dikirim supaya formulirnya dapat memperbaruinya
+            // sendiri tanpa memuat ulang halaman.
+            'slaIndustriesUsdRate' => $rates->current(),
+            'usdRateEndpoint' => staff_route('exchange-rate.usd'),
+        ]);
+    }
+
+    public function technologies(): View
+    {
+        return view('superadmin.price-list.technologies', [
+            'technologies' => PrintTechnology::query()->managed()->withCount('materials')->ordered()->get(),
         ]);
     }
 

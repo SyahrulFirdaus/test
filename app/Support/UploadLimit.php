@@ -14,10 +14,10 @@ namespace App\Support;
  * browser menolak berkas kelewat besar dengan pesan yang jelas — bukan
  * berakhir sebagai error 419/413 yang membingungkan pengguna.
  *
- * Agar batas 300 MB per berkas dan 25 berkas per permintaan benar-benar
- * berlaku, php.ini perlu disetel minimal:
+ * Agar batas 300 MB per berkas, 500 MB per permintaan, dan 25 berkas per
+ * permintaan benar-benar berlaku, php.ini perlu disetel minimal:
  *   upload_max_filesize = 300M
- *   post_max_size       = 1024M
+ *   post_max_size       = 512M
  *   max_file_uploads    = 30
  */
 class UploadLimit
@@ -41,13 +41,19 @@ class UploadLimit
         $upload = self::parseIniSize((string) ini_get('upload_max_filesize'));
         $post = self::parseIniSize((string) ini_get('post_max_size'));
 
-        $limits = array_filter([$upload, $post], fn (int $value) => $value > 0);
+        // Overhead hanya dikurangkan dari post_max_size: batas itu mencakup
+        // seluruh body POST, sedangkan upload_max_filesize berlaku murni per
+        // berkas.
+        $limits = array_filter(
+            [$upload, $post > 0 ? $post - self::OVERHEAD_BYTES : 0],
+            fn (int $value) => $value > 0
+        );
 
         if ($limits === []) {
             return self::preferredBytes();
         }
 
-        return max(1024, min(min($limits) - self::OVERHEAD_BYTES, self::preferredBytes()));
+        return max(1024, min(min($limits), self::preferredBytes()));
     }
 
     public static function maxKilobytes(): int
@@ -78,10 +84,27 @@ class UploadLimit
         $post = self::parseIniSize((string) ini_get('post_max_size'));
 
         if ($post <= 0) {
-            return self::preferredBytes() * self::maxFiles(self::preferredFiles());
+            return self::preferredTotalBytes();
         }
 
-        return max(1024, $post - self::OVERHEAD_BYTES);
+        return max(1024, min($post - self::OVERHEAD_BYTES, self::preferredTotalBytes()));
+    }
+
+    /** Batas gabungan per permintaan yang dikehendaki aplikasi, dalam byte. */
+    public static function preferredTotalBytes(): int
+    {
+        return (int) round(((float) config('printing.limits.max_total_size_mb', 500)) * 1024 * 1024);
+    }
+
+    public static function preferredTotalMegabytes(): float
+    {
+        return round(self::preferredTotalBytes() / 1024 / 1024, 1);
+    }
+
+    /** Batas gabungan server lebih kecil daripada yang dikehendaki aplikasi. */
+    public static function totalThrottledByServer(): bool
+    {
+        return self::maxTotalBytes() < self::preferredTotalBytes();
     }
 
     public static function maxTotalMegabytes(): float

@@ -110,6 +110,10 @@ class ActivityAction
 
     public const ADMIN_PASSWORD_RESET = 'admin_password_reset';
 
+    public const ADMIN_PERMISSION_UPDATE = 'admin_permission_update';
+
+    public const ADMIN_STATUS_UPDATE = 'admin_status_update';
+
     public const PRICE_LIST_UPDATE = 'price_list_update';
 
     public const TECHNOLOGY_CREATE = 'technology_create';
@@ -171,6 +175,8 @@ class ActivityAction
             self::ADMIN_UPDATE => ['label' => 'Ubah Akun Admin', 'module' => ActivityModule::SUPERADMIN],
             self::ADMIN_DELETE => ['label' => 'Hapus Akun Admin', 'module' => ActivityModule::SUPERADMIN],
             self::ADMIN_PASSWORD_RESET => ['label' => 'Reset Password Admin', 'module' => ActivityModule::SUPERADMIN],
+            self::ADMIN_PERMISSION_UPDATE => ['label' => 'Update Admin Permission', 'module' => ActivityModule::SUPERADMIN],
+            self::ADMIN_STATUS_UPDATE => ['label' => 'Ubah Status Admin', 'module' => ActivityModule::SUPERADMIN],
             self::PRICE_LIST_UPDATE => ['label' => 'Ubah Price List', 'module' => ActivityModule::SUPERADMIN],
             self::TECHNOLOGY_CREATE => ['label' => 'Tambah Teknologi', 'module' => ActivityModule::SUPERADMIN],
             self::TECHNOLOGY_UPDATE => ['label' => 'Ubah Teknologi', 'module' => ActivityModule::SUPERADMIN],

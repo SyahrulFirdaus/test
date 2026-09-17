@@ -22,9 +22,11 @@
             </p>
         </div>
 
+        @can(\App\Support\AdminPermission::PAYMENT_TERM_EDIT)
         <a href="{{ staff_route('payment-terms.settings.edit') }}" class="viewer-tool">
             Pengaturan Payment Term
         </a>
+        @endcan
     </div>
 
     <div class="mt-8 flex flex-wrap gap-2">
@@ -75,7 +77,7 @@
                             'Sudah Dibayar' => $rupiah($term->paidAmount()),
                             'Sisa Pembayaran' => $rupiah($term->outstandingAmount()),
                             'Termin Aktif' => $current
-                                ? $current->title.' — '.$current->status_label
+                                ? $current->title.' ('.$current->status_label.')'
                                 : ($term->isCompleted() ? 'Lunas' : 'Belum terbentuk'),
                         ];
                     @endphp

@@ -204,7 +204,7 @@ class RegistrationQuestionSeeder extends Seeder
                 ...$step,
                 'key' => 'b_technologies',
                 'question' => 'Teknologi 3D Printing apa yang biasa digunakan?',
-                'help' => 'Boleh memilih lebih dari satu. Belum tahu pun tidak apa-apa — tim kami akan merekomendasikan.',
+                'help' => 'Boleh memilih lebih dari satu. Belum tahu pun tidak apa-apa, tim kami akan merekomendasikan.',
                 'type' => 'checkbox',
                 // Diambil dari tabel `technologies`, jadi selalu mengikuti
                 // teknologi yang benar-benar dilayani.
@@ -320,7 +320,7 @@ class RegistrationQuestionSeeder extends Seeder
                 ...$step,
                 'key' => 'b_challenge',
                 'question' => 'Apa kebutuhan atau tantangan utama yang ingin diselesaikan melalui NUSAMA3D?',
-                'help' => 'Ceritakan sebebasnya — jawaban ini membantu tim kami menyiapkan solusi yang tepat.',
+                'help' => 'Ceritakan sebebasnya, jawaban ini membantu tim kami menyiapkan solusi yang tepat.',
                 'type' => 'textarea',
                 'placeholder' => 'Misalnya: butuh prototype cepat untuk uji pasar, atau spare part mesin yang sudah tidak diproduksi lagi.',
                 'category' => 'Kebutuhan Bisnis & Procurement',

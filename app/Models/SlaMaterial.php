@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Support\SlaIndustries;
 use Illuminate\Database\Eloquent\Builder;
 
 /**
@@ -12,7 +13,11 @@ use Illuminate\Database\Eloquent\Builder;
  */
 class SlaMaterial extends PrintMaterial
 {
-    public const TECHNOLOGY = 'SLA';
+    /**
+     * Sejak SLA lama digabung ke SLA (dahulu SLA Industries), material SLA
+     * tinggal di bawah kode `SLAI`.
+     */
+    public const TECHNOLOGY = SlaIndustries::CODE;
 
     protected static function booted(): void
     {
@@ -23,6 +28,9 @@ class SlaMaterial extends PrintMaterial
 
         static::creating(function (self $material) {
             $material->print_technology_id ??= PrintTechnology::idFor(static::TECHNOLOGY);
+
+            // Material SLA berharga per gram, jadi bawaannya Kalkulator Otomatis.
+            $material->pricing_method ??= static::PRICING_AUTOMATIC;
         });
     }
 }

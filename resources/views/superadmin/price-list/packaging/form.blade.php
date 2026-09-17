@@ -7,7 +7,7 @@
 @section('content')
     @php $value = fn (string $field, $fallback = '') => old($field, $packagingItem->{$field} ?? $fallback); @endphp
 
-    <a href="{{ route('superadmin.price-list.index') }}" class="inline-flex items-center gap-2 text-sm font-semibold text-ink-500 transition-colors hover:text-brand-600">
+    <a href="{{ route('superadmin.price-list.packaging.index') }}" class="inline-flex items-center gap-2 text-sm font-semibold text-ink-500 transition-colors hover:text-brand-600">
         &larr; Kembali ke Price List
     </a>
 
@@ -62,7 +62,7 @@
             </div>
 
             <div class="mt-7 flex flex-wrap items-center justify-end gap-3">
-                <a href="{{ route('superadmin.price-list.index') }}" class="btn-outline">Batal</a>
+                <a href="{{ route('superadmin.price-list.packaging.index') }}" class="btn-outline">Batal</a>
                 <button type="submit" class="btn-primary">{{ $isEdit ? 'Simpan Perubahan' : 'Simpan Packaging' }}</button>
             </div>
         </form>

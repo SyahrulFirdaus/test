@@ -40,13 +40,14 @@
 
     <div class="mt-6 overflow-hidden rounded-2xl border border-ink-100 bg-white shadow-card">
         <div class="overflow-x-auto">
-            <table class="w-full min-w-[980px] text-left text-sm">
+            {{-- Kolom Total Berat sengaja tidak ada: pelanggan tidak melihat berat
+                 model. Angkanya tetap tersimpan dan tetap terlihat oleh admin. --}}
+            <table class="w-full min-w-[880px] text-left text-sm">
                 <thead>
                     <tr class="border-b border-ink-100 bg-ink-50/80 text-[0.65rem] uppercase tracking-[0.14em] text-ink-500">
                         <th scope="col" class="px-5 py-4 font-bold">Nomor Penawaran</th>
                         <th scope="col" class="px-5 py-4 font-bold">Tanggal</th>
                         <th scope="col" class="px-5 py-4 font-bold">Jumlah File</th>
-                        <th scope="col" class="px-5 py-4 font-bold">Total Berat</th>
                         <th scope="col" class="px-5 py-4 font-bold">Total Estimasi Biaya</th>
                         <th scope="col" class="px-5 py-4 font-bold">Status</th>
                         <th scope="col" class="px-5 py-4 font-bold">Tracking</th>
@@ -69,8 +70,7 @@
                                 <span class="text-ink-400">{{ $quotation->created_at->format('H:i') }}</span>
                             </td>
                             <td class="px-5 py-4 font-semibold text-ink-800">{{ $quotation->items_count }} file</td>
-                            <td class="px-5 py-4 text-ink-600">{{ number_format($quotation->total_weight_g, 1, ',', '.') }} g</td>
-                            <td class="px-5 py-4 font-semibold text-ink-900">{{ $rupiah($quotation->display_price) }}</td>
+                            <td class="px-5 py-4 font-semibold text-ink-900">{{ harga_penawaran($quotation->display_price) }}</td>
                             <td class="px-5 py-4">
                                 <span class="rounded-full border border-ink-200 bg-ink-50 px-3 py-1 text-xs font-semibold text-ink-600">
                                     {{ $quotation->status_label }}
@@ -93,7 +93,7 @@
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="8" class="px-5 py-16 text-center">
+                            <td colspan="7" class="px-5 py-16 text-center">
                                 <p class="font-semibold text-ink-700">Belum ada penawaran.</p>
                                 <p class="mt-1.5 text-sm text-ink-400">Unggah model 3D Anda di halaman 3D Models untuk membuat penawaran pertama.</p>
                                 <a href="{{ route('models') }}" class="btn-primary mt-5">Buka 3D Models</a>

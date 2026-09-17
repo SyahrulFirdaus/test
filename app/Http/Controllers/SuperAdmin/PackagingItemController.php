@@ -33,7 +33,7 @@ class PackagingItemController extends Controller
         );
 
         return redirect()
-            ->route('superadmin.price-list.index')
+            ->route('superadmin.price-list.packaging.index')
             ->with('status', 'Packaging berhasil ditambahkan.');
     }
 
@@ -58,7 +58,7 @@ class PackagingItemController extends Controller
         );
 
         return redirect()
-            ->route('superadmin.price-list.index')
+            ->route('superadmin.price-list.packaging.index')
             ->with('status', 'Packaging berhasil diperbarui.');
     }
 
@@ -77,7 +77,7 @@ class PackagingItemController extends Controller
         );
 
         return redirect()
-            ->route('superadmin.price-list.index')
+            ->route('superadmin.price-list.packaging.index')
             ->with('status', 'Packaging berhasil dihapus.');
     }
 

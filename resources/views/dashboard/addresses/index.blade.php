@@ -7,7 +7,7 @@
         <div>
             <h2 class="text-2xl font-bold tracking-tight text-ink-900 sm:text-3xl">Alamat Pengiriman</h2>
             <p class="mt-2 text-sm text-ink-500">
-                Simpan beberapa alamat sekaligus — misalnya rumah dan kantor — lalu pilih salah satunya
+                Simpan beberapa alamat sekaligus (misalnya rumah dan kantor), lalu pilih salah satunya
                 saat meminta penawaran. Alamat utama terpilih lebih dulu.
             </p>
         </div>
@@ -60,7 +60,7 @@
                     </p>
 
                     <p class="mt-1 text-sm leading-relaxed text-ink-600">{{ $address->detail }}</p>
-                    <p class="mt-0.5 text-sm leading-relaxed text-ink-500">{{ $address->region_line ?: '—' }}</p>
+                    <p class="mt-0.5 text-sm leading-relaxed text-ink-500">{{ $address->region_line ?: '-' }}</p>
 
                     @if ($address->note)
                         <p class="mt-2 text-xs text-ink-400">Catatan: {{ $address->note }}</p>

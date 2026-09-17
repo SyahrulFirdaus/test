@@ -60,17 +60,85 @@ async function boot(container) {
     const buffer = await (record.mesh ?? record.blob).arrayBuffer();
     const bufferFormat = record.mesh ? record.meshFormat : null;
 
-    const channel = createModelChannel();
     const renderer = new SharedRenderer();
 
     let saveTimer = null;
 
+    // Tab ini tidak lagi boleh menyimpan begitu modelnya diubah atau dihapus
+    // dari tab lain — mis. Edit Specification pada halaman 3D Models.
+    let stale = false;
+
+    /*
+     * Keadaan model yang terakhir diketahui tab ini: yang dimuat saat dibuka,
+     * lalu yang disimpannya sendiri. Bila isi penyimpanan tidak lagi sama,
+     * berarti tab lain sudah mengubahnya, dan card di tab ini memegang
+     * spesifikasi LAMA. Menyimpannya akan menimpa perubahan itu — teknologi,
+     * material, dan harga dari spesifikasi sebelumnya kembali muncul.
+     */
+    let knownState = stateKey(record.state);
+
+    const reloadFromStore = () => {
+        stale = true;
+        clearTimeout(saveTimer);
+        window.location.reload();
+    };
+
+    const channel = createModelChannel((message) => {
+        if (!message || stale) {
+            return;
+        }
+
+        if (message.type === 'cleared' || (message.id === record.id && message.type === 'removed')) {
+            stale = true;
+            clearTimeout(saveTimer);
+            showMissing(container);
+
+            return;
+        }
+
+        // Diubah tab lain: muat ulang supaya card mengikuti spesifikasi terbaru.
+        // Simpanan tab ini sendiri tidak memicu apa-apa karena keadaannya sama.
+        if (message.id === record.id && message.type === 'updated') {
+            modelStore.find(record.id).then((current) => {
+                if (!current) {
+                    stale = true;
+                    showMissing(container);
+                } else if (stateKey(current.state) !== knownState) {
+                    reloadFromStore();
+                }
+            });
+        }
+    });
+
     const persist = async (card) => {
+        if (stale) {
+            return;
+        }
+
         try {
+            // Periksa ulang sebelum menulis: kabar antar tab bisa datang
+            // terlambat, atau tidak didukung browser sama sekali.
+            const current = await modelStore.find(record.id);
+
+            if (!current) {
+                // Sudah dihapus di tab lain — jangan dihidupkan kembali.
+                stale = true;
+                showMissing(container);
+
+                return;
+            }
+
+            if (stateKey(current.state) !== knownState) {
+                reloadFromStore();
+
+                return;
+            }
+
             const updated = {
                 ...toRecord(card, {
                     id: record.id,
-                    position: record.position,
+                    // Nomor urut dapat berubah di tab lain (model lain dihapus).
+                    position: current.position ?? record.position,
                     name: record.name,
                     size: record.size,
                 }),
@@ -81,6 +149,7 @@ async function boot(container) {
             };
 
             await modelStore.put(updated);
+            knownState = stateKey(updated.state);
             channel.post({ type: 'updated', id: record.id });
         } catch (error) {
             console.error(error);
@@ -128,6 +197,28 @@ async function boot(container) {
     // Simpan sekali di awal: thumbnail dan estimasinya ikut mengikuti versi
     // perhitungan terbaru meski pengguna tidak mengubah apa pun.
     persist(card);
+}
+
+/**
+ * Sidik keadaan model untuk mendeteksi perubahan dari tab lain.
+ *
+ * Kuncinya diurutkan supaya dua keadaan yang isinya sama selalu menghasilkan
+ * teks yang sama, dari mana pun objeknya disusun.
+ */
+function stateKey(state) {
+    const sort = (value) => {
+        if (Array.isArray(value)) {
+            return value.map(sort);
+        }
+
+        if (value && typeof value === 'object') {
+            return Object.fromEntries(Object.keys(value).sort().map((key) => [key, sort(value[key])]));
+        }
+
+        return value;
+    };
+
+    return JSON.stringify(sort(state ?? null));
 }
 
 function readConfig(container) {

@@ -5,13 +5,16 @@ namespace App\Http\Controllers\SuperAdmin;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\StoreAdminAccountRequest;
 use App\Http\Requests\UpdateAdminAccountRequest;
+use App\Models\Permission;
 use App\Models\User;
 use App\Services\ActivityLogger;
 use App\Support\ActivityAction;
 use App\Support\ActivityModule;
+use App\Support\AdminPermission;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 
 /**
@@ -57,22 +60,38 @@ class AdminAccountController extends Controller
 
     public function create(): View
     {
-        return view('superadmin.admins.form', ['admin' => new User]);
+        return view('superadmin.admins.form', [
+            'admin' => new User,
+            'modules' => $this->permissionModules(),
+            'granted' => AdminPermission::defaults(),
+        ]);
     }
 
     public function store(StoreAdminAccountRequest $request): RedirectResponse
     {
-        $admin = User::create([
-            ...$request->validated(),
-            'role' => User::ROLE_ADMIN,
-        ]);
+        $data = $request->validated();
+        $keys = AdminPermission::normalize($data['permissions'] ?? []);
+        unset($data['permissions']);
+
+        $admin = DB::transaction(function () use ($data, $keys) {
+            // Role selalu ditetapkan di sini, tidak pernah dari kiriman formulir,
+            // jadi akun yang dibuat lewat menu ini tidak dapat menjadi Superadmin.
+            $admin = User::create([...$data, 'role' => User::ROLE_ADMIN]);
+            $this->syncPermissions($admin, $keys);
+
+            return $admin;
+        });
 
         $this->activity->log(
             action: ActivityAction::ADMIN_CREATE,
             description: 'Membuat akun admin '.$admin->name.' ('.$admin->email.').',
             subject: $admin,
             // Kata sandi tersaring pencatat sebelum apa pun tersimpan.
-            new: $admin->only(['name', 'email', 'is_active']),
+            new: [
+                ...$admin->only(['name', 'email']),
+                'status' => $this->statusLabel($admin->isActive()),
+                ...AdminPermission::snapshot($keys),
+            ],
             actor: $request->user(),
             module: ActivityModule::ADMIN,
             subjectLabel: $admin->email,
@@ -85,15 +104,26 @@ class AdminAccountController extends Controller
 
     public function edit(User $admin): View
     {
-        return view('superadmin.admins.form', ['admin' => $this->resolveAdmin($admin)]);
+        $admin = $this->resolveAdmin($admin);
+
+        return view('superadmin.admins.form', [
+            'admin' => $admin,
+            'modules' => $this->permissionModules(),
+            'granted' => $admin->adminPermissionKeys(),
+        ]);
     }
 
     public function update(UpdateAdminAccountRequest $request, User $admin): RedirectResponse
     {
         $admin = $this->resolveAdmin($admin);
-        $before = $admin->only(['name', 'email', 'is_active']);
+
+        $before = $admin->only(['name', 'email']);
+        $wasActive = $admin->isActive();
+        $grantedBefore = $admin->adminPermissionKeys();
 
         $data = $request->validated();
+        $keys = AdminPermission::normalize($data['permissions'] ?? []);
+        unset($data['permissions']);
 
         // Kata sandi hanya diganti bila benar-benar diisi: formulir edit
         // sengaja membiarkannya kosong supaya menyunting nama tidak
@@ -102,18 +132,57 @@ class AdminAccountController extends Controller
             unset($data['password']);
         }
 
-        $admin->update($data);
+        DB::transaction(function () use ($admin, $data, $keys) {
+            $admin->update($data);
+
+            // Berlaku pada permintaan Admin berikutnya: hak akses selalu
+            // dibaca ulang dari basis data, tidak disalin ke session atau
+            // cache, jadi tidak ada hak akses lama yang perlu diinvalidasi.
+            $this->syncPermissions($admin, $keys);
+        });
+
+        $actor = $request->user();
 
         $this->activity->logChanges(
             action: ActivityAction::ADMIN_UPDATE,
             before: $before,
-            after: $admin->only(['name', 'email', 'is_active']),
+            after: $admin->only(['name', 'email']),
             description: 'Mengubah akun admin '.$admin->email.'.',
             subject: $admin,
-            actor: $request->user(),
+            actor: $actor,
             module: ActivityModule::ADMIN,
             subjectLabel: $admin->email,
         );
+
+        // Status dan hak akses menentukan apa yang boleh dilakukan akun ini,
+        // jadi masing-masing dicatat sebagai aktivitas tersendiri yang mudah
+        // dicari di Activity Log.
+        if ($wasActive !== $admin->isActive()) {
+            $this->activity->log(
+                action: ActivityAction::ADMIN_STATUS_UPDATE,
+                description: 'Mengubah status admin '.$admin->name.': '
+                    .$this->statusLabel($wasActive).' → '.$this->statusLabel($admin->isActive()).'.',
+                subject: $admin,
+                old: ['status' => $this->statusLabel($wasActive)],
+                new: ['status' => $this->statusLabel($admin->isActive())],
+                actor: $actor,
+                module: ActivityModule::ADMIN,
+                subjectLabel: $admin->email,
+            );
+        }
+
+        if ($this->permissionsChanged($grantedBefore, $keys)) {
+            $this->activity->log(
+                action: ActivityAction::ADMIN_PERMISSION_UPDATE,
+                description: 'Mengubah hak akses admin '.$admin->name.' ('.$admin->email.').',
+                subject: $admin,
+                old: AdminPermission::snapshot($grantedBefore),
+                new: AdminPermission::snapshot($keys),
+                actor: $actor,
+                module: ActivityModule::ADMIN,
+                subjectLabel: $admin->email,
+            );
+        }
 
         // Penggantian kata sandi tidak terlihat pada perbandingan di atas —
         // kolomnya memang tidak pernah ikut dicatat — jadi dicatat terpisah.
@@ -122,7 +191,7 @@ class AdminAccountController extends Controller
                 action: ActivityAction::ADMIN_PASSWORD_RESET,
                 description: 'Menetapkan kata sandi baru untuk akun admin '.$admin->email.'.',
                 subject: $admin,
-                actor: $request->user(),
+                actor: $actor,
                 module: ActivityModule::ADMIN,
                 subjectLabel: $admin->email,
             );
@@ -157,6 +226,46 @@ class AdminAccountController extends Controller
         return redirect()
             ->route('superadmin.admins.index')
             ->with('status', "Akun admin {$name} berhasil dihapus.");
+    }
+
+    /**
+     * Simpan hak akses yang menyala untuk akun Admin ini.
+     *
+     * @param  array<int, string>  $keys  kunci App\Support\AdminPermission
+     */
+    private function syncPermissions(User $admin, array $keys): void
+    {
+        $admin->permissions()->sync(Permission::syncDefinitions()->toBase()->only($keys)->pluck('id')->all());
+        $admin->unsetRelation('permissions');
+    }
+
+    /**
+     * Hak akses per modul untuk formulir, dari katalog backend.
+     *
+     * Baris tabel `permissions` ikut disamakan lebih dulu, jadi hak akses yang
+     * baru ditambahkan ke katalog langsung dapat diberikan.
+     *
+     * @return array<string, array{label: string, permissions: array<string, array{label: string, description: string, default: bool}>}>
+     */
+    private function permissionModules(): array
+    {
+        Permission::syncDefinitions();
+
+        return AdminPermission::modules();
+    }
+
+    /**
+     * @param  array<int, string>  $before
+     * @param  array<int, string>  $after
+     */
+    private function permissionsChanged(array $before, array $after): bool
+    {
+        return array_diff($before, $after) !== [] || array_diff($after, $before) !== [];
+    }
+
+    private function statusLabel(bool $active): string
+    {
+        return $active ? 'Aktif' : 'Nonaktif';
     }
 
     /**

@@ -26,7 +26,9 @@
             </p>
         </div>
 
+        @can(\App\Support\AdminPermission::QUOTATION_VIEW)
         <a href="{{ staff_route('quotations.show', $quotation) }}" class="viewer-tool">Lihat Penawaran</a>
+        @endcan
     </div>
 
     {{-- ===================== RINGKASAN NILAI ===================== --}}
@@ -60,6 +62,7 @@
                 Menyetujui pengajuan ini langsung membentuk jadwal terminnya dan mengaktifkan Termin 1.
             </p>
 
+            @can(\App\Support\AdminPermission::PAYMENT_TERM_EDIT)
             <div class="mt-5 grid gap-4 lg:grid-cols-2">
                 <form method="POST" action="{{ staff_route('payment-terms.approve', $term) }}">
                     @csrf
@@ -77,6 +80,9 @@
                     <button type="submit" class="viewer-tool w-full justify-center">Tolak Payment Term</button>
                 </form>
             </div>
+            @else
+                <p class="mt-4 text-xs font-semibold text-amber-800">Anda tidak memiliki hak akses Edit Payment Term untuk memutuskan pengajuan ini.</p>
+            @endcan
         </section>
     @endif
 
@@ -95,13 +101,16 @@
         <section class="mt-6 rounded-2xl border border-ink-100 bg-white p-6 shadow-card">
             <h3 class="font-display text-base font-bold text-ink-900">Pembagian Termin</h3>
             <p class="mt-1.5 text-sm text-ink-500">
-                Nominal dihitung dari persentase. Total persentase harus tepat 100% — bila tidak, perubahan
+                Nominal dihitung dari persentase. Total persentase harus tepat 100%. Bila tidak, perubahan
                 ditolak dan tidak ada yang tersimpan. Termin yang sudah dibayar terkunci nominalnya.
             </p>
 
             <form method="POST" action="{{ staff_route('payment-terms.schedule', $term) }}" class="mt-5">
                 @csrf
                 @method('PATCH')
+
+                {{-- Tanpa hak Edit jadwal tetap terbaca, tetapi terkunci. --}}
+                <fieldset @cannot(\App\Support\AdminPermission::PAYMENT_TERM_EDIT) disabled @endcannot>
 
                 <div class="space-y-4">
                     @foreach ($term->installments as $index => $installment)
@@ -167,7 +176,11 @@
                 @error('installments') <p class="field-error mt-3">{{ $message }}</p> @enderror
                 @error('installments.*.percentage') <p class="field-error mt-3">{{ $message }}</p> @enderror
 
+                </fieldset>
+
+                @can(\App\Support\AdminPermission::PAYMENT_TERM_EDIT)
                 <button type="submit" class="btn-primary mt-5 w-full sm:w-auto sm:px-8">Simpan Pembagian Termin</button>
+                @endcan
             </form>
         </section>
 
@@ -197,21 +210,21 @@
                         </div>
 
                         <div class="flex flex-wrap gap-2">
-                            @if ($installment->latestProof)
+                            @if ($installment->latestProof && auth()->user()->can(\App\Support\AdminPermission::PAYMENT_VIEW))
                                 <a href="{{ staff_route('payments.installments.proof', [$installment, $installment->latestProof]) }}"
                                    target="_blank"
                                    rel="noopener"
                                    class="viewer-tool">Lihat Bukti</a>
                             @endif
 
-                            @if ($installment->status === \App\Support\InstallmentStatus::INACTIVE)
+                            @if ($installment->status === \App\Support\InstallmentStatus::INACTIVE && auth()->user()->can(\App\Support\AdminPermission::PAYMENT_TERM_EDIT))
                                 <form method="POST" action="{{ staff_route('payment-terms.installments.activate', [$term, $installment]) }}">
                                     @csrf
                                     <button type="submit" class="viewer-tool">Aktifkan Termin</button>
                                 </form>
                             @endif
 
-                            @if ($installment->isAwaitingVerification())
+                            @if ($installment->isAwaitingVerification() && auth()->user()->can(\App\Support\AdminPermission::PAYMENT_VIEW))
                                 <a href="{{ staff_route('payments.index', ['filter' => 'installments']) }}" class="btn-primary px-4 py-2">
                                     Verifikasi
                                 </a>

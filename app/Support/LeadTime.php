@@ -88,7 +88,7 @@ class LeadTime
         $range = ($min === $max ? $min : $min.'–'.$max).' '.self::unit();
         $name = (string) ($tier['name'] ?? '');
 
-        return $name === '' ? $range : $name.' — '.$range;
+        return $name === '' ? $range : $name.' ('.$range.')';
     }
 
     /**

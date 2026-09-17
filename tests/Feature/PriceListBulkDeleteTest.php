@@ -32,7 +32,8 @@ class PriceListBulkDeleteTest extends TestCase
 
     private function superAdmin(): User
     {
-        return User::factory()->superAdmin()->create(['email' => 'superadmin@nusama3d.com']);
+        return User::where('email', 'superadmin@nusama3d.com')->first()
+            ?? User::factory()->superAdmin()->create(['email' => 'superadmin@nusama3d.com']);
     }
 
     /* ------------------------------------------------------------- FDM --- */
@@ -44,7 +45,7 @@ class PriceListBulkDeleteTest extends TestCase
 
         $this->actingAs($this->superAdmin())
             ->delete(route('superadmin.price-list.materials.destroy-many', PrintTechnology::findByCode('FDM')), ['ids' => $dihapus->modelKeys()])
-            ->assertRedirect(route('superadmin.price-list.index', ['tab' => 'fdm']))
+            ->assertRedirect(route('superadmin.price-list.technology', ['slug' => 'fdm']))
             ->assertSessionHas('status', '3 material FDM berhasil dihapus.');
 
         foreach ($dihapus as $material) {
@@ -118,8 +119,8 @@ class PriceListBulkDeleteTest extends TestCase
         $sisa = SlaMaterial::count() - 2;
 
         $this->actingAs($this->superAdmin())
-            ->delete(route('superadmin.price-list.materials.destroy-many', PrintTechnology::findByCode('SLA')), ['ids' => $dihapus->modelKeys()])
-            ->assertRedirect(route('superadmin.price-list.index', ['tab' => 'sla']))
+            ->delete(route('superadmin.price-list.materials.destroy-many', PrintTechnology::findByCode(SlaMaterial::TECHNOLOGY)), ['ids' => $dihapus->modelKeys()])
+            ->assertRedirect(route('superadmin.price-list.technology', ['slug' => 'sla']))
             ->assertSessionHas('status', '2 material SLA berhasil dihapus.');
 
         $this->assertSame($sisa, SlaMaterial::count());
@@ -132,7 +133,7 @@ class PriceListBulkDeleteTest extends TestCase
         $fdmSebelum = FdmMaterial::count();
 
         $this->actingAs($this->superAdmin())
-            ->delete(route('superadmin.price-list.materials.destroy-many', PrintTechnology::findByCode('SLA')), ['ids' => [$fdm->id]]);
+            ->delete(route('superadmin.price-list.materials.destroy-many', PrintTechnology::findByCode(SlaMaterial::TECHNOLOGY)), ['ids' => [$fdm->id]]);
 
         $this->assertDatabaseHas('print_materials', ['id' => $fdm->id]);
         $this->assertSame($fdmSebelum, FdmMaterial::count());
@@ -158,7 +159,7 @@ class PriceListBulkDeleteTest extends TestCase
         $ids = SlaMaterial::query()->take(2)->pluck('id')->all();
 
         $this->actingAs(User::factory()->create())
-            ->delete(route('superadmin.price-list.materials.destroy-many', PrintTechnology::findByCode('SLA')), ['ids' => $ids])
+            ->delete(route('superadmin.price-list.materials.destroy-many', PrintTechnology::findByCode(SlaMaterial::TECHNOLOGY)), ['ids' => $ids])
             ->assertRedirect(route('dashboard'));
 
         $this->assertSame($sebelum, SlaMaterial::count());
@@ -168,11 +169,11 @@ class PriceListBulkDeleteTest extends TestCase
 
     public function test_kedua_tab_menampilkan_kotak_centang_dan_tombolnya(): void
     {
-        $response = $this->actingAs($this->superAdmin())
-            ->get(route('superadmin.price-list.index'))
-            ->assertOk();
+        foreach (['fdm', 'slai'] as $tab) {
+            $response = $this->actingAs($this->superAdmin())
+                ->get(\App\Support\PriceListPage::url($tab))
+                ->assertOk();
 
-        foreach (['fdm', 'sla'] as $tab) {
             $response->assertSee('id="'.$tab.'-bulk-delete"', false)
                 ->assertSee('data-bulk-all="'.$tab.'"', false)
                 ->assertSee('data-bulk-item="'.$tab.'"', false)
@@ -190,12 +191,14 @@ class PriceListBulkDeleteTest extends TestCase
     public function test_kotak_centang_dikaitkan_lewat_atribut_form(): void
     {
         $html = $this->actingAs($this->superAdmin())
-            ->get(route('superadmin.price-list.index'))
+            ->get(route('superadmin.price-list.technology', ['slug' => 'fdm']))
             ->assertOk()
             ->getContent();
 
         $this->assertStringContainsString('form="fdm-bulk-delete"', $html);
-        $this->assertStringContainsString('form="sla-bulk-delete"', $html);
+        $this->assertStringContainsString('form="slai-bulk-delete"', $this->actingAs($this->superAdmin())
+            ->get(route('superadmin.price-list.technology', ['slug' => 'sla']))
+            ->getContent());
 
         // Formulir massalnya ditutup sebelum <table> dibuka.
         $formEnd = strpos($html, 'id="fdm-bulk-delete"');

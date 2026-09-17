@@ -5,10 +5,13 @@ namespace App\Services;
 use App\Models\MachineCost;
 use App\Models\PackagingItem;
 use App\Models\PricingFormula;
+use App\Models\PrintTechnology;
 use App\Models\QuotationItem;
 use App\Models\QuotationRequest;
 use App\Support\BasicFee;
+use App\Support\PricingMethod;
 use App\Support\Printer;
+use App\Support\SlaIndustries;
 use Illuminate\Support\Collection;
 
 /**
@@ -30,9 +33,15 @@ use Illuminate\Support\Collection;
  *   Basic Fee               = tarif menurut sisi terpanjang model
  *   Harga Jual              = Subtotal + Profit + Basic Fee
  *
- * Keempat teknologi (FDM/SLA/MJF/SLM) menempuh jalur yang sama; yang berbeda
- * hanya sumber parameternya — baris `pricing_formulas` milik teknologi itu,
- * material Price List yang dipakai modelnya, dan mesin yang dipilih.
+ * Seluruh teknologi membaca SATU Rumus Harga Otomatis yang berlaku umum
+ * (App\Models\PricingFormula::GENERAL); yang berbeda antar model hanya
+ * material Price List yang dipakai dan mesin yang dipilih.
+ *
+ * Material SLA/MJF/SLM dengan Kalkulator Manual tidak melewati jalur ini:
+ * harganya tidak diturunkan dari berat dan waktu mesin melainkan dari kuotasi
+ * vendor yang diisi tim pada Detail Penawaran — lihat App\Support\SlaIndustries
+ * dan App\Models\SlaIndustriesQuote. Material SLA dengan Kalkulator Otomatis
+ * menempuh jalur yang sama dengan FDM (lihat App\Support\PricingMethod).
  *
  * App\Services\PrintEstimator tetap menghitung berat, waktu, dan volume —
  * hanya penetapan harganya yang pindah ke sini.
@@ -186,8 +195,29 @@ class SellingPriceEstimator
     {
         $technology = strtoupper((string) $context['technology']);
         $material = (string) $context['material'];
-        $formula = $this->formula($technology);
         $quantity = max(1, (int) ($context['quantity'] ?? 1));
+
+        // Material SLA/MJF/SLM dengan Kalkulator Manual berhenti di sini.
+        // Harganya tidak diturunkan dari berat dan waktu mesin — baru ada
+        // setelah tim mengisi Form Perhitungan pada Detail Penawaran. Kalkulator
+        // Otomatis melanjutkan ke rumus di bawah, sama seperti FDM.
+        // Lihat App\Support\PricingMethod.
+        if (PricingMethod::usesManualPricing($technology, $material)) {
+            return [
+                'technology' => $technology,
+                'material_source' => $material,
+                'quantity' => $quantity,
+
+                // Ditunggu, bukan nol: yang membaca angka ini harus menampilkan
+                // "Menunggu Perhitungan", bukan harga Rp0.
+                'manual_pricing' => true,
+                'pricing_source' => 'sla_industries',
+                'selling_price' => null,
+                'total' => null,
+            ];
+        }
+
+        $formula = $this->formula($technology);
 
         // Machine Time sudah mencakup seluruh unit model ini — angka yang masuk
         // adalah total menit dari estimator, bukan waktu per unit.
@@ -277,15 +307,21 @@ class SellingPriceEstimator
      */
     public function browserPayload(): array
     {
-        $formulas = PricingFormula::all()
-            ->mapWithKeys(fn (PricingFormula $formula) => [strtoupper($formula->technology) => [
-                'machineCost' => (float) $formula->machine_cost,
-                'materialPricePerG' => (float) $formula->material_price_per_g,
-                'riskPercent' => (float) $formula->risk_percent,
-                'packagingCost' => (float) $formula->packaging_cost,
-                'overtimeCost' => (float) $formula->overtime_cost,
-                'profitPercent' => (float) $formula->profit_percent,
-            ]])
+        // Satu Rumus Harga Otomatis untuk seluruh teknologi. Tetap dikirim
+        // juga per kode teknologi supaya pembaca lama di browser pun menemukan
+        // parameter yang sama.
+        $general = $this->formula('');
+        $parameters = $general === null ? [] : [
+            'machineCost' => (float) $general->machine_cost,
+            'materialPricePerG' => (float) $general->material_price_per_g,
+            'riskPercent' => (float) $general->risk_percent,
+            'packagingCost' => (float) $general->packaging_cost,
+            'overtimeCost' => (float) $general->overtime_cost,
+            'profitPercent' => (float) $general->profit_percent,
+        ];
+
+        $formulas = collect(PrintTechnology::cached()->keys())
+            ->mapWithKeys(fn (string $code) => [$code => $parameters])
             ->all();
 
         $machines = collect(array_keys((array) config('printing.printers.options', [])))
@@ -311,6 +347,7 @@ class SellingPriceEstimator
             ->all();
 
         return [
+            'formula' => $parameters,
             'formulas' => $formulas,
             'machines' => $machines,
             'packaging' => $packaging,
@@ -351,6 +388,13 @@ class SellingPriceEstimator
     {
         $number = fn (float $value, int $decimals = 0) => number_format($value, $decimals, ',', '.');
         $rupiah = fn (float $value) => 'Rp'.$number($value);
+
+        // SLA Industries tidak punya material, jam mesin, risk, maupun Basic
+        // Fee — harganya satu angka dari kuotasi vendor. Rinciannya ada pada
+        // Form Perhitungan SLA Industries di kartu modelnya, bukan di sini.
+        if ($calculation['manual_pricing'] ?? false) {
+            return [];
+        }
 
         $materialFormula = 'Berat × Harga Material';
         $machineFormula = 'Waktu Mesin × Machine Cost';
@@ -398,6 +442,10 @@ class SellingPriceEstimator
         $number = fn (float $value, int $decimals = 0) => number_format($value, $decimals, ',', '.');
         $rupiah = fn (float $value) => 'Rp'.$number($value);
 
+        if ($calculation['manual_pricing'] ?? false) {
+            return [];
+        }
+
         return [
             'Material' => (string) ($calculation['material_source'] ?? '-'),
             'Berat Material' => $number((float) $calculation['material_qty_g'], 2).' gr'
@@ -405,9 +453,9 @@ class SellingPriceEstimator
             'Harga Material' => $rupiah((float) $calculation['material_price_per_g']).' / gram',
             'Machine Time' => $this->duration((float) $calculation['machine_time_hours']),
             'Machine Cost' => $rupiah((float) $calculation['machine_cost']).' / jam'
-                .' ('.($calculation['machine_source'] ?? 'parameter '.$calculation['technology']).')',
+                .' ('.($calculation['machine_source'] ?? 'Rumus Harga Otomatis').')',
             'Risk' => $number((float) $calculation['risk_percent'], 0).'%',
-            'Packaging' => $calculation['packaging_source'] ?? 'parameter '.$calculation['technology'],
+            'Packaging' => $calculation['packaging_source'] ?? 'Rumus Harga Otomatis',
             'Overtime' => $rupiah((float) $calculation['overtime']),
             'Profit' => $number((float) $calculation['profit_percent'], 0).'%',
             'Dimensi Terbesar' => $number((float) $calculation['largest_dimension_mm'], 1).' mm',
@@ -433,9 +481,20 @@ class SellingPriceEstimator
 
     private function formula(string $technology): ?PricingFormula
     {
-        $this->formulas ??= PricingFormula::all()->keyBy(fn (PricingFormula $row) => strtoupper($row->technology));
+        $this->formulas ??= collect([PricingFormula::GENERAL => PricingFormula::general()]);
 
-        return $this->formulas->get($technology);
+        return $this->formulas->get(self::formulaCode($technology));
+    }
+
+    /**
+     * Baris `pricing_formulas` yang dipakai sebuah teknologi.
+     *
+     * Selalu Rumus Harga Otomatis yang berlaku umum — tidak ada lagi rumus per
+     * teknologi. Parameter `$technology` dipertahankan untuk pemanggil lama.
+     */
+    public static function formulaCode(string $technology = ''): string
+    {
+        return PricingFormula::GENERAL;
     }
 
     /**
@@ -543,7 +602,10 @@ class SellingPriceEstimator
      */
     private function sumCalculations(Collection $calculations): array
     {
-        $sum = fn (string $key) => round($calculations->sum(fn (array $row) => (float) $row[$key]), 2);
+        // Rincian SLA Industries hanya memuat harga akhirnya, tanpa komponen
+        // generik seperti risk atau packaging, jadi kunci yang tidak ada
+        // dihitung nol — bukan memicu galat "undefined array key".
+        $sum = fn (string $key) => round($calculations->sum(fn (array $row) => (float) ($row[$key] ?? 0)), 2);
 
         $hpp = $sum('hpp');
         $subtotal = $sum('subtotal');
@@ -562,11 +624,11 @@ class SellingPriceEstimator
             'material_price_per_g' => 0.0,
             'material_source' => null,
             'packaging_source' => null,
-            'quantity' => (int) $calculations->sum(fn (array $row) => (int) $row['quantity']),
+            'quantity' => (int) $calculations->sum(fn (array $row) => (int) ($row['quantity'] ?? 0)),
 
             // Sisi terpanjang tidak dapat dijumlahkan; yang dilaporkan model
             // terbesar dalam kelompok ini, sekadar sebagai keterangan.
-            'largest_dimension_mm' => round((float) $calculations->max(fn (array $row) => (float) $row['largest_dimension_mm']), 2),
+            'largest_dimension_mm' => round((float) $calculations->max(fn (array $row) => (float) ($row['largest_dimension_mm'] ?? 0)), 2),
             'basic_fee_label' => null,
 
             'risk_percent' => $hpp > 0 ? round($riskCost / $hpp * 100, 2) : 0.0,

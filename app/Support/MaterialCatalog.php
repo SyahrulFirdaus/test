@@ -3,6 +3,7 @@
 namespace App\Support;
 
 use App\Services\PrintEstimator;
+use App\Support\SlaIndustries;
 use Illuminate\Support\Str;
 
 /**
@@ -30,9 +31,7 @@ class MaterialCatalog
                 'code' => $code,
                 'name' => $technology['name'],
                 'family' => $technology['family'] ?? null,
-                'label' => isset($technology['family'])
-                    ? $code.' ('.$technology['family'].')'
-                    : $code,
+                'label' => self::technologyLabel($code, $technology['family'] ?? null),
                 'description' => $technology['description'],
                 'buildVolume' => $technology['build_volume'],
                 'minWallMm' => $technology['min_wall_thickness_mm'],
@@ -43,6 +42,20 @@ class MaterialCatalog
             ])
             ->values()
             ->all();
+    }
+
+    /**
+     * Tulisan pilihan Technology, mis. "FDM (Plastic)".
+     *
+     * Teknologi dipanggil dengan KODENYA karena itulah yang dikenal pelanggan
+     * maupun tim — kecuali SLA Industries, yang dipanggil dengan namanya:
+     * "SLAI" hanya singkatan teknis yang tidak dipakai siapa pun.
+     */
+    public static function technologyLabel(string $code, ?string $family = null): string
+    {
+        $name = SlaIndustries::is($code) ? SlaIndustries::NAME : $code;
+
+        return $family ? $name.' ('.$family.')' : $name;
     }
 
     /**

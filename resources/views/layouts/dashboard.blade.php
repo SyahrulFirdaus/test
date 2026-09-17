@@ -68,29 +68,43 @@
      */
     $area = $isSuperAdmin ? 'superadmin.' : 'admin.';
 
-    $staffMenu = [
+    /*
+     * Menu staf dikelompokkan: Penawaran, Pembayaran, Price List, lalu Akun.
+     * Kunci `group` menentukan heading di atas item; item tanpa `group`
+     * (Dashboard) berdiri sendiri. Menu milik Superadmin disaring di bawah.
+     */
+    $staffMenu = array_values(array_filter([
         ['label' => 'Dashboard', 'route' => $area.'dashboard', 'icon' => 'grid', 'active' => $area.'dashboard'],
-        ['label' => 'Penawaran', 'route' => $area.'quotations.index', 'icon' => 'layers', 'active' => $area.'quotations.*'],
-        ['label' => 'Verifikasi Pembayaran', 'route' => $area.'payments.index', 'icon' => 'check', 'active' => $area.'payments.*'],
-        ['label' => 'Payment Terms', 'route' => $area.'payment-terms.index', 'icon' => 'layers', 'active' => $area.'payment-terms.*'],
-        ['label' => 'Notifikasi', 'route' => $area.'notifications.index', 'icon' => 'bell', 'active' => $area.'notifications.*'],
-        ['label' => 'Profil', 'route' => $area.'profile.edit', 'icon' => 'user', 'active' => $area.'profile.*'],
-        ['label' => 'Ganti Password', 'route' => $area.'password.edit', 'icon' => 'lock', 'active' => $area.'password.*'],
-    ];
 
-    if ($isSuperAdmin) {
-        // Menu milik Superadmin disisipkan sebelum Notifikasi agar urutannya
-        // mengikuti struktur yang disepakati; Akun Admin menutup daftar.
-        array_splice($staffMenu, 4, 0, [
-            ['label' => 'Price List', 'route' => 'superadmin.price-list.index', 'icon' => 'tag', 'active' => 'superadmin.price-list.*'],
-            ['label' => 'User', 'route' => 'superadmin.users.index', 'icon' => 'users', 'active' => 'superadmin.users.*'],
-            ['label' => 'Activity Log', 'route' => 'superadmin.activity-logs.index', 'icon' => 'shield', 'active' => 'superadmin.activity-logs.*'],
-        ]);
+        ['group' => 'Penawaran', 'label' => 'Penawaran', 'route' => $area.'quotations.index', 'icon' => 'layers', 'active' => $area.'quotations.*', 'permission' => \App\Support\AdminPermission::QUOTATION_VIEW],
+        ['group' => 'Penawaran', 'label' => 'Notifikasi', 'route' => $area.'notifications.index', 'icon' => 'bell', 'active' => $area.'notifications.*', 'permission' => \App\Support\AdminPermission::NOTIFICATION_VIEW],
 
-        $staffMenu[] = ['label' => 'Akun Admin', 'route' => 'superadmin.admins.index', 'icon' => 'users', 'active' => 'superadmin.admins.*'];
-    }
+        ['group' => 'Pembayaran', 'label' => 'Verifikasi Pembayaran', 'route' => $area.'payments.index', 'icon' => 'check', 'active' => $area.'payments.*', 'permission' => \App\Support\AdminPermission::PAYMENT_VIEW],
+        ['group' => 'Pembayaran', 'label' => 'Payment Term', 'route' => $area.'payment-terms.index', 'icon' => 'clock', 'active' => $area.'payment-terms.*', 'permission' => \App\Support\AdminPermission::PAYMENT_TERM_VIEW],
+
+        // Price List tampil sebagai empat grup accordion — lihat $priceListGroups.
+        ['type' => 'price-list', 'superadmin' => true],
+
+        ['group' => 'Akun', 'label' => 'User', 'route' => $area.'users.index', 'icon' => 'users', 'active' => $area.'users.*', 'permission' => \App\Support\AdminPermission::USER_VIEW],
+        ['group' => 'Akun', 'label' => 'Activity Log', 'route' => 'superadmin.activity-logs.index', 'icon' => 'shield', 'active' => 'superadmin.activity-logs.*', 'superadmin' => true],
+        ['group' => 'Akun', 'label' => 'Profil', 'route' => $area.'profile.edit', 'icon' => 'user', 'active' => $area.'profile.*', 'permission' => \App\Support\AdminPermission::PROFILE_EDIT],
+        ['group' => 'Akun', 'label' => 'Ganti Password', 'route' => $area.'password.edit', 'icon' => 'lock', 'active' => $area.'password.*', 'permission' => \App\Support\AdminPermission::PROFILE_SECURITY],
+        ['group' => 'Akun', 'label' => 'Akun Admin', 'route' => 'superadmin.admins.index', 'icon' => 'users', 'active' => 'superadmin.admins.*', 'superadmin' => true],
+    ], fn (array $item) => ($isSuperAdmin || ! ($item['superadmin'] ?? false))
+        // Hak akses Admin dari basis data (`*.view`); Superadmin selalu lolos.
+        && (! isset($item['permission']) || $user->can($item['permission']))));
+
+    // Lonceng notifikasi di header mengikuti hak akses Notifikasi.
+    $showsNotifications = ! $isAdmin || $user->can(\App\Support\AdminPermission::NOTIFICATION_VIEW);
 
     $menu = $isAdmin ? $staffMenu : $customerMenu;
+
+    /*
+     * Price List di sidebar: empat grup accordion, masing-masing berisi item
+     * yang punya halamannya sendiri (lihat App\Support\PriceListPage).
+     */
+    $priceListGroups = $isSuperAdmin ? \App\Support\PriceListPage::menu() : [];
+    $priceListTab = $isSuperAdmin ? \App\Support\PriceListPage::current() : null;
 
     $unreadNotifications = $user->unreadNotifications()->latest()->limit(8)->get();
     $unreadCount = $user->unreadNotifications()->count();
@@ -119,6 +133,10 @@
                 if (dark) {
                     document.documentElement.setAttribute("data-theme", "dark");
                 }
+
+                if (localStorage.getItem("nusama-sidebar") === "collapsed") {
+                    document.documentElement.classList.add("sidebar-collapsed");
+                }
             } catch (e) {
                 /* Mode penyamaran atau penyimpanan diblokir: tetap terang. */
             }
@@ -142,11 +160,14 @@
     <div class="fixed inset-0 z-40 hidden bg-ink-950/50 lg:hidden" data-sidebar-backdrop></div>
 
     {{-- ================= SIDEBAR ================= --}}
-    <aside class="fixed inset-y-0 left-0 z-50 flex w-72 -translate-x-full flex-col border-r border-ink-100 bg-white transition-transform duration-300 ease-out lg:translate-x-0"
+    {{-- Mode icon-only: otomatis pada layar tablet (md), dan dapat dipilih
+         sendiri pada desktop lewat tombol di kaki sidebar. Aturannya ada di
+         resources/css/app.css (.dashboard-sidebar). --}}
+    <aside class="dashboard-sidebar fixed inset-y-0 left-0 z-50 flex w-72 -translate-x-full flex-col border-r border-ink-100 bg-white transition-[width,transform] duration-300 ease-out md:translate-x-0"
            data-sidebar>
-        <div class="flex h-16 shrink-0 items-center gap-3 border-b border-ink-100 px-5">
+        <div class="sidebar-brand flex h-16 shrink-0 items-center gap-3 border-b border-ink-100 px-5">
             <x-logo-mark class="h-9 w-9 shrink-0" />
-            <span class="flex min-w-0 flex-col leading-tight">
+            <span class="sidebar-label flex min-w-0 flex-col leading-tight">
                 <span class="truncate font-display text-sm font-bold text-ink-900">{{ $company->name }}</span>
                 <span class="text-[0.6rem] font-semibold uppercase tracking-[0.18em] text-brand-600">
                     {{ $isAdmin ? 'Dashboard Admin' : ($isBusiness ? 'Business Account' : 'Dashboard Akun') }}
@@ -155,7 +176,56 @@
         </div>
 
         <nav class="flex-1 space-y-1 overflow-y-auto p-4" aria-label="Navigasi dashboard">
+            @php $currentGroup = null; @endphp
+
             @foreach ($menu as $item)
+                {{-- Heading kecil tiap kelompok menu. Dalam mode icon-only
+                     tampil sebagai garis pemisah, dan namanya menjadi tooltip. --}}
+                @if (isset($item['group']) && $item['group'] !== $currentGroup)
+                    @php $currentGroup = $item['group']; @endphp
+                    <p class="sidebar-heading px-4 pb-1 pt-4 text-[0.6rem] font-bold uppercase tracking-[0.18em] text-ink-400"
+                       title="{{ $item['group'] }}">{{ $item['group'] }}</p>
+                @elseif (! isset($item['group']))
+                    @php $currentGroup = null; @endphp
+                @endif
+
+                @if (($item['type'] ?? null) === 'price-list')
+                    <p class="sidebar-heading px-4 pb-1 pt-4 text-[0.6rem] font-bold uppercase tracking-[0.18em] text-ink-400" title="Price List">Price List</p>
+
+                    @foreach ($priceListGroups as $group)
+                        @php $groupActive = array_key_exists((string) $priceListTab, $group['items']); @endphp
+
+                        <div data-sidebar-group="{{ $group['key'] }}">
+                            <button type="button"
+                                    class="sidebar-link flex w-full items-center gap-3 rounded-xl px-4 py-3 text-left text-sm font-semibold transition-colors
+                                           {{ $groupActive ? 'text-brand-700' : 'text-ink-600 hover:bg-brand-50 hover:text-brand-700' }}"
+                                    aria-expanded="{{ $groupActive ? 'true' : 'false' }}"
+                                    aria-controls="sidebar-group-{{ $group['key'] }}"
+                                    title="{{ $group['label'] }}"
+                                    data-sidebar-group-toggle>
+                                <x-dynamic-component :component="'icons.'.$group['icon']" class="h-5 w-5 shrink-0" />
+                                <span class="sidebar-label flex-1">{{ $group['label'] }}</span>
+                                <x-icons.chevron-down class="sidebar-chevron h-4 w-4 shrink-0 transition-transform duration-200" />
+                            </button>
+
+                            <div id="sidebar-group-{{ $group['key'] }}"
+                                 class="sidebar-sub ml-6 space-y-0.5 border-l border-ink-100 py-1 pl-3 {{ $groupActive ? '' : 'hidden' }}"
+                                 data-sidebar-group-list>
+                                @foreach ($group['items'] as $key => $label)
+                                    <a href="{{ \App\Support\PriceListPage::url($key) }}"
+                                       class="sidebar-tab block rounded-lg px-3 py-2 text-sm font-semibold transition-colors"
+                                       data-price-list-link="{{ $key }}"
+                                       @if ($priceListTab === $key) aria-current="page" @endif>
+                                        {{ $label }}
+                                    </a>
+                                @endforeach
+                            </div>
+                        </div>
+                    @endforeach
+
+                    @continue
+                @endif
+
                 @php
                     $isActive = request()->routeIs($item['active']);
 
@@ -176,14 +246,15 @@
                         .(isset($item['anchor']) ? '#'.$item['anchor'] : '');
                 @endphp
                 <a href="{{ $href }}"
-                   class="flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold transition-colors
+                   class="sidebar-link flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold transition-colors
                           {{ $isActive ? 'bg-brand-600 text-white shadow-[0_10px_24px_-14px_rgba(149,39,29,0.95)]' : 'text-ink-600 hover:bg-brand-50 hover:text-brand-700' }}"
+                   title="{{ isset($item['group']) ? $item['group'].' › '.$item['label'] : $item['label'] }}"
                    @if ($isActive) aria-current="page" @endif>
                     <x-dynamic-component :component="'icons.'.$item['icon']" class="h-5 w-5 shrink-0" />
-                    <span class="flex-1">{{ $item['label'] }}</span>
+                    <span class="sidebar-label flex-1">{{ $item['label'] }}</span>
 
                     @if ($item['icon'] === 'bell' && $unreadCount > 0)
-                        <span class="inline-flex min-w-[1.5rem] justify-center rounded-full px-2 py-0.5 text-[0.65rem] font-bold
+                        <span class="sidebar-label inline-flex min-w-[1.5rem] justify-center rounded-full px-2 py-0.5 text-[0.65rem] font-bold
                                      {{ $isActive ? 'bg-white text-brand-700' : 'bg-brand-600 text-white' }}">
                             {{ $unreadCount }}
                         </span>
@@ -192,13 +263,23 @@
             @endforeach
         </nav>
 
-        <div class="shrink-0 border-t border-ink-100 p-4">
-            <a href="{{ route('home') }}" class="viewer-tool w-full justify-center">Lihat Website</a>
+        <div class="sidebar-footer flex shrink-0 items-center gap-2 border-t border-ink-100 p-4">
+            <a href="{{ route('home') }}" class="sidebar-label viewer-tool flex-1 justify-center">Lihat Website</a>
+
+            {{-- Hanya pada desktop; di tablet sidebar selalu icon-only. --}}
+            <button type="button"
+                    class="hidden h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-ink-200 text-ink-600 transition-colors hover:border-brand-600 hover:text-brand-700 lg:inline-flex"
+                    data-sidebar-collapse
+                    aria-pressed="false"
+                    aria-label="Ciutkan sidebar"
+                    title="Ciutkan sidebar">
+                <x-icons.sidebar-collapse class="sidebar-collapse-icon h-5 w-5 transition-transform duration-200" />
+            </button>
         </div>
     </aside>
 
     {{-- ================= KONTEN ================= --}}
-    <div class="lg:pl-72">
+    <div class="dashboard-content md:pl-72">
 
         <header class="sticky top-0 z-30 border-b border-ink-100 bg-white/90 backdrop-blur">
             <div class="flex h-16 items-center justify-between gap-3 px-5 sm:px-8">
@@ -228,6 +309,7 @@
                         <x-icons.moon class="hidden h-5 w-5" data-theme-icon="dark" />
                     </button>
 
+                    @if ($showsNotifications)
                     {{-- Ikon lonceng: jumlah yang belum dibaca diperbarui berkala
                          oleh resources/js/dashboard.js --}}
                     <div class="relative"
@@ -271,6 +353,7 @@
                             </a>
                         </div>
                     </div>
+                    @endif
 
                     <span class="hidden items-center gap-2.5 rounded-xl border border-ink-200 px-3 py-2 sm:flex">
                         <span class="inline-flex h-6 w-6 items-center justify-center rounded-lg bg-brand-600 text-[0.65rem] font-bold text-white">

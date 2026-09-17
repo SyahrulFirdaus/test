@@ -172,7 +172,7 @@
             <p class="font-display text-sm font-bold text-brand-900">Pembayaran sekaligus (lunas)</p>
             <p class="mt-1.5 text-sm text-brand-800">
                 Skema 1x Anda disetujui. Total tagihan {{ $rupiah($term->total_amount) }} dibayarkan sekaligus ke
-                rekening {{ $bank['name'] }} a.n. {{ $bank['account_holder'] }} — {{ $bank['account_number'] }}.
+                rekening {{ $bank['name'] }} a.n. {{ $bank['account_holder'] }}, nomor {{ $bank['account_number'] }}.
             </p>
         </div>
     @endif

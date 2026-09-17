@@ -91,7 +91,7 @@
                     <div>
                         <label for="industry" class="field-label">Industri / Bidang Perusahaan <span class="text-brand-600">*</span></label>
                         <select id="industry" name="industry" required class="field-input">
-                            <option value="">— Pilih industri —</option>
+                            <option value="">Pilih industri</option>
                             @foreach ($industries as $industry)
                                 <option value="{{ $industry }}" @selected($value('industry') === $industry)>{{ $industry }}</option>
                             @endforeach
@@ -154,7 +154,7 @@
         </form>
 
         <p class="mt-5 text-xs leading-relaxed text-ink-400">
-            Data akun pribadi Anda — nama, email, dan nomor WhatsApp — diubah di
+            Data akun pribadi Anda (nama, email, dan nomor WhatsApp) diubah di
             <a href="{{ route('dashboard.profile.edit') }}" class="font-semibold text-brand-600 hover:text-brand-700">halaman Profil</a>,
             sedangkan alamat pengiriman diatur di
             <a href="{{ route('dashboard.addresses.index') }}" class="font-semibold text-brand-600 hover:text-brand-700">menu Alamat</a>.

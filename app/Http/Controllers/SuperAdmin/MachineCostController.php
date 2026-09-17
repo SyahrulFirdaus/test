@@ -34,7 +34,7 @@ class MachineCostController extends Controller
         );
 
         return redirect()
-            ->route('superadmin.price-list.index')
+            ->route('superadmin.price-list.machine-cost.index')
             ->with('status', 'Machine Cost berhasil ditambahkan.');
     }
 
@@ -48,7 +48,7 @@ class MachineCostController extends Controller
     {
         return view('superadmin.price-list.machine-cost.form', [
             'machineCost' => $machineCost,
-            'technologies' => PrintTechnology::ordered()->get(),
+            'technologies' => PrintTechnology::managed()->ordered()->get(),
         ]);
     }
 
@@ -68,7 +68,7 @@ class MachineCostController extends Controller
         );
 
         return redirect()
-            ->route('superadmin.price-list.index')
+            ->route('superadmin.price-list.machine-cost.index')
             ->with('status', 'Machine Cost berhasil diperbarui.');
     }
 
@@ -87,7 +87,7 @@ class MachineCostController extends Controller
         );
 
         return redirect()
-            ->route('superadmin.price-list.index')
+            ->route('superadmin.price-list.machine-cost.index')
             ->with('status', 'Machine Cost berhasil dihapus.');
     }
 

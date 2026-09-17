@@ -23,7 +23,11 @@ class LoginController extends Controller
             return redirect()->route($this->homeFor(Auth::user()));
         }
 
-        return view('admin.login');
+        // /superadmin/login memakai formulir yang sama; hanya keterangannya
+        // yang menyebut Superadmin.
+        return view('admin.login', [
+            'brandLabel' => request()->routeIs('superadmin.login') ? 'Dashboard Superadmin' : 'Dashboard Admin',
+        ]);
     }
 
     public function store(Request $request): RedirectResponse

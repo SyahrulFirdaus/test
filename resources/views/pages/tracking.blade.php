@@ -190,11 +190,9 @@
 
                                         <div class="text-right">
                                             <p class="font-display text-sm font-bold text-brand-700">
-                                                Rp{{ number_format((float) $item->display_price, 0, ',', '.') }}
+                                                {{ harga_penawaran($item->display_price) }}
                                             </p>
-                                            <p class="text-[0.65rem] text-ink-400">
-                                                {{ number_format($item->total_weight_g * $item->quantity, 1, ',', '.') }} gram
-                                            </p>
+                                            {{-- Berat model tidak ditampilkan kepada pelanggan. --}}
                                         </div>
                                     </div>
 

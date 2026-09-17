@@ -117,10 +117,10 @@ class Address extends Model
         ])));
     }
 
-    /** Label beserta nama penerimanya, mis. "Kantor — Budi Hartono". */
+    /** Label beserta nama penerimanya, mis. "Kantor · Budi Hartono". */
     public function getDisplayLabelAttribute(): string
     {
-        return trim($this->label.' — '.$this->recipient_name, ' —');
+        return implode(' · ', array_filter([trim((string) $this->label), trim((string) $this->recipient_name)]));
     }
 
     /**

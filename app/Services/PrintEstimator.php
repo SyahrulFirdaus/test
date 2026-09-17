@@ -7,8 +7,10 @@ use App\Support\BasicFee;
 use App\Support\Finishing;
 use App\Support\InfillPattern;
 use App\Support\MaterialCatalog;
+use App\Support\PricingMethod;
 use App\Support\Printer;
 use App\Support\PrintResolution;
+use App\Support\SlaIndustries;
 use InvalidArgumentException;
 
 /**
@@ -62,6 +64,7 @@ class PrintEstimator
     public function technologies(): array
     {
         return $this->technologies ??= PrintTechnology::query()
+            ->active()
             ->with('materials')
             ->ordered()
             ->get()
@@ -109,9 +112,7 @@ class PrintEstimator
                 // Label pilihan teknologi pada Edit Specification, mis.
                 // "FDM (Plastic)". Sumbernya sama dengan halaman panduan.
                 'family' => $technology['family'] ?? null,
-                'label' => isset($technology['family'])
-                    ? $code.' ('.$technology['family'].')'
-                    : $code,
+                'label' => MaterialCatalog::technologyLabel($code, $technology['family'] ?? null),
                 'description' => $technology['description'],
                 'buildVolume' => $technology['build_volume'],
                 'shellRatio' => $technology['shell_ratio'],
@@ -127,6 +128,12 @@ class PrintEstimator
                 'supportNote' => $this->support->unavailableReason($code),
                 'layerHeightRange' => $technology['layer_height_range'] ?? null,
                 'allowsHollow' => $this->allowsHollow($code),
+
+                // SLA/MJF/SLM menentukan metode harganya PER MATERIAL
+                // (`manualPricing` pada tiap material di bawah). Penanda
+                // tingkat teknologi ini dipertahankan sebagai cadangan bagi
+                // material yang tidak membawa penandanya sendiri.
+                'manualPricing' => false,
 
                 // Pelanggan memilih jenis bahan, bukan brand: daftarnya
                 // disaring dan diberi nama tampilan oleh MaterialCatalog.
@@ -153,6 +160,12 @@ class PrintEstimator
                         'maxSize' => $material['max_size'] ?? null,
                         'minSize' => $material['min_size'] ?? null,
                         'minSizeSlender' => $material['min_size_slender'] ?? null,
+
+                        // Material SLA/MJF/SLM dengan Kalkulator Manual:
+                        // harganya ditetapkan tim setelah penawaran masuk, jadi
+                        // estimator di browser menahan seluruh angka rupiahnya.
+                        // Lihat App\Support\PricingMethod.
+                        'manualPricing' => PricingMethod::isManualMaterial($code, $material),
                     ])
                     ->values()
                     ->all(),

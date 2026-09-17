@@ -11,6 +11,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
@@ -380,6 +381,25 @@ class QuotationRequest extends Model
     public function getPaymentAmountAttribute(): float
     {
         return (float) $this->display_price;
+    }
+
+    /**
+     * Ada model yang harganya belum ditetapkan tim.
+     *
+     * Satu model SLA Industries yang belum dikuotasi sudah cukup membuat TOTAL
+     * penawaran belum berarti — menjumlahkan sisanya akan menghasilkan angka
+     * yang terbaca sebagai harga penuh padahal belum lengkap. Karena itu
+     * seluruh penawarannya berstatus menunggu, bukan sebagiannya saja.
+     */
+    public function awaitsPricing(): bool
+    {
+        return $this->items->contains(fn (QuotationItem $item) => $item->awaitsPricing());
+    }
+
+    /** Model SLA Industries yang masih menunggu kuotasi JLC. */
+    public function itemsAwaitingPricing(): Collection
+    {
+        return $this->items->filter(fn (QuotationItem $item) => $item->awaitsPricing())->values();
     }
 
     /**

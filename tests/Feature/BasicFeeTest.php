@@ -331,15 +331,16 @@ class BasicFeeTest extends TestCase
 
     public function test_tab_harga_menampilkan_baris_dan_isian_basic_fee(): void
     {
-        PricingFormula::where('technology', 'FDM')->update(['object_size_mm' => 250]);
+        PricingFormula::general()->update(['object_size_mm' => 250]);
 
         $this->actingAs($this->admin())
-            ->get(route('superadmin.price-list.index', ['tab' => 'harga']))
+            ->get(route('superadmin.price-list.harga'))
             ->assertOk()
-            ->assertSee('Rincian Harga Jual — FDM', false)
+            ->assertSee('Rincian Harga Jual')
+            ->assertDontSee('Rincian Harga Jual: FDM', false)
             ->assertSee('Basic Fee')
             ->assertSee('Subtotal + Profit + Basic Fee')
-            ->assertSee('Ukuran 3D Object — sisi terpanjang (mm)', false)
+            ->assertSee('Ukuran 3D Object, sisi terpanjang (mm)', false)
             ->assertSee('name="object_size_mm"', false)
             ->assertSee('Rp50.000');
     }
@@ -347,8 +348,7 @@ class BasicFeeTest extends TestCase
     public function test_admin_dapat_mengubah_ukuran_object_dari_price_list(): void
     {
         $this->actingAs($this->admin())
-            ->patch(route('superadmin.price-list.harga.update', 'FDM'), [
-                'technology' => 'FDM',
+            ->patch(route('superadmin.price-list.harga.update'), [
                 'machine_time_hours' => 2,
                 'machine_cost' => 61000,
                 'material_qty_g' => 800,
@@ -359,17 +359,16 @@ class BasicFeeTest extends TestCase
                 'profit_percent' => 50,
                 'object_size_mm' => 250,
             ])
-            ->assertRedirect();
+            ->assertRedirect(route('superadmin.price-list.harga'));
 
-        $this->assertSame(250.0, (float) PricingFormula::where('technology', 'FDM')->sole()->object_size_mm);
-        $this->assertSame(50000.0, PricingFormula::where('technology', 'FDM')->sole()->basic_fee);
+        $this->assertSame(250.0, (float) PricingFormula::general()->object_size_mm);
+        $this->assertSame(50000.0, PricingFormula::general()->basic_fee);
     }
 
     public function test_ukuran_object_wajib_diisi(): void
     {
         $this->actingAs($this->admin())
-            ->patch(route('superadmin.price-list.harga.update', 'FDM'), [
-                'technology' => 'FDM',
+            ->patch(route('superadmin.price-list.harga.update'), [
                 'machine_time_hours' => 2,
                 'machine_cost' => 61000,
                 'material_qty_g' => 800,

@@ -29,6 +29,10 @@ export default function initQuotationForm(viewer, root) {
     const submitLabel = form.querySelector('[data-quotation-submit-label]');
     const spinner = form.querySelector('[data-quotation-spinner]');
     const alertBox = form.querySelector('[data-quotation-alert]');
+    const progressBox = form.querySelector('[data-quotation-progress]');
+    const progressBar = form.querySelector('[data-quotation-progress-bar]');
+    const progressValue = form.querySelector('[data-quotation-progress-value]');
+    const progressLabel = form.querySelector('[data-quotation-progress-label]');
 
     // Pratinjau dan seluruh simulasi terbuka untuk siapa saja; hanya pengiriman
     // penawaran yang menuntut akun. Bila belum masuk, tombol "Minta Penawaran"
@@ -102,9 +106,27 @@ export default function initQuotationForm(viewer, root) {
             })
             .join('');
 
+        // Ukuran gabungan seluruh berkas ditampilkan di muka: batas satu
+        // permintaan mengikuti `post_max_size` server, jadi pengguna tahu sisa
+        // ruangnya sebelum menekan Kirim — bukan setelah permintaannya ditolak.
+        const totalBytes = payload.items.reduce((carry, item) => carry + item.file.size, 0);
+        const maxTotalBytes = viewer.config?.limits?.uploadMaxTotalBytes ?? 0;
+        const overLimit = maxTotalBytes > 0 && totalBytes > maxTotalBytes;
+
         summary.innerHTML = `
-            <div class="border-b border-ink-100 pb-3">
-                <p class="font-display text-sm font-bold text-ink-900">Daftar 3D Object</p>
+            <div class="flex flex-wrap items-start justify-between gap-3 border-b border-ink-100 pb-3">
+                <div class="min-w-0">
+                    <p class="font-display text-sm font-bold text-ink-900">Daftar 3D Object</p>
+                    <p class="mt-1 text-xs font-semibold ${overLimit ? 'text-brand-700' : 'text-ink-500'}">
+                        Total ukuran file ${formatBytes(totalBytes)}
+                        <span class="font-normal text-ink-400">
+                            &middot; ${payload.items.length} file${maxTotalBytes ? ` &middot; batas ${formatBytes(maxTotalBytes)} per permintaan` : ''}
+                        </span>
+                    </p>
+                    ${overLimit
+                        ? '<p class="mt-1 text-[0.7rem] font-semibold text-brand-700">⚠ Melebihi batas satu permintaan. Kurangi jumlah model lalu kirim sisanya terpisah.</p>'
+                        : ''}
+                </div>
             </div>
 
             <ul class="mt-1">${rows}</ul>
@@ -182,6 +204,52 @@ export default function initQuotationForm(viewer, root) {
         submitButton.disabled = submitting;
         submitLabel.textContent = submitting ? 'Mengirim…' : 'Kirim Permintaan';
         spinner.style.display = submitting ? 'inline-block' : 'none';
+
+        if (!submitting) {
+            resetProgress();
+        }
+    };
+
+    const resetProgress = () => {
+        if (!progressBox) {
+            return;
+        }
+
+        progressBox.style.display = 'none';
+        progressBar.style.width = '0%';
+        progressValue.textContent = '0%';
+        progressLabel.textContent = 'Mengunggah file model…';
+    };
+
+    /**
+     * Perlihatkan kemajuan unggahan.
+     *
+     * `loaded`/`total` tidak selalu diketahui — sebagian browser menahan
+     * `lengthComputable` pada permintaan yang terkompresi. Bila begitu, barnya
+     * dibiarkan penuh sebagai indikator "sedang berjalan" tanpa angka palsu.
+     */
+    const showProgress = (loaded, total) => {
+        if (!progressBox) {
+            return;
+        }
+
+        progressBox.style.display = 'block';
+
+        if (!total) {
+            progressBar.style.width = '100%';
+            progressValue.textContent = '…';
+
+            return;
+        }
+
+        const percent = Math.min(100, Math.round((loaded / total) * 100));
+
+        progressBar.style.width = `${percent}%`;
+        progressValue.textContent = `${percent}%`;
+        progressLabel.textContent =
+            percent >= 100
+                ? 'Unggahan selesai, permintaan sedang diproses server…'
+                : `Mengunggah ${formatBytes(loaded)} dari ${formatBytes(total)}`;
     };
 
     openButton.addEventListener('click', () => {
@@ -245,9 +313,9 @@ export default function initQuotationForm(viewer, root) {
         );
 
         if (oversized.length) {
-            const maxMb = (viewer.config.limits.uploadMaxBytes / 1024 / 1024).toFixed(1);
+            const maxPerFile = formatBytes(viewer.config.limits.uploadMaxBytes);
             showAlert(
-                `File ${oversized.map((item) => item.file.name).join(', ')} melebihi batas unggah server (${maxMb} MB per file). ` +
+                `File ${oversized.map((item) => item.file.name).join(', ')} melebihi batas unggah server (${maxPerFile} per file). ` +
                     'Model tetap dapat Anda tinjau di viewer. Untuk penawaran, kirimkan filenya langsung melalui email atau WhatsApp kami.'
             );
             return;
@@ -260,8 +328,8 @@ export default function initQuotationForm(viewer, root) {
 
         if (maxTotal && totalBytes > maxTotal) {
             showAlert(
-                `Ukuran seluruh file ${(totalBytes / 1024 / 1024).toFixed(1)} MB melebihi batas satu permintaan ` +
-                    `(${(maxTotal / 1024 / 1024).toFixed(1)} MB). Kurangi jumlah model lalu kirim sisanya sebagai permintaan terpisah.`
+                `Ukuran seluruh file ${formatBytes(totalBytes)} melebihi batas satu permintaan ` +
+                    `(${formatBytes(maxTotal)}). Kurangi jumlah model lalu kirim sisanya sebagai permintaan terpisah.`
             );
             return;
         }
@@ -314,15 +382,10 @@ export default function initQuotationForm(viewer, root) {
         setSubmitting(true);
 
         try {
-            const response = await fetch(form.action, {
-                method: 'POST',
-                body,
-                headers: {
-                    Accept: 'application/json',
-                    'X-Requested-With': 'XMLHttpRequest',
-                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content ?? '',
-                },
-            });
+            // XMLHttpRequest, bukan fetch: hanya XHR yang melaporkan kemajuan
+            // unggahan. Satu permintaan bisa membawa ratusan MB, dan tanpa
+            // angka yang bergerak tombol "Mengirim…" tampak seperti macet.
+            const response = await postWithProgress(form.action, body, showProgress);
 
             // Sesi habis atau belum masuk: arahkan kembali ke ajakan login
             // supaya isian tidak hilang begitu saja tanpa penjelasan.
@@ -333,7 +396,7 @@ export default function initQuotationForm(viewer, root) {
             }
 
             if (response.status === 422) {
-                const data = await response.json();
+                const data = response.json();
                 showFieldErrors(data.errors ?? {}, payload);
                 showAlert('Periksa kembali isian yang ditandai di bawah ini.');
                 return;
@@ -344,7 +407,7 @@ export default function initQuotationForm(viewer, root) {
                 return;
             }
 
-            const data = await response.json();
+            const data = response.json();
 
             referenceEl.textContent = data.tracking_number ?? '-';
 
@@ -380,6 +443,53 @@ export default function initQuotationForm(viewer, root) {
     });
 }
 
+/**
+ * Kirim FormData sambil melaporkan kemajuan unggahannya.
+ *
+ * `fetch` tidak memiliki event progres untuk badan permintaan, jadi pengiriman
+ * berkas memakai XMLHttpRequest. Nilai yang dikembalikan sengaja dibuat
+ * menyerupai Response — `status`, `ok`, dan `json()` — supaya penanganan di
+ * pemanggilnya tetap sama.
+ */
+function postWithProgress(url, body, onProgress) {
+    return new Promise((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+
+        xhr.open('POST', url);
+        xhr.setRequestHeader('Accept', 'application/json');
+        xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+        xhr.setRequestHeader('X-CSRF-TOKEN', document.querySelector('meta[name="csrf-token"]')?.content ?? '');
+
+        xhr.upload.addEventListener('progress', (event) => {
+            onProgress(event.loaded, event.lengthComputable ? event.total : 0);
+        });
+
+        // Byte terakhir sudah terkirim, tetapi server masih menyimpan berkas dan
+        // menghitung ulang estimasinya. Jeda itu ikut dijelaskan agar tidak
+        // terbaca sebagai gantung.
+        xhr.upload.addEventListener('load', () => onProgress(1, 1));
+
+        xhr.addEventListener('load', () =>
+            resolve({
+                status: xhr.status,
+                ok: xhr.status >= 200 && xhr.status < 300,
+                json: () => {
+                    try {
+                        return JSON.parse(xhr.responseText);
+                    } catch {
+                        return {};
+                    }
+                },
+            })
+        );
+
+        xhr.addEventListener('error', () => reject(new Error('Koneksi terputus saat mengunggah.')));
+        xhr.addEventListener('abort', () => reject(new Error('Unggahan dibatalkan.')));
+
+        xhr.send(body);
+    });
+}
+
 /** Label warna material sesuai config, mis. "Bening". */
 function colorLabel(config, key) {
     return config?.materialColors?.options?.[key]?.label ?? '-';
@@ -388,6 +498,28 @@ function colorLabel(config, key) {
 /** Label finishing sesuai config, mis. "Painting". */
 function finishingLabel(config, key) {
     return config?.finishing?.options?.[key]?.label ?? 'Tanpa Finishing';
+}
+
+/**
+ * Ukuran berkas dalam satuan yang enak dibaca, mis. "65.2 MB".
+ *
+ * Memakai basis 1024 supaya angkanya sama dengan yang dipakai pemeriksaan
+ * batas unggah — `post_max_size` dan `upload_max_filesize` juga MiB.
+ */
+function formatBytes(bytes) {
+    if (!bytes) {
+        return '0 MB';
+    }
+
+    const kb = bytes / 1024;
+
+    if (kb < 1024) {
+        return `${kb.toFixed(1)} KB`;
+    }
+
+    const mb = kb / 1024;
+
+    return mb < 1024 ? `${mb.toFixed(1)} MB` : `${(mb / 1024).toFixed(2)} GB`;
 }
 
 function escapeHtml(value) {

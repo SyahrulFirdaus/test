@@ -38,7 +38,7 @@
 
     @if ($question->type === 'select')
         <select name="{{ $name }}" id="{{ $field }}" class="field-input" @required($question->is_required)>
-            <option value="">— Pilih salah satu —</option>
+            <option value="">Pilih salah satu</option>
             @foreach ($question->resolvedOptions() as $option)
                 <option value="{{ $option }}" @selected($single === $option)>{{ $option }}</option>
             @endforeach

@@ -13,7 +13,7 @@
         <h2 class="text-2xl font-bold tracking-tight text-ink-900 sm:text-3xl">Pengaturan Payment Term</h2>
         <p class="mt-2 text-sm text-ink-500">
             Menentukan skema pembayaran mana yang ditawarkan ke pelanggan Business dan mulai dari nilai penawaran
-            berapa. Aturan ini dibaca langsung oleh halaman pemilihan skema — tidak ada angka yang dikunci di kode.
+            berapa. Aturan ini dibaca langsung oleh halaman pemilihan skema, tidak ada angka yang dikunci di kode.
         </p>
     </div>
 

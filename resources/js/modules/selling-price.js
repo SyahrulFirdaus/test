@@ -14,6 +14,11 @@
  *   Basic Fee               = tarif menurut sisi terpanjang model
  *   Harga Jual              = Subtotal + Profit + Basic Fee
  *
+ * Satu teknologi tidak melewati rumus ini sama sekali: SLA Industries, yang
+ * harganya ditetapkan tim dari kuotasi vendor. Untuk teknologi itu fungsi ini
+ * mengembalikan harga null — bukan nol — supaya tampilannya menulis
+ * "Menunggu Perhitungan".
+ *
  * Parameternya dikirim server lewat `config.pricing` — termasuk Machine Cost
  * yang sudah dicocokkan dengan tiap printer — jadi tidak ada aturan Price List
  * yang ditulis ulang di sini.
@@ -31,8 +36,23 @@ const round2 = (value) => Math.round(value * 100) / 100;
  */
 export function sellingPrice(input) {
     const technology = String(input.technology ?? '').toUpperCase();
-    const formula = input.pricing?.formulas?.[technology] ?? {};
+    // Satu Rumus Harga Otomatis untuk seluruh teknologi.
+    const formula = input.pricing?.formula ?? input.pricing?.formulas?.[technology] ?? {};
     const quantity = Math.max(1, Number(input.quantity) || 1);
+
+    // Teknologi yang harganya ditetapkan tim — SLA Industries — berhenti di
+    // sini. Partnya dipesan ke vendor luar, jadi berat dan waktu mesin tidak
+    // menentukan apa pun, dan browser TIDAK boleh menebak angkanya. Penandanya
+    // datang dari server bersama teknologinya (`manualPricing`).
+    if (input.manualPricing) {
+        return {
+            technology,
+            quantity,
+            manual_pricing: true,
+            selling_price: null,
+            total: null,
+        };
+    }
 
     // Machine Time sudah mencakup seluruh unit model ini.
     const machineTimeHours = (Number(input.minutes) || 0) / 60;

@@ -81,7 +81,7 @@
                                     </p>
                                 @else
                                     <p class="mt-1 text-sm text-ink-500">
-                                        Dibagi menjadi {{ $count }} termin. Pembagian di bawah adalah usulan awal —
+                                        Dibagi menjadi {{ $count }} termin. Pembagian di bawah adalah usulan awal;
                                         admin dapat menyesuaikannya saat menyetujui.
                                     </p>
 

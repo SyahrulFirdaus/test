@@ -301,15 +301,16 @@ class MaterialMachineTest extends TestCase
     /** Aturan yang sama berlaku pada SLA, bukan hanya FDM. */
     public function test_pengelompokan_berlaku_juga_untuk_sla(): void
     {
-        $sla = PrintTechnology::where('code', 'SLA')->sole();
-        $saturn = $this->mesin('Elegoo Saturn 3 Ultra', 'SLA');
-        $photon = $this->mesin('Anycubic Photon Mono', 'SLA');
+        // SLA lama sudah digabung ke SLA (kode SLAI); tabnya beralamat "slai".
+        $sla = PrintTechnology::where('code', 'SLAI')->sole();
+        $saturn = $this->mesin('Elegoo Saturn 3 Ultra', 'SLAI');
+        $photon = $this->mesin('Anycubic Photon Mono', 'SLAI');
 
         $this->material('Standard Resin', $saturn, $sla);
         $this->material('Flexible Resin', $saturn, $sla);
         $this->material('Standard Resin', $photon, $sla);
 
-        $html = $this->tabHtml([], 'sla');
+        $html = $this->tabHtml([], 'slai');
 
         $this->assertStringContainsString('Elegoo Saturn 3 Ultra', $html);
         $this->assertStringContainsString('Anycubic Photon Mono', $html);
@@ -543,7 +544,7 @@ class MaterialMachineTest extends TestCase
         $this->material('PETG', $bambu);
 
         $response = $this->actingAs($this->superAdmin)
-            ->get(route('superadmin.price-list.index', ['tab' => 'fdm']))
+            ->get(route('superadmin.price-list.technology', ['slug' => 'fdm']))
             ->assertOk();
 
         foreach (['Material', 'Brand', 'Harga Beli', 'Harga/gram', 'Harga Jual', 'Pembulatan', 'Harga/10 gram', 'Remark'] as $kolom) {
@@ -554,7 +555,7 @@ class MaterialMachineTest extends TestCase
         $response->assertSee('Rp231')->assertSee('Rp300')->assertSee('Rp3.000');
 
         $this->actingAs($this->superAdmin)
-            ->get(route('superadmin.price-list.index', ['tab' => 'fdm', 'fdm_q' => 'PETG']))
+            ->get(route('superadmin.price-list.technology', ['slug' => 'fdm', 'fdm_q' => 'PETG']))
             ->assertOk()
             ->assertSee('PETG')
             ->assertDontSee('PLA+');
@@ -612,27 +613,24 @@ class MaterialMachineTest extends TestCase
     }
 
     /**
-     * Isi panel satu tab saja.
+     * Isi halaman material satu teknologi, tanpa sidebar.
      *
-     * Halaman Price List menggambar SELURUH tab sekaligus (yang tidak aktif
-     * hanya disembunyikan), jadi memeriksa seluruh halaman akan ikut menghitung
-     * baris tab Machine Cost yang kebetulan bermarkup serupa.
+     * Tiap teknologi kini punya halamannya sendiri; bagian <main> saja yang
+     * diambil supaya menu sidebar tidak ikut terhitung.
      *
      * @param  array<string, mixed>  $query
      */
     private function tabHtml(array $query = [], string $tab = 'fdm'): string
     {
         $html = $this->actingAs($this->superAdmin)
-            ->get(route('superadmin.price-list.index', array_merge(['tab' => $tab], $query)))
+            ->get(\App\Support\PriceListPage::url($tab, $query))
             ->assertOk()
             ->getContent();
 
-        $start = strpos($html, 'data-price-list-panel="'.$tab.'"');
-        $this->assertNotFalse($start, 'Panel tab '.$tab.' tidak ditemukan.');
+        $start = strpos($html, '<main');
+        $this->assertNotFalse($start, 'Halaman '.$tab.' tidak ditemukan.');
 
-        $end = strpos($html, 'data-price-list-panel=', $start + 30);
-
-        return $end === false ? substr($html, $start) : substr($html, $start, $end - $start);
+        return substr($html, $start, strpos($html, '</main>', $start) - $start);
     }
 
     /**

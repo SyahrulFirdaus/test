@@ -136,20 +136,18 @@ class PagesTest extends TestCase
         $this->assertStringNotContainsString('3D Models', $navbar);
     }
 
-    public function test_hero_home_memuat_carousel_empat_video(): void
+    public function test_hero_home_memakai_latar_3d_seperti_halaman_masuk(): void
     {
         $response = $this->get(route('home'));
 
-        $response->assertSee('data-hero-carousel', false)
-            ->assertSee('data-hero-prev', false)
-            ->assertSee('data-hero-next', false);
-
-        foreach (['FDM Printing', 'Resin SLA', 'Finishing', 'Workshop Kami'] as $title) {
-            $response->assertSee($title);
-        }
+        $response->assertSee('data-hero-3d', false)
+            ->assertSee('data-auth-scene', false)
+            ->assertSee('login-scene-floor', false)
+            ->assertSee('Order Now')
+            ->assertDontSee('data-hero-carousel', false);
 
         foreach (['fdm-printing.mp4', 'resin-printing.mp4', 'post-processing.mp4', 'workshop.mp4'] as $video) {
-            $response->assertSee('videos/'.$video, false);
+            $response->assertDontSee('videos/'.$video, false);
         }
     }
 

@@ -10,6 +10,11 @@
     // menggesernya ke atas. Pemanggil menetralkan margin bawaan kelas
     // inputnya dengan `mt-0`.
     'wrapperClass' => 'mt-2',
+
+    // false (bawaan): ikon menunjukkan AKSI — mata terbuka untuk menampilkan.
+    // true: ikon menunjukkan KEADAAN — mata tertutup selama tersembunyi,
+    // mata terbuka selama kata sandi terlihat.
+    'stateIcon' => false,
 ])
 
 {{--
@@ -40,8 +45,13 @@
             aria-pressed="false"
             aria-label="Tampilkan kata sandi"
             title="Tampilkan kata sandi">
-        <x-icons.eye class="h-5 w-5" data-password-icon="show" />
-        <x-icons.eye-off class="hidden h-5 w-5" data-password-icon="hide" />
+        @if ($stateIcon)
+            <x-icons.eye-off class="h-5 w-5" data-password-icon="show" />
+            <x-icons.eye class="hidden h-5 w-5" data-password-icon="hide" />
+        @else
+            <x-icons.eye class="h-5 w-5" data-password-icon="show" />
+            <x-icons.eye-off class="hidden h-5 w-5" data-password-icon="hide" />
+        @endif
     </button>
 </div>
 

@@ -452,6 +452,12 @@ return [
         // `max_file_uploads` tetap menjadi batas keras yang tidak dapat
         // dilampaui aplikasi. Lihat App\Support\UploadLimit.
         'max_file_size_mb' => 300,
+
+        // Ukuran gabungan seluruh berkas dalam satu permintaan penawaran.
+        // Seluruh model dikirim dalam satu POST, jadi `post_max_size` pada
+        // php.ini harus setidaknya sebesar ini agar batasnya benar-benar
+        // berlaku. Lihat App\Support\UploadLimit.
+        'max_total_size_mb' => 500,
     ],
 
     /*
@@ -819,6 +825,83 @@ return [
             'label' => 'Penawaran Dibatalkan (Expired)',
             'description' => 'Batas waktu pembayaran terlewati sehingga penawaran dibatalkan otomatis oleh sistem.',
             'group' => 'cancellation',
+        ],
+    ],
+
+    /*
+    |----------------------------------------------------------------------
+    | Kurs USD/IDR untuk SLA Industries
+    |----------------------------------------------------------------------
+    | "Dollar Hari Ini" pada Form Perhitungan SLA Industries tidak lagi
+    | diketik Admin — nilainya diambil sistem dari penyedia kurs.
+    |
+    | PENTING, bedanya dua jenis sumber:
+    |
+    |   daily     kurs REFERENSI yang diterbitkan sekali per hari kerja.
+    |             Contohnya JISDOR Bank Indonesia dan kurs acuan ECB. Angkanya
+    |             tidak berubah sepanjang hari, jadi menariknya tiap lima menit
+    |             hanya menghabiskan kuota tanpa pernah menghasilkan nilai baru.
+    |
+    |   intraday  kurs PASAR yang bergerak sepanjang hari. Baru di sinilah
+    |             penyegaran berkala benar-benar berarti.
+    |
+    | Penyedia tanpa kunci API yang tersedia umum seluruhnya bersifat `daily`;
+    | kurs intraday menuntut akun berbayar. Karena itu bawaannya `daily`, dan
+    | penyedia intraday tinggal diaktifkan dengan mengisi kuncinya di .env —
+    | tanpa satu baris kode pun berubah.
+    |
+    | `ttl_seconds` adalah umur simpan di sisi server. Halaman admin membaca
+    | simpanan yang sama, jadi angka di layar dan angka yang dipakai server saat
+    | menyimpan perhitungan tidak mungkin berbeda.
+    */
+    'usd_rate' => [
+        'provider' => env('USD_RATE_PROVIDER', 'open-er-api'),
+
+        // Jaring pengaman terhadap salah konfigurasi maupun jawaban penyedia
+        // yang kacau: kurs di luar rentang ini ditolak, bukan dipakai.
+        'min' => 1000,
+        'max' => 1000000,
+
+        'providers' => [
+            // Tanpa kunci API. Membawa stempel waktu terbitnya sendiri, jadi
+            // "Terakhir diperbarui" menyebut kapan KURSNYA terbit — bukan
+            // kapan sistem kebetulan menariknya.
+            'open-er-api' => [
+                'label' => 'ExchangeRate-API',
+                'note' => 'Kurs referensi harian',
+                'cadence' => 'daily',
+                'url' => 'https://open.er-api.com/v6/latest/USD',
+                'rate_path' => 'rates.IDR',
+                'updated_at_path' => 'time_last_update_unix',
+                'ttl_seconds' => 3600,
+            ],
+
+            // Kurs acuan Bank Sentral Eropa, juga tanpa kunci API.
+            'frankfurter' => [
+                'label' => 'Frankfurter (kurs acuan ECB)',
+                'note' => 'Kurs referensi harian',
+                'cadence' => 'daily',
+                'url' => 'https://api.frankfurter.dev/v1/latest?base=USD&symbols=IDR',
+                'rate_path' => 'rates.IDR',
+                'updated_at_path' => 'date',
+                'ttl_seconds' => 3600,
+            ],
+
+            /*
+             | Kurs pasar intraday — perlu kunci API. Isi USD_RATE_PROVIDER=
+             | exchangerate-host dan EXCHANGERATE_HOST_KEY= di .env untuk
+             | memakainya; barulah penyegaran berkala benar-benar berarti.
+             */
+            'exchangerate-host' => [
+                'label' => 'exchangerate.host',
+                'note' => 'Kurs pasar intraday',
+                'cadence' => 'intraday',
+                'url' => 'https://api.exchangerate.host/live?source=USD&currencies=IDR&access_key='
+                    .env('EXCHANGERATE_HOST_KEY', ''),
+                'rate_path' => 'quotes.USDIDR',
+                'updated_at_path' => 'timestamp',
+                'ttl_seconds' => 300,
+            ],
         ],
     ],
 

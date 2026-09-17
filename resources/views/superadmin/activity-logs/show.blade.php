@@ -112,10 +112,10 @@
                             <tr @class(['align-top', 'bg-amber-50/40' => $change['changed']])>
                                 <td class="px-6 py-4 font-semibold text-ink-800">{{ $change['label'] }}</td>
                                 <td class="px-6 py-4 text-ink-500">
-                                    <span class="break-words font-mono text-xs">{{ $change['old'] ?? '—' }}</span>
+                                    <span class="break-words font-mono text-xs">{{ $change['old'] ?? '-' }}</span>
                                 </td>
                                 <td class="px-6 py-4 {{ $change['changed'] ? 'text-ink-900' : 'text-ink-500' }}">
-                                    <span class="break-words font-mono text-xs {{ $change['changed'] ? 'font-bold' : '' }}">{{ $change['new'] ?? '—' }}</span>
+                                    <span class="break-words font-mono text-xs {{ $change['changed'] ? 'font-bold' : '' }}">{{ $change['new'] ?? '-' }}</span>
                                 </td>
                             </tr>
                         @endforeach

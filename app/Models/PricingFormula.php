@@ -3,15 +3,18 @@
 namespace App\Models;
 
 use App\Support\BasicFee;
+use App\Support\SlaIndustries;
 use Illuminate\Database\Eloquent\Model;
 
 /**
- * Rumus & parameter simulasi Harga Jual satu teknologi cetak.
+ * Rumus Harga Otomatis — parameter Harga Jual.
  *
- * Murni referensi admin di tab "Harga" pada Price List — TIDAK dipakai oleh
- * PrintEstimator/Calculator atau alur Quotation manapun. Seluruh teknologi
- * memakai SATU pola perhitungan yang sama, yaitu accessor-accessor di bawah
- * ini; yang berbeda antar baris hanya nilai parameternya, bukan logikanya.
+ * Hanya SATU baris yang berlaku, berkode GENERAL (`UMUM`), dan dipakai
+ * Kalkulator Otomatis seluruh teknologi (lihat App\Services\SellingPriceEstimator).
+ * Baris per teknologi yang lama masih ada di tabel tetapi tidak dibaca lagi.
+ *
+ * Accessor di bawah menjalankan simulasinya untuk halaman Rumus Harga Otomatis
+ * pada Price List.
  *
  * Pola perhitungannya:
  *   Harga Operasional Mesin = Machine Time x Machine Cost
@@ -30,6 +33,9 @@ use Illuminate\Database\Eloquent\Model;
  */
 class PricingFormula extends Model
 {
+    /** Kode baris Rumus Harga Otomatis yang berlaku umum. */
+    public const GENERAL = 'UMUM';
+
     protected $fillable = [
         'technology',
         'machine_time_hours',
@@ -59,6 +65,26 @@ class PricingFormula extends Model
     }
 
     /**
+     * Rumus Harga Otomatis yang berlaku umum.
+     *
+     * Dibuat bila belum ada — mis. pada basis data yang dibangun sebelum
+     * migrasinya — dengan nilai baris FDM sebagai titik awal.
+     */
+    public static function general(): self
+    {
+        return static::firstOrCreate(
+            ['technology' => self::GENERAL],
+            static::where('technology', 'FDM')->first()?->only([
+                'machine_time_hours', 'machine_cost', 'material_qty_g', 'material_price_per_g',
+                'risk_percent', 'packaging_cost', 'overtime_cost', 'profit_percent', 'object_size_mm',
+            ]) ?? [
+                'machine_time_hours' => 2, 'machine_cost' => 0, 'material_qty_g' => 300, 'material_price_per_g' => 500,
+                'risk_percent' => 25, 'packaging_cost' => 5000, 'overtime_cost' => 0, 'profit_percent' => 50, 'object_size_mm' => 100,
+            ],
+        );
+    }
+
+    /**
      * Daftar teknologi yang punya baris rumus.
      *
      * Dahulu tetap empat; sejak teknologi dikelola Superadmin, daftarnya
@@ -69,7 +95,16 @@ class PricingFormula extends Model
      */
     public static function technologies(): array
     {
-        return PrintTechnology::codes();
+        // SLA Industries DIKECUALIKAN. Teknologi itu tidak dicetak sendiri —
+        // partnya dipesan ke vendor — sehingga pola HPP/Risk/Packaging/Profit
+        // di kelas ini tidak berlaku baginya sama sekali. Rumusnya tinggal di
+        // App\Models\SlaIndustriesFormula, dan ia memang tidak punya baris di
+        // tabel ini. Kalau tetap didaftarkan, tab Harga akan mencari baris yang
+        // tidak akan pernah ada.
+        return array_values(array_filter(
+            PrintTechnology::codes(),
+            fn (string $code) => ! SlaIndustries::is($code),
+        ));
     }
 
     /**
