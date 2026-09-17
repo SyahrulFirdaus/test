@@ -2,7 +2,9 @@
 
 namespace App\Http\Requests;
 
+use App\Support\Printer;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 /**
  * Kolom satu baris Price List Machine Cost — komersial maupun fisik.
@@ -37,6 +39,11 @@ class StoreMachineCostRequest extends FormRequest
         return [
             'mesin' => ['required', 'string', 'max:60'],
             'print_technology_id' => ['nullable', 'integer', 'exists:print_technologies,id'],
+            // Printer Calculator yang memakai Machine Cost mesin ini; satu printer satu mesin.
+            'printer_key' => [
+                'nullable', 'string', Rule::in(Printer::keys()),
+                Rule::unique('machine_costs', 'printer_key')->ignore($this->route('machineCost')),
+            ],
             // Kolomnya `decimal(6,3)`, jadi paling besar 999,999 KWH.
             'watt_kwh' => ['required', 'numeric', 'min:0', 'max:999.999'],
             'harga_listrik' => ['required', 'numeric', 'min:0', 'max:'.self::MAX_RUPIAH],
@@ -65,6 +72,8 @@ class StoreMachineCostRequest extends FormRequest
             'harga_listrik.max' => 'Harga Listrik terlalu besar, maksimal Rp9.999.999.999.',
             'depresiasi.max' => 'Depresiasi terlalu besar, maksimal Rp9.999.999.999.',
             'print_technology_id.exists' => 'Teknologi yang dipilih tidak ditemukan.',
+            'printer_key.in' => 'Printer yang dipilih tidak dikenal.',
+            'printer_key.unique' => 'Printer ini sudah dipetakan ke mesin lain. Lepaskan pemetaannya lebih dulu.',
             'width_mm.numeric' => 'Lebar (W) harus berupa angka milimeter.',
             'depth_mm.numeric' => 'Kedalaman (D) harus berupa angka milimeter.',
             'height_mm.numeric' => 'Tinggi (H) harus berupa angka milimeter.',

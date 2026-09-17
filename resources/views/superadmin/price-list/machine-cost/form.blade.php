@@ -51,6 +51,26 @@
                     @error('print_technology_id') <p class="field-error">{{ $message }}</p> @enderror
                 </div>
 
+                {{-- Pemetaan eksplisit ke printer Calculator: Pricing Engine
+                     memakai Machine Cost baris ini untuk model yang dicetak pada
+                     printer tersebut. Printer tanpa pemetaan memakai Machine Cost
+                     Rumus Harga Otomatis. --}}
+                <div class="sm:col-span-2">
+                    <label for="printer_key" class="field-label">Printer pada Calculator</label>
+                    <select id="printer_key" name="printer_key" class="field-input">
+                        <option value="">Tidak dipetakan</option>
+                        @foreach ($printers as $key => $printer)
+                            <option value="{{ $key }}" @selected((string) $value('printer_key') === (string) $key)>
+                                {{ $printer['name'] }}@if (($takenPrinters[$key] ?? null) !== null) — dipakai {{ $takenPrinters[$key] }}@endif
+                            </option>
+                        @endforeach
+                    </select>
+                    <p class="mt-1.5 text-xs text-ink-400">
+                        Model yang dicetak pada printer ini dihitung memakai Machine Cost mesin ini. Satu printer hanya dapat dipetakan ke satu mesin.
+                    </p>
+                    @error('printer_key') <p class="field-error">{{ $message }}</p> @enderror
+                </div>
+
                 <div>
                     <label for="watt_kwh" class="field-label">Watt (KWH) <span class="text-brand-600">*</span></label>
                     <input type="number" id="watt_kwh" name="watt_kwh" value="{{ $value('watt_kwh') }}" required min="0" max="999.999" step="0.001"

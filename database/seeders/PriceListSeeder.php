@@ -61,9 +61,9 @@ class PriceListSeeder extends Seeder
     {
         $rows = [
             ['mesin' => 'Elegoo Neptune Max 4', 'technology' => 'FDM', 'watt_kwh' => 0.55, 'harga_listrik' => 1700, 'depresiasi' => 5000],
-            ['mesin' => 'Ender 3 V2', 'technology' => 'FDM', 'watt_kwh' => 0.25, 'harga_listrik' => 1700, 'depresiasi' => 2100],
+            ['mesin' => 'Ender 3 V2', 'technology' => 'FDM', 'printer_key' => 'ender3', 'watt_kwh' => 0.25, 'harga_listrik' => 1700, 'depresiasi' => 2100],
             ['mesin' => 'Elegoo Saturn 4 12 K', 'technology' => 'SLA', 'watt_kwh' => 0.144, 'harga_listrik' => 1700, 'depresiasi' => 5100],
-            ['mesin' => 'Bambu Lab P1S', 'technology' => 'FDM', 'watt_kwh' => 0.35, 'harga_listrik' => 1700, 'depresiasi' => 5300],
+            ['mesin' => 'Bambu Lab P1S', 'technology' => 'FDM', 'printer_key' => 'bambu_x1c', 'watt_kwh' => 0.35, 'harga_listrik' => 1700, 'depresiasi' => 5300],
         ];
 
         foreach ($rows as $row) {
@@ -71,6 +71,12 @@ class PriceListSeeder extends Seeder
             unset($row['technology']);
 
             $row['print_technology_id'] = PrintTechnology::idFor($code);
+
+            // Pemetaan printer Calculator hanya diisi bila belum ada, supaya
+            // pengaturan Superadmin tidak tertimpa seeder.
+            if (isset($row['printer_key']) && MachineCost::where('printer_key', $row['printer_key'])->exists()) {
+                unset($row['printer_key']);
+            }
 
             MachineCost::updateOrCreate(['mesin' => $row['mesin']], $row);
         }

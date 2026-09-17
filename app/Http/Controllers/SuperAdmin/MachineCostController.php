@@ -8,6 +8,7 @@ use App\Models\MachineCost;
 use App\Models\PrintTechnology;
 use App\Services\ActivityLogger;
 use App\Support\ActivityAction;
+use App\Support\Printer;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 
@@ -49,6 +50,12 @@ class MachineCostController extends Controller
         return view('superadmin.price-list.machine-cost.form', [
             'machineCost' => $machineCost,
             'technologies' => PrintTechnology::managed()->ordered()->get(),
+            'printers' => Printer::all(),
+            // Printer yang sudah dipetakan ke mesin lain, untuk keterangan pada pilihan.
+            'takenPrinters' => MachineCost::whereNotNull('printer_key')
+                ->when($machineCost->exists, fn ($query) => $query->whereKeyNot($machineCost->getKey()))
+                ->pluck('mesin', 'printer_key')
+                ->all(),
         ]);
     }
 
@@ -97,6 +104,7 @@ class MachineCostController extends Controller
         return [
             'mesin' => $machine->mesin,
             'teknologi' => $machine->technology?->code,
+            'printer_calculator' => $machine->printer_label,
             'watt_kwh' => (float) $machine->watt_kwh,
             'harga_listrik' => (float) $machine->harga_listrik,
             'depresiasi' => (float) $machine->depresiasi,

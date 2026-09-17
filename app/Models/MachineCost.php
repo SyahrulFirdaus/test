@@ -27,6 +27,7 @@ class MachineCost extends Model
     protected $fillable = [
         'mesin',
         'print_technology_id',
+        'printer_key',
         'watt_kwh',
         'harga_listrik',
         'depresiasi',
@@ -194,31 +195,16 @@ class MachineCost extends Model
     }
 
     /**
-     * Seberapa cocok baris ini dengan nama printer yang dipilih pelanggan.
+     * Nama printer Calculator yang memakai Machine Cost baris ini, mis.
+     * "Creality Ender 3", atau null bila belum dipetakan.
      *
-     * Nama mesin di sini ditulis admin sendiri ("Ender 3 V2") sedangkan nama
-     * printer pada penawaran berasal dari config/printing.php ("Creality Ender
-     * 3"), jadi keduanya hampir tidak pernah sama persis. Yang dibandingkan
-     * adalah jumlah kata yang sama; App\Services\SellingPriceEstimator memakai
-     * baris dengan nilai tertinggi dan menuntut minimal dua kata cocok supaya
-     * mesin yang belum terdaftar tidak tersangkut ke baris mana pun.
+     * Pemetaannya eksplisit (kolom `printer_key`) dan dibaca Pricing Engine —
+     * lihat App\Services\SellingPriceEstimator::machineFor().
      */
-    public function printerMatchScore(?string $printerName): int
+    public function getPrinterLabelAttribute(): ?string
     {
-        $tokens = self::tokenize($printerName);
-
-        if ($tokens === []) {
-            return 0;
-        }
-
-        return count(array_intersect($tokens, self::tokenize($this->mesin)));
-    }
-
-    /** @return array<int, string> kata-kata pembentuk nama mesin, tanpa duplikat */
-    private static function tokenize(?string $name): array
-    {
-        return array_values(array_unique(array_filter(
-            preg_split('/[^a-z0-9]+/', strtolower((string) $name)) ?: []
-        )));
+        return \App\Support\Printer::exists($this->printer_key)
+            ? \App\Support\Printer::name($this->printer_key)
+            : null;
     }
 }

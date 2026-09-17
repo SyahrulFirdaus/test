@@ -5,12 +5,10 @@ namespace App\Services;
 use App\Models\MachineCost;
 use App\Models\PackagingItem;
 use App\Models\PricingFormula;
-use App\Models\PrintTechnology;
 use App\Models\QuotationItem;
 use App\Models\QuotationRequest;
 use App\Support\BasicFee;
 use App\Support\PricingMethod;
-use App\Support\Printer;
 use App\Support\SlaIndustries;
 use Illuminate\Support\Collection;
 
@@ -183,7 +181,7 @@ class SellingPriceEstimator
      * @param  array{
      *     technology: string,
      *     material: string,
-     *     printer_name?: string|null,
+     *     printer?: string|null,
      *     quantity?: int,
      *     total_weight_g?: float,
      *     minutes?: int,
@@ -202,7 +200,7 @@ class SellingPriceEstimator
         // setelah tim mengisi Form Perhitungan pada Detail Penawaran. Kalkulator
         // Otomatis melanjutkan ke rumus di bawah, sama seperti FDM.
         // Lihat App\Support\PricingMethod.
-        if (PricingMethod::usesManualPricing($technology, $material)) {
+        if (! ($context['force_automatic'] ?? false) && PricingMethod::usesManualPricing($technology, $material)) {
             return [
                 'technology' => $technology,
                 'material_source' => $material,
@@ -222,7 +220,7 @@ class SellingPriceEstimator
         // Machine Time sudah mencakup seluruh unit model ini — angka yang masuk
         // adalah total menit dari estimator, bukan waktu per unit.
         $machineTimeHours = ((int) ($context['minutes'] ?? 0)) / 60;
-        $machine = $this->machineFor($context['printer_name'] ?? null);
+        $machine = $this->machineFor($context['printer'] ?? null);
         $machineCost = $machine !== null
             ? (float) $machine->rounded_machine_cost
             : (float) ($formula->machine_cost ?? 0);
@@ -296,65 +294,6 @@ class SellingPriceEstimator
     }
 
     /**
-     * Parameter Price List untuk estimator di browser.
-     *
-     * Pencocokan nama mesin diselesaikan di sini — bukan diulang di JavaScript —
-     * sehingga browser tinggal membaca Machine Cost yang berlaku untuk printer
-     * yang dipilih. Dengan begitu harga yang dilihat pelanggan di Calculator
-     * sama persis dengan yang dihitung ulang server saat permintaan dikirim.
-     *
-     * @return array<string, mixed>
-     */
-    public function browserPayload(): array
-    {
-        // Satu Rumus Harga Otomatis untuk seluruh teknologi. Tetap dikirim
-        // juga per kode teknologi supaya pembaca lama di browser pun menemukan
-        // parameter yang sama.
-        $general = $this->formula('');
-        $parameters = $general === null ? [] : [
-            'machineCost' => (float) $general->machine_cost,
-            'materialPricePerG' => (float) $general->material_price_per_g,
-            'riskPercent' => (float) $general->risk_percent,
-            'packagingCost' => (float) $general->packaging_cost,
-            'overtimeCost' => (float) $general->overtime_cost,
-            'profitPercent' => (float) $general->profit_percent,
-        ];
-
-        $formulas = collect(PrintTechnology::cached()->keys())
-            ->mapWithKeys(fn (string $code) => [$code => $parameters])
-            ->all();
-
-        $machines = collect(array_keys((array) config('printing.printers.options', [])))
-            ->mapWithKeys(function (string $key) {
-                $machine = $this->machineFor(Printer::name($key));
-
-                return [$key => $machine === null ? null : [
-                    'name' => $machine->mesin,
-                    'cost' => (float) $machine->rounded_machine_cost,
-                ]];
-            })
-            ->filter()
-            ->all();
-
-        $packaging = $this->flatBoxes()
-            ->map(fn (PackagingItem $box) => [
-                'label' => $box->label,
-                'price' => (float) $box->price,
-                'sides' => $box->dimensions_cm,
-            ])
-            ->filter(fn (array $box) => $box['sides'] !== null)
-            ->values()
-            ->all();
-
-        return [
-            'formula' => $parameters,
-            'formulas' => $formulas,
-            'machines' => $machines,
-            'packaging' => $packaging,
-        ];
-    }
-
-    /**
      * Parameter perhitungan yang dibaca dari sebuah model tersimpan.
      *
      * @return array<string, mixed>
@@ -364,7 +303,7 @@ class SellingPriceEstimator
         return [
             'technology' => (string) $item->technology,
             'material' => (string) $item->material,
-            'printer_name' => $item->printer_name ?: $item->printer,
+            'printer' => $item->printer,
             'quantity' => (int) $item->quantity,
             'total_weight_g' => $item->total_weight_g,
             'minutes' => (int) $item->estimated_minutes,
@@ -498,27 +437,25 @@ class SellingPriceEstimator
     }
 
     /**
-     * Baris Machine Cost yang paling cocok dengan mesin pilihan pelanggan.
+     * Baris Machine Cost milik printer pada model ini.
      *
-     * Nama mesin di Price List ditulis admin sendiri ("Ender 3 V2") dan hampir
-     * tidak pernah sama persis dengan nama printer di config/printing.php
-     * ("Creality Ender 3"), jadi pencocokannya memakai irisan kata — lihat
-     * App\Models\MachineCost::printerMatchScore(). Bila tidak ada yang cocok,
-     * Machine Cost pada parameter teknologinya yang dipakai.
+     * Pemetaannya eksplisit lewat kolom `machine_costs.printer_key` yang diatur
+     * Superadmin pada Price List — bukan lagi tebakan dari kemiripan nama mesin.
+     * Pencocokan nama dahulu membuat harga berubah diam-diam begitu nama mesin
+     * disunting, dan printer yang namanya tidak mirip mesin mana pun jatuh ke
+     * Machine Cost Rumus Harga Otomatis. Printer tanpa pemetaan tetap memakai
+     * Machine Cost Rumus Harga Otomatis, dan hal itu tercatat pada rinciannya
+     * (`machine_source` kosong).
      */
-    private function machineFor(?string $printerName): ?MachineCost
+    private function machineFor(?string $printerKey): ?MachineCost
     {
-        $this->machines ??= MachineCost::orderBy('mesin')->get();
+        if (blank($printerKey)) {
+            return null;
+        }
 
-        $name = $printerName;
+        $this->machines ??= MachineCost::whereNotNull('printer_key')->get()->keyBy('printer_key');
 
-        $match = $this->machines
-            ->map(fn (MachineCost $row) => ['row' => $row, 'score' => $row->printerMatchScore($name)])
-            ->filter(fn (array $candidate) => $candidate['score'] >= 2)
-            ->sortByDesc('score')
-            ->first();
-
-        return $match['row'] ?? null;
+        return $this->machines->get($printerKey);
     }
 
     /**
