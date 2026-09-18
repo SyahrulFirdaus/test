@@ -8,6 +8,7 @@ use App\Models\QuotationItem;
 use App\Models\QuotationRequest;
 use App\Models\User;
 use App\Notifications\CancellationRequested;
+use App\Rules\ModelFile;
 use App\Services\ActivityLogger;
 use App\Services\MeshInspector;
 use App\Services\PrintEstimator;
@@ -138,7 +139,7 @@ class QuotationController extends Controller
         $current = $quotation->items()->count();
 
         $request->validate([
-            'model' => ['required', 'file', ModelFormat::rule(), 'max:'.UploadLimit::maxKilobytes()],
+            'model' => ['required', 'file', ModelFormat::rule(), 'max:'.UploadLimit::maxKilobytes(), new ModelFile],
         ], [
             'model.required' => 'Pilih file model yang akan ditambahkan.',
             'model.extensions' => 'File model harus berformat '.ModelFormat::label().'.',
@@ -548,7 +549,9 @@ class QuotationController extends Controller
         $pricing = $this->sellingPrice->calculate([
             'technology' => (string) $settings['technology'],
             'material' => (string) $settings['material'],
-            'printer_name' => Printer::name($printer),
+            // Kunci printer (bukan namanya): Machine Cost dicari lewat
+            // machine_costs.printer_key, sama seperti Calculator di browser.
+            'printer' => $printer,
             'quantity' => (int) $settings['quantity'],
             'total_weight_g' => $estimate['total_weight_g'],
             'minutes' => $estimate['total_minutes'],

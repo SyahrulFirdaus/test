@@ -165,7 +165,7 @@ class PagesTest extends TestCase
     {
         // Status analisis tetap dihitung dan dikirim ke dashboard admin, tetapi
         // labelnya tidak lagi dipajang di halaman pelanggan.
-        foreach ([route('models'), route('models.viewer')] as $url) {
+        foreach ([route('models'), route('models.viewer.show', 'b6f1c2d4-3e5a-4f70-9a1b-2c3d4e5f6a7b')] as $url) {
             $response = $this->get($url);
 
             $response->assertDontSee('Need Improvement')
@@ -214,13 +214,17 @@ class PagesTest extends TestCase
 
     public function test_halaman_viewer_3d_dapat_dibuka_tanpa_login(): void
     {
-        // Model dipanggil JavaScript dari penyimpanan browser, jadi halamannya
-        // sendiri tidak membutuhkan parameter apa pun di server.
-        $this->get(route('models.viewer'))
+        // Model dipanggil JavaScript dari penyimpanan browser memakai id pada
+        // URL, jadi halamannya sendiri tidak membutuhkan data apa pun di server.
+        $id = 'b6f1c2d4-3e5a-4f70-9a1b-2c3d4e5f6a7b';
+
+        $this->get('/3d-models/'.$id.'/viewer')
             ->assertOk()
-            ->assertSee('data-model-detail', false)
-            ->assertSee('data-card-canvas', false)
-            ->assertSee('Viewer 3D');
+            ->assertSee('data-model-preview', false)
+            ->assertSee('data-model-id="'.$id.'"', false)
+            ->assertSee('3D Viewer')
+            ->assertSee('Kembali ke 3D Models')
+            ->assertSee('href="'.route('models').'"', false);
     }
 
     public function test_sitemap_memuat_seluruh_halaman(): void

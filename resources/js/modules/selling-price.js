@@ -22,6 +22,13 @@
  * Parameternya dikirim server lewat `config.pricing` — termasuk Machine Cost
  * yang sudah dicocokkan dengan tiap printer — jadi tidak ada aturan Price List
  * yang ditulis ulang di sini.
+ *
+ * Keamanan: server hanya mengirim tarif JUAL (Risk % dan Profit % sudah
+ * dilebur ke tarif material, mesin, packaging, dan overtime; keduanya dikirim
+ * bernilai 0). Komponen HPP/Risk/Profit hasil fungsi ini karena itu bukan
+ * angka internal sebenarnya dan tidak boleh ditampilkan — yang bermakna hanya
+ * `selling_price`. Server menghitung ulang seluruh harga saat penawaran
+ * disimpan (App\Services\SellingPriceEstimator::browserPayload()).
  */
 
 const round2 = (value) => Math.round(value * 100) / 100;

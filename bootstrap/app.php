@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Middleware\EnsureAccountIsActive;
 use App\Http\Middleware\EnsureAdminPermission;
 use App\Http\Middleware\EnsureUserIsAdmin;
 use App\Http\Middleware\EnsureUserIsBusiness;
@@ -23,6 +24,12 @@ return Application::configure(basePath: dirname(__DIR__))
             'superadmin' => EnsureUserIsSuperAdmin::class,
             'customer' => EnsureUserIsCustomer::class,
             'business' => EnsureUserIsBusiness::class,
+        ]);
+
+        // Status akun diperiksa pada SETIAP permintaan web, bukan hanya saat
+        // login: akun yang dinonaktifkan langsung kehilangan sesinya.
+        $middleware->web(append: [
+            EnsureAccountIsActive::class,
         ]);
 
         // Area admin dan area pelanggan punya halaman masuk masing-masing,

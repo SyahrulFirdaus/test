@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\QuotationItem;
 use App\Models\QuotationRequest;
 use App\Models\User;
+use App\Support\AdminPermission;
 use App\Support\QuotationStatus;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\Request;
@@ -40,6 +41,10 @@ class DashboardController extends Controller
         $status = $request->query('status');
         $status = is_string($status) && QuotationStatus::exists($status) ? $status : null;
 
+        // Daftar penawaran (nama pelanggan, nilai, status) hanya dimuat bagi
+        // yang berhak atas menu Penawaran — bukan sekadar disembunyikan Blade.
+        $canViewQuotations = $request->user()->can(AdminPermission::QUOTATION_VIEW);
+
         return view('admin.dashboard', [
             'summary' => [
                 'quotations' => QuotationRequest::count(),
@@ -52,27 +57,31 @@ class DashboardController extends Controller
                 'users' => User::customers()->count(),
             ],
 
-            'pending_cancellations' => QuotationRequest::query()
-                ->awaitingCancellation()
-                ->latestFirst()
-                ->limit(5)
-                ->get(),
+            'pending_cancellations' => $canViewQuotations
+                ? QuotationRequest::query()
+                    ->awaitingCancellation()
+                    ->latestFirst()
+                    ->limit(5)
+                    ->get()
+                : collect(),
 
-            'status_breakdown' => $this->statusBreakdown(),
+            'status_breakdown' => $canViewQuotations ? $this->statusBreakdown() : [],
 
             'statuses' => QuotationStatus::options(),
             'filters' => ['status' => $status],
 
-            'recent' => QuotationRequest::query()
-                ->withCount('items')
-                ->status($status)
-                ->latestFirst()
-                ->limit(self::RECENT_LIMIT)
-                ->get(),
+            'recent' => $canViewQuotations
+                ? QuotationRequest::query()
+                    ->withCount('items')
+                    ->status($status)
+                    ->latestFirst()
+                    ->limit(self::RECENT_LIMIT)
+                    ->get()
+                : collect(),
 
             // Banyaknya penawaran yang cocok dengan filter, supaya admin tahu
             // daftar di bawah masih terpotong atau memang sudah seluruhnya.
-            'recent_total' => QuotationRequest::query()->status($status)->count(),
+            'recent_total' => $canViewQuotations ? QuotationRequest::query()->status($status)->count() : 0,
         ]);
     }
 

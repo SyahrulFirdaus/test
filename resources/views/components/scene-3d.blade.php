@@ -11,12 +11,15 @@
       shiftX    geser mesin ke kiri (negatif) / kanan (positif) dari tengah
       shiftY    geser mesin ke bawah (negatif) / atas (positif)
       scale     besar mesin
+      variant   objek 3D selain mesin cetak: services | technologies | about
+                (resources/js/modules/hero-scenes.js). Kosong = mesin cetak.
 --}}
 @props([
     'position' => 'absolute inset-0',
     'shiftX' => 0,
     'shiftY' => 0,
     'scale' => 1,
+    'variant' => null,
 ])
 
 <div {{ $attributes->merge(['class' => 'login-scene overflow-hidden bg-gradient-to-br from-brand-800 via-brand-700 to-brand-950 '.$position]) }} aria-hidden="true">
@@ -40,6 +43,7 @@
     {{-- Animasi mesin cetak, hanya mulai lebar md supaya ponsel tidak ikut
          mengunduh Three.js. --}}
     <canvas data-auth-scene data-scene-shift-x="{{ $shiftX }}" data-scene-shift-y="{{ $shiftY }}" data-scene-scale="{{ $scale }}"
+            @if ($variant) data-scene-variant="{{ $variant }}" @endif
             class="pointer-events-none absolute inset-0 hidden h-full w-full opacity-70 md:block"></canvas>
 
     {{-- Vignette: tepi lebih gelap, konten di tengah tetap mudah dibaca. --}}

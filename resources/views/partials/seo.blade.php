@@ -66,5 +66,6 @@
 
 {{-- Structured data agar mesin pencari mengenali entitas perusahaan --}}
 <script type="application/ld+json">
-    {!! json_encode(array_filter($structuredData), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) !!}
+    {{-- JSON_HEX_TAG: teks berisi "</script>" tidak dapat menutup tag ini. --}}
+    {!! json_encode(array_filter($structuredData), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP) !!}
 </script>

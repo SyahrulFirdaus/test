@@ -136,7 +136,9 @@ class QuotationRequestTest extends TestCase
     private function item(string $fileName, array $overrides = []): array
     {
         return array_merge([
-            'model' => UploadedFile::fake()->createWithContent($fileName, 'solid test'),
+            // Isi berkas diperiksa server (App\Rules\ModelFile), jadi tiap format
+            // diberi tanda khasnya sendiri.
+            'model' => UploadedFile::fake()->createWithContent($fileName, str_ends_with($fileName, '.obj') ? "# model uji\n" : 'solid test'),
             'quantity' => 1,
             'technology' => 'FDM',
             'material' => 'PLA Plus Standart ESUN',

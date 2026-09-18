@@ -45,6 +45,8 @@ class ActivityLogger
         'apikey',
         'authorization',
         'auth',
+        'authentication',
+        'session',
         'credential',
         'remember_token',
         'csrf',
@@ -306,12 +308,24 @@ class ActivityLogger
         return $clean;
     }
 
+    /**
+     * Kata pendek (`pin`, `otp`, `auth`, `csrf`) dicocokkan per potongan kunci
+     * — `user_pin`, `otp_code` — bukan sebagai potongan huruf, supaya kolom
+     * biasa seperti `shipping_address` atau `author` tidak ikut terbuang.
+     * Kata yang lebih panjang tetap dicocokkan sebagai potongan huruf, sehingga
+     * `password_confirmation`, `newpassword`, dan `api_token` tetap tersaring.
+     */
     private function isSensitive(string $key): bool
     {
         $key = Str::lower($key);
+        $segments = preg_split('/[^a-z0-9]+/', $key) ?: [];
 
         foreach (self::SENSITIVE as $needle) {
-            if (Str::contains($key, $needle)) {
+            $matches = strlen($needle) <= 4
+                ? in_array($needle, $segments, true)
+                : Str::contains($key, $needle);
+
+            if ($matches) {
                 return true;
             }
         }

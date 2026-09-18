@@ -134,7 +134,7 @@
                             <p class="mt-1.5 text-sm leading-relaxed text-ink-500">
                                 <span class="font-semibold text-brand-600" data-printer-count>0/{{ $maxModels }}</span>
                                 model &middot; klik thumbnail atau tombol <span class="font-semibold text-ink-700">Lihat 3D</span>
-                                untuk membuka viewer beserta seluruh analisisnya di tab baru.
+                                untuk melihat pratinjau 3D-nya.
                             </p>
                         </div>
 

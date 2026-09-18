@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests;
 
+use App\Rules\ModelFile;
 use App\Services\PrintEstimator;
 use App\Support\AnalysisStatus;
 use App\Support\Finishing;
@@ -66,7 +67,8 @@ class StoreQuotationRequest extends FormRequest
             // sendiri sehingga tidak saling memengaruhi.
             'items' => ['required', 'array', 'min:1', 'max:'.$this->maxItems()],
 
-            'items.*.model' => ['required', 'file', ModelFormat::rule(), 'max:'.UploadLimit::maxKilobytes()],
+            // Ekstensi saja dapat dipalsukan; ModelFile memeriksa isi berkasnya.
+            'items.*.model' => ['required', 'file', ModelFormat::rule(), 'max:'.UploadLimit::maxKilobytes(), new ModelFile],
             'items.*.quantity' => ['required', 'integer', 'min:1', 'max:10000'],
 
             // Satu model dicetak pada satu mesin, jadi pilihan printer dan

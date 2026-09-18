@@ -37,13 +37,16 @@ class User extends Authenticatable
     /**
      * The attributes that are mass assignable.
      *
+     * `role` dan `is_active` sengaja TIDAK ada di sini: keduanya menentukan
+     * hak akses, jadi hanya boleh dipasang eksplisit lewat forceFill() di
+     * tempat yang memang berwenang (pendaftaran, menu Akun Admin, seeder) —
+     * tidak pernah ikut terisi dari kiriman formulir.
+     *
      * @var list<string>
      */
     protected $fillable = [
         'name',
         'email',
-        'role',
-        'is_active',
         'customer_type',
         'phone',
         'city',

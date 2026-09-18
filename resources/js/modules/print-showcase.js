@@ -283,7 +283,8 @@ export default class PrintScene {
     }
 
     tick() {
-        if (!this.running) {
+        // `paused` dipasang auth-scene.js saat kanvas keluar dari layar.
+        if (!this.running || this.paused) {
             this.clock.getDelta();
 
             return;

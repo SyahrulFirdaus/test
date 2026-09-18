@@ -204,14 +204,18 @@ class RegisteredUserController extends Controller
         // Akun hasil pendaftaran dikembalikan dari transaksi agar dapat dicatat
         // ke jejak audit setelah seluruh datanya benar-benar tersimpan.
         $user = DB::transaction(function () use ($state, $type, $questions, $answers) {
-            $user = User::create([
+            $user = (new User([
                 ...collect($state['account'])->only(['name', 'phone', 'city', 'postal_code', 'address', 'email'])->all(),
-                'role' => User::ROLE_USER,
                 'customer_type' => $type,
                 // Sudah di-hash sejak disimpan ke sesi; cast `hashed` pada model
                 // membiarkan nilai yang memang sudah berupa hash.
                 'password' => $state['account']['password'],
+            ]))->forceFill([
+                // Pendaftaran publik SELALU menghasilkan akun pelanggan.
+                'role' => User::ROLE_USER,
+                'is_active' => true,
             ]);
+            $user->save();
 
             $rows = [];
             $now = now();

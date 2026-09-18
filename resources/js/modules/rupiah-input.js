@@ -39,6 +39,20 @@ function bind(wrapper) {
     const max = Number(wrapper.dataset.max) || Number.MAX_SAFE_INTEGER;
     const clamp = (value) => Math.min(max, Math.max(0, value));
 
+    // `data-nullable`: kolom yang dikosongkan tetap kosong (tidak menjadi
+    // "Rp 0"), supaya validasi wajib-isi di server tetap berlaku.
+    const nullable = wrapper.hasAttribute('data-nullable');
+
+    const clear = () => {
+        display.value = '';
+
+        if (hidden.value !== '') {
+            hidden.value = '';
+            hidden.dispatchEvent(new Event('input', { bubbles: true }));
+            hidden.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+    };
+
     const commit = (value, { keepCaret = false } = {}) => {
         const next = clamp(value);
 
@@ -74,7 +88,15 @@ function bind(wrapper) {
         }
     };
 
-    display.addEventListener('input', () => commit(parseRupiah(display.value), { keepCaret: true }));
+    display.addEventListener('input', () => {
+        if (nullable && display.value.replace(/\D/g, '') === '') {
+            clear();
+
+            return;
+        }
+
+        commit(parseRupiah(display.value), { keepCaret: true });
+    });
 
     display.addEventListener('keydown', (event) => {
         if (event.key === 'ArrowUp' || event.key === 'ArrowDown') {
@@ -103,5 +125,9 @@ function bind(wrapper) {
         });
     });
 
-    commit(Number(hidden.value));
+    if (nullable && hidden.value === '') {
+        clear();
+    } else {
+        commit(Number(hidden.value));
+    }
 }

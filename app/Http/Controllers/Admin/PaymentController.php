@@ -9,13 +9,13 @@ use App\Models\QuotationRequest;
 use App\Services\PaymentFlow;
 use App\Services\PaymentTermFlow;
 use App\Support\InstallmentStatus;
+use App\Support\PaymentProofFile;
 use App\Support\PaymentTermStatus;
 use App\Support\QuotationStatus;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator;
-use Illuminate\Support\Facades\Storage;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 /**
@@ -103,7 +103,7 @@ class PaymentController extends Controller
             return back()->with('error', 'Bukti pembayaran tidak ditemukan di penyimpanan.');
         }
 
-        return Storage::disk('local')->response($proof->file_path, $proof->file_name);
+        return PaymentProofFile::response($proof->file_path, $proof->file_name);
     }
 
     /** Terima pembayaran satu termin; termin berikutnya ikut diaktifkan. */
@@ -143,10 +143,7 @@ class PaymentController extends Controller
             return back()->with('error', 'Bukti pembayaran tidak ditemukan di penyimpanan.');
         }
 
-        return Storage::disk('local')->response(
-            $quotation->payment_proof_path,
-            $quotation->payment_proof_name,
-        );
+        return PaymentProofFile::response($quotation->payment_proof_path, $quotation->payment_proof_name);
     }
 
     public function approve(Request $request, QuotationRequest $quotation): RedirectResponse

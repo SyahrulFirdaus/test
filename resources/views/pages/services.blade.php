@@ -6,6 +6,7 @@
 @section('content')
 
     <x-page-hero
+        scene="services"
         eyebrow="Layanan"
         current="Services"
         title='Layanan lengkap dari <span class="text-brand-400">file digital</span> sampai part siap pakai'

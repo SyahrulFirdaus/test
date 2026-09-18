@@ -194,38 +194,44 @@
                 {{-- Harga material hanya dipakai Kalkulator Otomatis. Saat Manual
                      dipilih kolomnya hanya disembunyikan, supaya nilai yang sudah
                      diisi tidak hilang. --}}
-                <div class="{{ $isAutomatic ? '' : 'hidden' }}" data-pricing-panel="automatic">
+                <div class="sm:col-span-2 {{ $isAutomatic ? '' : 'hidden' }}" data-pricing-panel="automatic">
                     <label for="purchase_price" class="field-label">Harga Beli (Rp)</label>
-                    <input type="number" step="1" min="0" max="9999999999" id="purchase_price" name="purchase_price"
-                           value="{{ old('purchase_price', $material->purchase_price) }}" class="field-input"
-                           data-pricing-required @required($isAutomatic)>
+                    <x-rupiah-input name="purchase_price" :value="old('purchase_price', $material->purchase_price)"
+                                    :step="1000" :max="9999999999" align="left" nullable />
                     <p class="mt-1.5 text-xs text-ink-400">Harga satu kemasan material. Harga per gram dihitung otomatis darinya.</p>
                     @error('purchase_price') <p class="field-error">{{ $message }}</p> @enderror
                 </div>
 
                 <div class="{{ $isAutomatic ? '' : 'hidden' }}" data-pricing-panel="automatic">
-                    <label for="sale_price" class="field-label">Harga Jual (Rp)</label>
-                    <input type="number" step="1" min="0" max="9999999999" id="sale_price" name="sale_price"
-                           value="{{ old('sale_price', $material->sale_price) }}" class="field-input"
-                           data-pricing-required @required($isAutomatic)>
+                    <label for="sale_price" class="field-label">Harga Jual per Gram (Rp)</label>
+                    <x-rupiah-input name="sale_price" :value="old('sale_price', $material->sale_price)"
+                                    :step="100" :max="9999999999" align="left" nullable />
                     <p class="mt-1.5 text-xs text-ink-400">Dibulatkan ke atas kelipatan seratus; itulah harga material per gram pada rumus.</p>
                     @error('sale_price') <p class="field-error">{{ $message }}</p> @enderror
                 </div>
+
+                <div class="{{ $isAutomatic ? '' : 'hidden' }}" data-pricing-panel="automatic">
+                    @include('superadmin.price-list.material.partials.sale-per-10-gram', ['salePrice' => old('sale_price', $material->sale_price)])
+                </div>
             @elseif ($showsMaterialPrice)
-                <div>
+                <div class="sm:col-span-2">
                     <label for="purchase_price" class="field-label">Harga Beli (Rp)</label>
-                    <input type="number" step="1" min="0" max="9999999999" required id="purchase_price" name="purchase_price"
-                           value="{{ old('purchase_price', $material->purchase_price) }}" class="field-input">
+                    <x-rupiah-input name="purchase_price" :value="old('purchase_price', $material->purchase_price)"
+                                    :step="1000" :max="9999999999" align="left" nullable />
                     <p class="mt-1.5 text-xs text-ink-400">Harga satu spool/botol. Harga per gram dihitung otomatis darinya.</p>
                     @error('purchase_price') <p class="field-error">{{ $message }}</p> @enderror
                 </div>
 
                 <div>
-                    <label for="sale_price" class="field-label">Harga Jual (Rp)</label>
-                    <input type="number" step="1" min="0" max="9999999999" required id="sale_price" name="sale_price"
-                           value="{{ old('sale_price', $material->sale_price) }}" class="field-input">
+                    <label for="sale_price" class="field-label">Harga Jual per Gram (Rp)</label>
+                    <x-rupiah-input name="sale_price" :value="old('sale_price', $material->sale_price)"
+                                    :step="100" :max="9999999999" align="left" nullable />
                     <p class="mt-1.5 text-xs text-ink-400">Dibulatkan ke atas kelipatan seratus; itulah harga per gram yang dikutip ke pelanggan.</p>
                     @error('sale_price') <p class="field-error">{{ $message }}</p> @enderror
+                </div>
+
+                <div>
+                    @include('superadmin.price-list.material.partials.sale-per-10-gram', ['salePrice' => old('sale_price', $material->sale_price)])
                 </div>
             @else
                 <div class="sm:col-span-2 rounded-xl border border-ink-100 bg-ink-50/70 p-4">
@@ -256,6 +262,38 @@
     </form>
 @endsection
 
+@if ($showsMaterialPrice)
+    @push('scripts')
+        <script>
+            // Harga Jual per 10 Gram mengikuti Harga Jual per Gram secara langsung.
+            // Rumus memakai harga per gram yang dibulatkan ke atas kelipatan Rp100,
+            // jadi pembulatan yang sama dipakai di sini sebelum dikali 10.
+            (() => {
+                const source = document.querySelector('input[type="hidden"][name="sale_price"]');
+                const target = document.querySelector('[data-sale-per-10-gram]');
+
+                if (!source || !target) return;
+
+                const rupiah = new Intl.NumberFormat('id-ID', { maximumFractionDigits: 0 });
+
+                const sync = () => {
+                    if (source.value === '') {
+                        target.value = '';
+
+                        return;
+                    }
+
+                    const perGram = Math.ceil((Number(source.value) || 0) / 100) * 100;
+                    target.value = `Rp ${rupiah.format(perGram * 10)}`;
+                };
+
+                source.addEventListener('input', sync);
+                sync();
+            })();
+        </script>
+    @endpush
+@endif
+
 @if ($choosesPricing)
     @push('scripts')
         <script>
@@ -273,9 +311,9 @@
                         panel.classList.toggle('hidden', panel.dataset.pricingPanel !== method);
                     });
 
-                    form.querySelectorAll('[data-pricing-required]').forEach((input) => {
-                        input.required = method === 'automatic';
-                    });
+                    // Kewajiban mengisi Harga Beli/Jual saat Kalkulator Otomatis
+                    // diperiksa server (StorePrintMaterialRequest), karena nilai
+                    // yang terkirim ada di input tersembunyi komponen rupiah.
                 };
 
                 form.querySelectorAll('input[name="pricing_method"]').forEach((radio) => radio.addEventListener('change', sync));

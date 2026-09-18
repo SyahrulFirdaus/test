@@ -213,10 +213,11 @@ class SlaPricingMethodTest extends TestCase
 
         $payload = app(PrintEstimator::class)->browserPayload();
         $this->assertFalse(collect($payload[SlaIndustries::CODE]['materials'])->firstWhere('name', 'Resin Uji')['manualPricing']);
-        $this->assertSame(
-            $estimator->browserPayload()['formulas']['FDM'],
-            $estimator->browserPayload()['formulas'][SlaIndustries::CODE],
-        );
+        // Satu Rumus Harga Otomatis untuk seluruh teknologi: browser menerima
+        // satu `formula` umum, jadi SLA otomatis dan FDM memakai parameter sama.
+        $browser = $estimator->browserPayload();
+        $this->assertArrayHasKey('formula', $browser);
+        $this->assertArrayNotHasKey('formulas', $browser);
     }
 
     public function test_kalkulator_manual_menahan_harga(): void

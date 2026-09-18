@@ -274,6 +274,18 @@ class QuotationStatus
         return array_values(array_filter([$anchor, self::next($anchor)]));
     }
 
+    /**
+     * Perpindahan yang berarti MENERIMA pembayaran.
+     *
+     * Dipakai controller status untuk menuntut hak `payment.verify` di samping
+     * `quotation.update_status`: status yang tidak berubah (hanya menyimpan
+     * catatan) tidak termasuk.
+     */
+    public static function requiresPaymentVerification(?string $current, ?string $target): bool
+    {
+        return $target === self::PAYMENT_RECEIVED && $current !== self::PAYMENT_RECEIVED;
+    }
+
     /** Apakah perpindahan ke `$target` sah dari status sekarang. */
     public static function canTransitionTo(?string $status, ?string $target, ?string $fallback = null): bool
     {

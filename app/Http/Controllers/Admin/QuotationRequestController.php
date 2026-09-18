@@ -16,6 +16,7 @@ use App\Services\UsdRate;
 use App\Services\PaymentFlow;
 use App\Support\ActivityAction;
 use App\Support\ActivityModule;
+use App\Support\AdminPermission;
 use App\Support\QuotationStatus;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
@@ -139,6 +140,17 @@ class QuotationRequestController extends Controller
             'production_photo.image' => 'Foto proses produksi harus berupa gambar.',
             'result_photo.image' => 'Foto hasil akhir harus berupa gambar.',
         ]);
+
+        // Memasang "Pembayaran Diterima" sama artinya dengan menerima
+        // pembayaran, jadi menuntut hak `payment.verify` juga — bukan hanya
+        // `quotation.update_status`. Tanpa ini Admin yang tidak berhak
+        // memverifikasi pembayaran dapat melewatinya lewat dropdown status.
+        abort_if(
+            QuotationStatus::requiresPaymentVerification($quotation->status, $validated['status'])
+                && ! $request->user()->can(AdminPermission::PAYMENT_VERIFY),
+            403,
+            'Menandai pembayaran diterima membutuhkan hak Verifikasi Pembayaran.'
+        );
 
         // Penawaran tidak boleh maju melewati tahap review selama masih ada
         // model yang harganya belum ditetapkan. Melanjutkannya berarti menagih
@@ -370,6 +382,25 @@ class QuotationRequestController extends Controller
         }
 
         return Storage::disk('local')->download($item->file_path, $item->file_name);
+    }
+
+    /**
+     * Viewer 3D satu model penawaran — hanya pratinjau.
+     *
+     * Halaman ini tidak memuat berkasnya sendiri: browser mengambilnya lewat
+     * route unduh model yang sama (quotations.items.download), sehingga tidak
+     * ada salinan berkas maupun jalur akses kedua. Berkas aslinya tidak pernah
+     * diubah.
+     */
+    public function viewItem(QuotationRequest $quotation, QuotationItem $item): View
+    {
+        return view('admin.quotations.viewer', [
+            'quotation' => $quotation,
+            'item' => $item,
+            'fileAvailable' => $item->fileExists(),
+            'fileUrl' => staff_route('quotations.items.download', [$quotation, $item]),
+            'backUrl' => staff_route('quotations.show', $quotation).'#model-'.$item->id,
+        ]);
     }
 
     /**

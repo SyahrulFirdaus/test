@@ -16,6 +16,8 @@ use App\Support\Printer;
 use App\Support\PrintResolution;
 use App\Support\UploadLimit;
 use Illuminate\Contracts\View\View;
+use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
 
 class ModelCheckController extends Controller
 {
@@ -34,20 +36,38 @@ class ModelCheckController extends Controller
      * menekan "Minta Penawaran".
      */
     /**
-     * Halaman viewer 3D untuk satu model.
-     *
-     * Model yang ditinjau tidak dikirim lewat URL: berkasnya tetap berada di
-     * browser pengguna (IndexedDB) dan dipanggil oleh JavaScript memakai id
-     * pada query string. Halaman ini hanya menyediakan kerangka card beserta
-     * parameter estimasinya, persis seperti halaman 3D Models.
+     * Pola id model di browser: UUID dari crypto.randomUUID(), atau cadangan
+     * "m-<waktu>-<acak>" (lihat resources/js/modules/model-store.js).
      */
-    public function viewer(): View
+    public const MODEL_ID_PATTERN = '[A-Za-z0-9][A-Za-z0-9-]{0,63}';
+
+    /**
+     * Halaman 3D Viewer satu model: /3d-models/{model}/viewer.
+     *
+     * Hanya pratinjau — tanpa spesifikasi cetak, berat, maupun harga. Berkasnya
+     * tidak diambil dari server: `{model}` adalah id berkas yang tersimpan di
+     * browser pengunjung (IndexedDB) sejak diunggah, dan halaman ini hanya
+     * meneruskan id itu ke JavaScript. Pola id dibatasi di route, jadi tidak ada
+     * path berkas maupun teks bebas yang pernah sampai ke halaman.
+     */
+    public function show(string $model): View
     {
-        // Pilihan produksi (printer, resolusi, infill, warna) dibaca sendiri
-        // oleh komponen card, jadi halaman ini hanya perlu parameter estimasi.
         return view('pages.model-viewer', [
-            'printingConfig' => $this->browserConfig(),
+            'modelId' => $model,
         ]);
+    }
+
+    /**
+     * Alamat lama /3d-models/viewer?model={id} — diteruskan ke alamat barunya
+     * supaya bookmark dan tautan lama tetap sampai.
+     */
+    public function legacyViewer(Request $request): RedirectResponse
+    {
+        $model = (string) $request->query('model', '');
+
+        return preg_match('/^'.self::MODEL_ID_PATTERN.'$/', $model) === 1
+            ? redirect()->route('models.viewer.show', $model)
+            : redirect()->route('models');
     }
 
     public function index(): View
@@ -147,15 +167,17 @@ class ModelCheckController extends Controller
                 'registerUrl' => route('register'),
             ],
 
-            // Tombol "Lihat 3D" pada daftar membuka halaman ini di tab baru,
-            // dengan id model dititipkan lewat query string.
-            'viewerUrl' => route('models.viewer'),
+            // Tombol "Lihat 3D" pada daftar berpindah ke halaman viewer di tab
+            // yang sama. JavaScript mengganti penanda MODELID dengan id model.
+            'viewerUrl' => route('models.viewer.show', ['model' => 'MODELID']),
 
             // Tombol "Learn More" pada Edit Specification menuju bagian
             // material yang sedang dipilih di halaman panduan.
             'guideUrl' => route('models.guide'),
 
-            'technologies' => $this->estimator->browserPayload(),
+            // Harga material per gram dikirim sebagai tarif JUAL, bukan
+            // komponen HPP — lihat SellingPriceEstimator::publicTechnologies().
+            'technologies' => $this->sellingPrice->publicTechnologies($this->estimator->browserPayload()),
 
             // Jam mesin ditampilkan kepada pelanggan sebagai rentang hari kerja,
             // memakai tingkatan yang sama dengan perhitungan di server.
@@ -202,10 +224,9 @@ class ModelCheckController extends Controller
                 'basicFee' => ['tiers' => \App\Support\BasicFee::browserPayload()],
             ],
 
-            // Parameter Harga Jual dari Price List — termasuk Machine Cost yang
-            // sudah dicocokkan dengan tiap printer — supaya harga yang dilihat
-            // pelanggan di Calculator sama persis dengan yang dihitung ulang server
-            // saat permintaan disimpan.
+            // Tarif JUAL dari Price List (Risk & Profit sudah dilebur) supaya
+            // harga yang dilihat pelanggan sama dengan hasil hitung server,
+            // tanpa membuka HPP, Machine Cost, Risk %, maupun Profit %.
             'pricing' => $this->sellingPrice->browserPayload(),
 
             'analysis' => [

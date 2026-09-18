@@ -8,10 +8,12 @@ use App\Models\QuotationRequest;
 use App\Models\User;
 use App\Notifications\NewQuotationSubmitted;
 use App\Services\ActivityLogger;
+use App\Services\MeshInspector;
 use App\Services\PrintEstimator;
 use App\Services\SellingPriceEstimator;
 use App\Support\ActivityAction;
 use App\Support\MaterialColor;
+use App\Support\ModelFormat;
 use App\Support\Printer;
 use App\Support\QuotationStatus;
 use Illuminate\Http\JsonResponse;
@@ -19,6 +21,7 @@ use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Str;
+use RuntimeException;
 
 class QuotationRequestController extends Controller
 {
@@ -26,6 +29,7 @@ class QuotationRequestController extends Controller
         private readonly PrintEstimator $estimator,
         private readonly SellingPriceEstimator $sellingPrice,
         private readonly ActivityLogger $activity,
+        private readonly MeshInspector $inspector,
     ) {}
 
     /**
@@ -184,12 +188,55 @@ class QuotationRequestController extends Controller
             ? (float) $modelStats['surface_area_cm2']
             : null;
 
+        $volume = (float) $item['model_volume_cm3'];
+
+        /*
+        | Geometri kiriman browser tidak dipercaya begitu saja: volume, luas
+        | permukaan, dan ukuran menentukan harga, dan semuanya dapat diketik
+        | sendiri lewat Postman. Format mesh (STL/OBJ/3MF) diukur ulang di sini
+        | dan hasil server yang dipakai.
+        |
+        | Dimensi browser tetap dipakai bila masuk akal, karena browser mengukur
+        | model yang SUDAH diputar pengguna. Batas bawahnya: diagonal kotak hasil
+        | putaran apa pun tidak mungkin lebih pendek dari sisi terpanjang kotak
+        | asli. Dimensi yang lebih kecil dari itu diganti ukuran server.
+        |
+        | STEP/STP tidak dapat diukur server (butuh kernel CAD); angkanya tetap
+        | dari browser, ditandai `measured_by = client`, dan harga penawarannya
+        | memang ditinjau admin sebelum tagihan dikirim.
+        */
+        $measured = $this->measure($file, $extension);
+
+        if ($measured !== null) {
+            // Volume dan luas yang dikirim adalah ukuran ASLI (skala diterapkan
+            // estimator), sedangkan dimensi browser sudah terskalakan.
+            $volume = $measured['volume_cm3'];
+            $surfaceArea = $measured['surface_area_cm2'];
+
+            $scaleFactor = is_numeric($item['scale_percent'] ?? null) ? ((float) $item['scale_percent']) / 100 : 1.0;
+            $scaledServer = array_map(fn (float $side) => round($side * $scaleFactor, 3), $measured['dimensions']);
+
+            if (! $this->plausibleDimensions($dimensions, $scaledServer)) {
+                $dimensions = $scaledServer;
+            }
+
+            $modelStats = [
+                ...$modelStats,
+                'volume_cm3' => $volume,
+                'surface_area_cm2' => $surfaceArea,
+                'dimensions' => $dimensions,
+                'measured_by' => 'server',
+            ];
+        } else {
+            $modelStats['measured_by'] = 'client';
+        }
+
         $scale = is_numeric($item['scale_percent'] ?? null) ? ((float) $item['scale_percent']) / 100 : 1.0;
 
         $estimate = $this->estimator->estimate(
             (string) $item['technology'],
             (string) $item['material'],
-            (float) $item['model_volume_cm3'],
+            $volume,
             (int) $item['quantity'],
             [
                 'support' => filter_var($item['support_enabled'] ?? false, FILTER_VALIDATE_BOOLEAN),
@@ -217,7 +264,9 @@ class QuotationRequestController extends Controller
         $pricing = $this->sellingPrice->calculate([
             'technology' => (string) $item['technology'],
             'material' => (string) $item['material'],
-            'printer_name' => Printer::name($printer),
+            // Kunci printer (bukan namanya): Machine Cost dicari lewat
+            // machine_costs.printer_key, sama seperti Calculator di browser.
+            'printer' => $printer,
             'quantity' => (int) $item['quantity'],
             'total_weight_g' => $estimate['total_weight_g'],
             'minutes' => $estimate['total_minutes'],
@@ -287,6 +336,55 @@ class QuotationRequestController extends Controller
             'estimated_cost' => $pricing['selling_price'],
             'cost_breakdown' => $pricing,
         ];
+    }
+
+    /**
+     * Ukur geometri berkas mesh di server.
+     *
+     * @return array{volume_cm3: float, surface_area_cm2: float, dimensions: array<string, float>}|null
+     *         null bila formatnya tidak dapat diukur atau berkasnya tidak memuat geometri
+     */
+    private function measure(UploadedFile $file, string $extension): ?array
+    {
+        if (! ModelFormat::isMeasurable($extension)) {
+            return null;
+        }
+
+        try {
+            $stats = $this->inspector->inspect((string) $file->getRealPath(), $extension);
+        } catch (RuntimeException) {
+            return null;
+        }
+
+        if ((int) ($stats['triangles'] ?? 0) <= 0 || ! is_array($stats['dimensions'] ?? null)) {
+            return null;
+        }
+
+        return [
+            'volume_cm3' => (float) ($stats['volume_cm3'] ?? 0),
+            'surface_area_cm2' => (float) ($stats['surface_area_cm2'] ?? 0),
+            'dimensions' => collect($stats['dimensions'])
+                ->only(['x', 'y', 'z'])
+                ->map(fn ($value) => (float) $value)
+                ->all(),
+        ];
+    }
+
+    /**
+     * Dimensi browser masih mungkin berasal dari model yang sama setelah diputar.
+     *
+     * @param  array<string, float>  $client
+     * @param  array<string, float>  $server
+     */
+    private function plausibleDimensions(array $client, array $server): bool
+    {
+        if (count($client) !== 3) {
+            return false;
+        }
+
+        $diagonal = sqrt(array_sum(array_map(fn (float $side) => $side ** 2, $client)));
+
+        return $diagonal >= max($server) * 0.99;
     }
 
     /** Nomor tracking; aturannya ada pada App\Models\QuotationRequest. */

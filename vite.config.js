@@ -11,7 +11,10 @@ export default defineConfig({
                 // Entry terpisah agar Three.js hanya dimuat di halaman yang memang
                 // menggambar model 3D.
                 'resources/js/model-viewer.js',
-                'resources/js/model-detail.js',
+                // Halaman 3D Viewer satu model (/3d-models/{id}/viewer).
+                'resources/js/model-preview.js',
+                // Pratinjau 3D model penawaran di dashboard Admin/Superadmin.
+                'resources/js/admin-model-viewer.js',
                 // Animasi 3D pada panel brand halaman Masuk.
                 'resources/js/auth-scene.js',
                 // Sidebar, ikon lonceng, dan popup notifikasi dashboard.

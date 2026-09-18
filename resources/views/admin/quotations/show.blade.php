@@ -214,14 +214,16 @@
 
                     {{-- Tabel ringkas seluruh model --}}
                     <div class="mt-5 overflow-x-auto">
-                        <table class="w-full min-w-[560px] text-left text-sm">
+                        <table class="w-full min-w-[760px] text-left text-sm">
                             <thead>
                                 <tr class="border-b border-ink-100 text-[0.6rem] uppercase tracking-[0.14em] text-ink-400">
                                     <th scope="col" class="py-3 pr-3 font-bold">Printer</th>
                                     <th scope="col" class="px-3 py-3 font-bold">Nama File &amp; Mesin</th>
                                     <th scope="col" class="px-3 py-3 text-right font-bold">Jumlah</th>
                                     <th scope="col" class="px-3 py-3 text-right font-bold">Berat</th>
-                                    <th scope="col" class="py-3 pl-3 text-right font-bold">Harga</th>
+                                    <th scope="col" class="px-3 py-3 text-right font-bold">Harga</th>
+                                    <th scope="col" class="px-3 py-3 text-center font-bold">Lihat 3D</th>
+                                    <th scope="col" class="py-3 pl-3 text-right font-bold">Aksi</th>
                                 </tr>
                             </thead>
                             <tbody class="divide-y divide-ink-100">
@@ -234,8 +236,32 @@
                                         </td>
                                         <td class="px-3 py-3 text-right text-ink-600">{{ $item->quantity }} unit</td>
                                         <td class="px-3 py-3 text-right text-ink-600">{{ $fmt($item->total_weight_g * $item->quantity, 1) }} gr</td>
-                                        <td class="py-3 pl-3 text-right font-semibold {{ ($hargaJualModel[$item->id] ?? null) === null ? 'text-amber-700' : 'text-brand-700' }}">
+                                        <td class="px-3 py-3 text-right font-semibold {{ ($hargaJualModel[$item->id] ?? null) === null ? 'text-amber-700' : 'text-brand-700' }}">
                                             {{ $hargaLabel($hargaJualModel[$item->id] ?? null) }}
+                                        </td>
+                                        {{-- Pratinjau 3D dan unduhan memakai berkas yang sama milik
+                                             baris ini — tanpa salinan dan tanpa upload ulang. --}}
+                                        <td class="px-3 py-3 text-center">
+                                            @if ($item->fileExists())
+                                                <a href="{{ staff_route('quotations.items.viewer', [$quotation, $item]) }}"
+                                                   class="viewer-tool whitespace-nowrap px-3 py-2"
+                                                   title="Lihat 3D {{ $item->file_name }}">
+                                                    <span aria-hidden="true">&#128065;</span> Lihat 3D
+                                                </a>
+                                            @else
+                                                <span class="text-xs text-ink-400">-</span>
+                                            @endif
+                                        </td>
+                                        <td class="py-3 pl-3 text-right">
+                                            @if ($item->fileExists())
+                                                <a href="{{ staff_route('quotations.items.download', [$quotation, $item]) }}"
+                                                   class="viewer-tool whitespace-nowrap px-3 py-2"
+                                                   title="Unduh {{ $item->file_name }}">
+                                                    Download
+                                                </a>
+                                            @else
+                                                <span class="text-xs text-ink-400">Berkas tidak ditemukan</span>
+                                            @endif
                                         </td>
                                     </tr>
                                 @endforeach
@@ -247,9 +273,10 @@
                                     <td class="px-3 py-3 text-right text-ink-800">
                                         {{ $fmt($quotation->items->sum(fn ($item) => $item->total_weight_g * $item->quantity), 1) }} gr
                                     </td>
-                                    <td class="py-3 pl-3 text-right {{ $menungguHarga ? 'text-amber-700' : 'text-brand-700' }}">
+                                    <td class="px-3 py-3 text-right {{ $menungguHarga ? 'text-amber-700' : 'text-brand-700' }}">
                                         {{ $hargaLabel($menungguHarga ? null : $hargaJualPenawaran) }}
                                     </td>
+                                    <td colspan="2"></td>
                                 </tr>
                             </tfoot>
                         </table>
@@ -304,6 +331,9 @@
                                 <x-admin.analysis-badge :status="$item->analysis_status" />
 
                                 @if ($item->fileExists())
+                                    <a href="{{ staff_route('quotations.items.viewer', [$quotation, $item]) }}" class="viewer-tool">
+                                        <span aria-hidden="true">&#128065;</span> Lihat 3D
+                                    </a>
                                     <a href="{{ staff_route('quotations.items.download', [$quotation, $item]) }}" class="viewer-tool">
                                         Unduh {{ $item->file_format }}
                                     </a>

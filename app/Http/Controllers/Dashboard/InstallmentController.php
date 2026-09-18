@@ -8,10 +8,10 @@ use App\Models\PaymentProof;
 use App\Models\QuotationRequest;
 use App\Services\PaymentTermFlow;
 use App\Support\InstallmentStatus;
+use App\Support\PaymentProofFile;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Storage;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 /**
@@ -63,16 +63,8 @@ class InstallmentController extends Controller
                     : $installment->title.' berstatus "'.$installment->status_label.'" sehingga bukti pembayaran tidak dapat diunggah.');
         }
 
-        $extensions = (array) config('payment.proof.extensions', ['jpg', 'jpeg', 'png', 'pdf']);
-        $maxKilobytes = (int) config('payment.proof.max_kilobytes', 5120);
-
-        $request->validate([
-            'proof' => ['required', 'file', 'extensions:'.implode(',', $extensions), 'max:'.$maxKilobytes],
-        ], [
-            'proof.required' => 'Pilih berkas bukti pembayaran lebih dulu.',
-            'proof.extensions' => 'Bukti pembayaran harus berformat '.strtoupper(implode(', ', $extensions)).'.',
-            'proof.max' => 'Ukuran berkas melebihi batas '.round($maxKilobytes / 1024).' MB.',
-        ]);
+        // Ekstensi DAN isi berkas diperiksa — lihat App\Support\PaymentProofFile.
+        $request->validate(['proof' => PaymentProofFile::rules()], PaymentProofFile::messages());
 
         $this->terms->submitProof($installment, $request->file('proof'), $request->user());
 
@@ -96,7 +88,7 @@ class InstallmentController extends Controller
             return back()->with('error', 'Bukti pembayaran tidak ditemukan di penyimpanan.');
         }
 
-        return Storage::disk('local')->response($proof->file_path, $proof->file_name);
+        return PaymentProofFile::response($proof->file_path, $proof->file_name);
     }
 
     /**

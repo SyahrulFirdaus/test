@@ -8,6 +8,7 @@ use App\Models\PricingFormula;
 use App\Models\QuotationItem;
 use App\Models\QuotationRequest;
 use App\Models\User;
+use App\Services\PrintEstimator;
 use App\Services\SellingPriceEstimator;
 use App\Support\QuotationStatus;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -154,8 +155,10 @@ class QuotationSellingPriceTest extends TestCase
 
     public function test_machine_cost_memakai_baris_price_list_yang_cocok_dengan_printer(): void
     {
+        // Pemetaan printer → mesin disimpan eksplisit di Price List (printer_key).
         MachineCost::create([
             'mesin' => 'Ender 3 V2',
+            'printer_key' => 'ender3',
             'watt_kwh' => 0.25,
             'harga_listrik' => 1700,
             'depresiasi' => 2100,
@@ -170,6 +173,53 @@ class QuotationSellingPriceTest extends TestCase
         $this->assertSame('Ender 3 V2', $calculation['machine_source']);
         $this->assertSame(4000.0, $calculation['machine_cost']);
         $this->assertSame(8000.0, $calculation['machine_operational_cost']);
+    }
+
+    /**
+     * Harga yang tersimpan saat penawaran dikirim memakai Machine Cost printer
+     * yang sama dengan Calculator/modal "Minta Penawaran" di browser — bukan
+     * jatuh ke Machine Cost Rumus Harga Otomatis.
+     */
+    public function test_harga_saat_dikirim_memakai_machine_cost_printer_yang_sama_dengan_modal(): void
+    {
+        MachineCost::create(['mesin' => 'Ender 3 V2', 'printer_key' => 'ender3', 'watt_kwh' => 0.25, 'harga_listrik' => 1700, 'depresiasi' => 2100]);
+        PricingFormula::general()->update(['machine_cost' => 9000]);
+
+        $this->actingAs($this->customer);
+
+        $this->postJson(route('quotations.store'), [
+            'items' => [[
+                'model' => UploadedFile::fake()->createWithContent('bracket.stl', 'solid test'),
+                'printer' => 'ender3',
+                'quantity' => 1,
+                'technology' => 'FDM',
+                'material' => 'PLA Plus Standart ESUN',
+                'model_volume_cm3' => 100,
+                'analysis_status' => QuotationRequest::ANALYSIS_READY,
+                'model_stats' => json_encode(['dimensions' => ['x' => 60, 'y' => 40, 'z' => 30]]),
+            ]],
+        ])->assertCreated();
+
+        $item = QuotationItem::sole();
+        $breakdown = $item->cost_breakdown;
+
+        $this->assertSame('Ender 3 V2', $breakdown['machine_source']);
+        $this->assertEquals(4000.0, $breakdown['machine_cost']);
+
+        // Rumus browser (tarif jual dari browserPayload) menghasilkan angka yang sama.
+        $payload = $this->estimator()->browserPayload();
+        $publicMaterial = collect($this->estimator()->publicTechnologies(app(PrintEstimator::class)->browserPayload())['FDM']['materials'])
+            ->firstWhere('name', 'PLA Plus Standart ESUN');
+        $boxPrice = collect($payload['packaging'])->first(fn (array $box) => $box['sides'][0] >= 6 && $box['sides'][1] >= 4 && $box['sides'][2] >= 3)['price']
+            ?? $payload['formula']['packagingCost'];
+
+        $browser = ($item->estimated_minutes / 60) * $payload['machines']['ender3']['cost']
+            + $item->total_weight_g * $publicMaterial['pricePerGram']
+            + $boxPrice
+            + $payload['formula']['overtimeCost']
+            + $breakdown['basic_fee'];
+
+        $this->assertEqualsWithDelta((float) $item->estimated_cost, round($browser, 2), 0.05);
     }
 
     public function test_mesin_yang_tidak_terdaftar_memakai_machine_cost_parameter_teknologinya(): void
@@ -301,7 +351,8 @@ class QuotationSellingPriceTest extends TestCase
             'email' => 'david@contoh.test',
             'whatsapp' => '0812 3456 7890',
             'items' => collect($models)->map(fn (array $model) => [
-                'model' => UploadedFile::fake()->createWithContent($model['file'], 'solid test'),
+                // Isi berkas diperiksa server (App\Rules\ModelFile).
+                'model' => UploadedFile::fake()->createWithContent($model['file'], str_ends_with($model['file'], '.obj') ? "# model uji\n" : 'solid test'),
                 'quantity' => $model['quantity'] ?? 1,
                 'technology' => 'FDM',
                 'material' => 'PLA Plus Standart ESUN',
@@ -473,31 +524,60 @@ class QuotationSellingPriceTest extends TestCase
 
     /**
      * Calculator di browser menghitung harga dengan rumus yang sama, jadi
-     * seluruh parameternya harus ikut terkirim. Bila salah satu hilang, angka
-     * yang dilihat pelanggan akan berbeda dari yang disimpan server.
+     * parameternya harus ikut terkirim — tetapi hanya sebagai tarif JUAL.
+     *
+     * Risk % dan Profit % dilebur ke dalam tarif material, mesin, packaging,
+     * dan overtime, lalu dikirim bernilai nol. Pengunjung tidak pernah melihat
+     * HPP, Machine Cost, harga material per gram, Risk %, maupun Profit %,
+     * sedangkan Harga Jual yang dihitung browser tetap sama persis dengan hasil
+     * hitung server.
      */
     public function test_parameter_harga_ikut_dikirim_ke_browser(): void
     {
-        MachineCost::create(['mesin' => 'Ender 3 V2', 'watt_kwh' => 0.25, 'harga_listrik' => 1700, 'depresiasi' => 2100]);
+        PricingFormula::general()->update(['risk_percent' => 10, 'profit_percent' => 30, 'overtime_cost' => 2000]);
+        MachineCost::create(['mesin' => 'Ender 3 V2', 'printer_key' => 'ender3', 'watt_kwh' => 0.25, 'harga_listrik' => 1700, 'depresiasi' => 2100]);
         PackagingItem::create(['item' => 'Kardus', 'ukuran' => 'M', 'dimensi' => '30 x 15 x 15 cm', 'price' => 5000, 'price_unit' => PackagingItem::UNIT_FLAT]);
 
         $payload = $this->estimator()->browserPayload();
+        $formula = $payload['formula'];
 
         foreach (['machineCost', 'materialPricePerG', 'riskPercent', 'packagingCost', 'overtimeCost', 'profitPercent'] as $key) {
-            $this->assertArrayHasKey($key, $payload['formula']);
+            $this->assertArrayHasKey($key, $formula);
         }
 
-        // Setiap teknologi menerima rumus umum yang sama persis.
-        foreach (\App\Models\PrintTechnology::codes() as $technology) {
-            $this->assertSame($payload['formula'], $payload['formulas'][$technology], $technology.' tidak ikut terkirim');
-        }
+        // Persentase internal tidak pernah terkirim.
+        $this->assertSame(0, $formula['riskPercent']);
+        $this->assertSame(0, $formula['profitPercent']);
 
-        // Pencocokan nama mesin diselesaikan di server, browser tinggal membaca
-        // Machine Cost yang berlaku untuk printer yang dipilih.
-        $this->assertSame(['name' => 'Ender 3 V2', 'cost' => 4000.0], $payload['machines']['ender3']);
+        // Tarif jual = tarif internal × (1 + Risk) × (1 + Profit); packaging dan
+        // overtime hanya × (1 + Profit).
+        $this->assertEqualsWithDelta(4000 * 1.1 * 1.3, $payload['machines']['ender3']['cost'], 0.01);
+        $this->assertSame('Ender 3 V2', $payload['machines']['ender3']['name']);
         $this->assertArrayNotHasKey('prusa_mk4', $payload['machines']);
+        $this->assertEqualsWithDelta(2000 * 1.3, $formula['overtimeCost'], 0.01);
+        $this->assertSame([['label' => 'Kardus M', 'price' => 6500.0, 'sides' => [30.0, 15.0, 15.0]]], $payload['packaging']);
 
-        $this->assertSame([['label' => 'Kardus M', 'price' => 5000.0, 'sides' => [30.0, 15.0, 15.0]]], $payload['packaging']);
+        // Rumus browser (selling-price.js) dengan tarif jual ini menghasilkan
+        // Harga Jual yang sama persis dengan server.
+        $materialPrice = app(PrintEstimator::class)->material('FDM', 'PLA Plus Standart ESUN')['price_per_gram'];
+        $publicMaterial = collect($this->estimator()->publicTechnologies(app(PrintEstimator::class)->browserPayload())['FDM']['materials'])
+            ->firstWhere('name', 'PLA Plus Standart ESUN');
+
+        $this->assertEqualsWithDelta($materialPrice * 1.1 * 1.3, $publicMaterial['pricePerGram'], 0.0001);
+
+        $server = $this->estimator()->calculate([
+            'technology' => 'FDM', 'material' => 'PLA Plus Standart ESUN', 'printer' => 'ender3',
+            'quantity' => 2, 'total_weight_g' => 37.5, 'minutes' => 150,
+            'dimensions' => ['x' => 200, 'y' => 100, 'z' => 100],
+        ]);
+
+        $browser = (150 / 60) * $payload['machines']['ender3']['cost']
+            + 37.5 * 2 * $publicMaterial['pricePerGram']
+            + $payload['packaging'][0]['price'] * 2
+            + $formula['overtimeCost']
+            + $server['basic_fee'];
+
+        $this->assertEqualsWithDelta($server['selling_price'], round($browser, 2), 0.05);
     }
 
     /* ------------------------------------------------------ hak melihat --- */

@@ -9,6 +9,7 @@ use App\Models\QuotationItem;
 use App\Models\QuotationRequest;
 use App\Support\BasicFee;
 use App\Support\PricingMethod;
+use App\Support\Printer;
 use App\Support\SlaIndustries;
 use Illuminate\Support\Collection;
 
@@ -291,6 +292,100 @@ class SellingPriceEstimator
             // `cost_breakdown['total']` tetap mendapat angka yang benar.
             'total' => $sellingPrice,
         ];
+    }
+
+    /**
+     * Parameter Harga Jual untuk Calculator di browser — TANPA angka internal.
+     *
+     * Rumusnya dapat dibuka menjadi:
+     *
+     *   Harga Jual = (Material + Operasional Mesin) × (1 + Risk%) × (1 + Profit%)
+     *              + (Packaging + Overtime) × (1 + Profit%)
+     *              + Basic Fee
+     *
+     * Jadi yang dikirim hanyalah tarif JUAL yang pengali Risk dan Profit-nya
+     * sudah dilebur ke dalamnya, dengan Risk % dan Profit % bernilai nol.
+     * Browser tetap menghasilkan Harga Jual yang sama persis dengan server,
+     * tetapi HPP, Machine Cost, harga material per gram, Risk %, dan Profit %
+     * tidak pernah sampai ke pengunjung. Server tetap menghitung ulang seluruh
+     * harga dari Price List saat penawaran disimpan; angka di browser hanya
+     * pratinjau.
+     *
+     * @return array<string, mixed>
+     */
+    public function browserPayload(): array
+    {
+        $formula = $this->formula('');
+        $costFactor = $this->costFactor();
+        $profitFactor = 1 + ((float) ($formula->profit_percent ?? 0)) / 100;
+
+        $machines = collect(Printer::keys())
+            ->mapWithKeys(function (string $key) use ($costFactor) {
+                $machine = $this->machineFor($key);
+
+                return [$key => $machine === null ? null : [
+                    'name' => $machine->mesin,
+                    'cost' => round((float) $machine->rounded_machine_cost * $costFactor, 4),
+                ]];
+            })
+            ->filter()
+            ->all();
+
+        $packaging = $this->flatBoxes()
+            ->map(fn (PackagingItem $box) => [
+                'label' => $box->label,
+                'price' => round((float) $box->price * $profitFactor, 4),
+                'sides' => $box->dimensions_cm,
+            ])
+            ->filter(fn (array $box) => $box['sides'] !== null)
+            ->values()
+            ->all();
+
+        return [
+            'formula' => [
+                'machineCost' => round((float) ($formula->machine_cost ?? 0) * $costFactor, 4),
+                'materialPricePerG' => round((float) ($formula->material_price_per_g ?? 0) * $costFactor, 4),
+                'packagingCost' => round((float) ($formula->packaging_cost ?? 0) * $profitFactor, 4),
+                'overtimeCost' => round((float) ($formula->overtime_cost ?? 0) * $profitFactor, 4),
+                // Sudah dilebur ke tarif di atas.
+                'riskPercent' => 0,
+                'profitPercent' => 0,
+            ],
+            'machines' => $machines,
+            'packaging' => $packaging,
+        ];
+    }
+
+    /**
+     * Daftar teknologi untuk browser dengan harga material versi JUAL.
+     *
+     * Harga material per gram adalah komponen HPP, jadi yang dikirim sudah
+     * dikalikan pengali Risk dan Profit — lihat browserPayload().
+     *
+     * @param  array<string, array<string, mixed>>  $technologies  hasil PrintEstimator::browserPayload()
+     * @return array<string, array<string, mixed>>
+     */
+    public function publicTechnologies(array $technologies): array
+    {
+        $costFactor = $this->costFactor();
+
+        foreach ($technologies as $code => $technology) {
+            foreach ((array) ($technology['materials'] ?? []) as $index => $material) {
+                $technologies[$code]['materials'][$index]['pricePerGram'] =
+                    round(((float) ($material['pricePerGram'] ?? 0)) * $costFactor, 4);
+            }
+        }
+
+        return $technologies;
+    }
+
+    /** Pengali komponen HPP: (1 + Risk%) × (1 + Profit%). */
+    private function costFactor(): float
+    {
+        $formula = $this->formula('');
+
+        return (1 + ((float) ($formula->risk_percent ?? 0)) / 100)
+            * (1 + ((float) ($formula->profit_percent ?? 0)) / 100);
     }
 
     /**

@@ -22,26 +22,31 @@
     // Perataan angka: 'right' untuk kolom tabel, 'left' untuk form biasa.
     'align' => 'right',
     'wrapperClass' => '',
+    // Boleh kosong: nilai kosong dibiarkan kosong (bukan "Rp 0"), sehingga
+    // aturan `required` di server tetap menolak kolom yang lupa diisi.
+    'nullable' => false,
 ])
 
 @php
+    $blank = $nullable && ! is_numeric($value);
     $raw = is_numeric($value) ? (int) round((float) $value) : 0;
     $raw = max(0, min((int) $max, $raw));
     $id ??= $name;
 @endphp
 
-<div class="rupiah-input {{ $wrapperClass }}" data-rupiah-input data-step="{{ $step }}" data-max="{{ $max }}">
+<div class="rupiah-input {{ $wrapperClass }}" data-rupiah-input data-step="{{ $step }}" data-max="{{ $max }}"
+     @if ($nullable) data-nullable @endif>
     <input type="text"
            id="{{ $id }}"
            inputmode="numeric"
            autocomplete="off"
            placeholder="Rp 0"
-           value="Rp {{ number_format($raw, 0, ',', '.') }}"
+           value="{{ $blank ? '' : 'Rp '.number_format($raw, 0, ',', '.') }}"
            class="field-input pr-10 font-mono {{ $align === 'left' ? 'text-left' : 'text-right' }}"
            @if ($label) aria-label="{{ $label }}" @endif
            data-rupiah-display>
 
-    <input type="hidden" name="{{ $name }}" value="{{ $raw }}" {{ $attributes }} data-rupiah-value>
+    <input type="hidden" name="{{ $name }}" value="{{ $blank ? '' : $raw }}" {{ $attributes }} data-rupiah-value>
 
     <div class="rupiah-input-spinner" aria-hidden="true">
         <button type="button" tabindex="-1" class="rupiah-input-step" data-rupiah-step="1" title="Tambah {{ number_format((int) $step, 0, ',', '.') }}">

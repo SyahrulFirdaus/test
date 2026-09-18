@@ -1,19 +1,42 @@
 {
-  "_model-record-Bfk_1G00.js": {
-    "file": "assets/model-record-Bfk_1G00.js",
-    "name": "model-record",
+  "_mesh-preview-BekuCK68.js": {
+    "file": "assets/mesh-preview-BekuCK68.js",
+    "name": "mesh-preview",
     "imports": [
-      "_three.module-UX2nf8Un.js"
+      "_three.module-tR3jVNrN.js",
+      "_model-formats-BYYyTUGb.js"
     ]
   },
-  "_three.module-UX2nf8Un.js": {
-    "file": "assets/three.module-UX2nf8Un.js",
+  "_model-formats-BYYyTUGb.js": {
+    "file": "assets/model-formats-BYYyTUGb.js",
+    "name": "model-formats",
+    "imports": [
+      "_three.module-tR3jVNrN.js"
+    ]
+  },
+  "_model-store-mUkLX12h.js": {
+    "file": "assets/model-store-mUkLX12h.js",
+    "name": "model-store"
+  },
+  "_three.module-tR3jVNrN.js": {
+    "file": "assets/three.module-tR3jVNrN.js",
     "name": "three.module"
   },
   "resources/css/app.css": {
-    "file": "assets/app-CN2FtNlZ.css",
+    "file": "assets/app-Br8owKUd.css",
     "src": "resources/css/app.css",
     "isEntry": true
+  },
+  "resources/js/admin-model-viewer.js": {
+    "file": "assets/admin-model-viewer-BptbIrlR.js",
+    "name": "admin-model-viewer",
+    "src": "resources/js/admin-model-viewer.js",
+    "isEntry": true,
+    "imports": [
+      "_mesh-preview-BekuCK68.js",
+      "_three.module-tR3jVNrN.js",
+      "_model-formats-BYYyTUGb.js"
+    ]
   },
   "resources/js/app.js": {
     "file": "assets/app-BTqHjmLT.js",
@@ -22,47 +45,60 @@
     "isEntry": true
   },
   "resources/js/auth-scene.js": {
-    "file": "assets/auth-scene-DUgeJd9_.js",
+    "file": "assets/auth-scene-BZrOMgmb.js",
     "name": "auth-scene",
     "src": "resources/js/auth-scene.js",
     "isEntry": true,
     "dynamicImports": [
+      "resources/js/modules/hero-scenes.js",
       "resources/js/modules/print-showcase.js"
     ]
   },
   "resources/js/dashboard.js": {
-    "file": "assets/dashboard-C34k0fF2.js",
+    "file": "assets/dashboard-BpG5le-z.js",
     "name": "dashboard",
     "src": "resources/js/dashboard.js",
     "isEntry": true
   },
-  "resources/js/model-detail.js": {
-    "file": "assets/model-detail-CSpB5pSB.js",
-    "name": "model-detail",
-    "src": "resources/js/model-detail.js",
+  "resources/js/model-preview.js": {
+    "file": "assets/model-preview-CWdP3lsj.js",
+    "name": "model-preview",
+    "src": "resources/js/model-preview.js",
     "isEntry": true,
     "imports": [
-      "_model-record-Bfk_1G00.js",
-      "_three.module-UX2nf8Un.js"
+      "_mesh-preview-BekuCK68.js",
+      "_model-store-mUkLX12h.js",
+      "_three.module-tR3jVNrN.js",
+      "_model-formats-BYYyTUGb.js"
     ]
   },
   "resources/js/model-viewer.js": {
-    "file": "assets/model-viewer-CyBHFkui.js",
+    "file": "assets/model-viewer-B5td3UKz.js",
     "name": "model-viewer",
     "src": "resources/js/model-viewer.js",
     "isEntry": true,
     "imports": [
-      "_model-record-Bfk_1G00.js",
-      "_three.module-UX2nf8Un.js"
+      "_three.module-tR3jVNrN.js",
+      "_model-formats-BYYyTUGb.js",
+      "_model-store-mUkLX12h.js"
+    ]
+  },
+  "resources/js/modules/hero-scenes.js": {
+    "file": "assets/hero-scenes-_DIWNfdT.js",
+    "name": "hero-scenes",
+    "src": "resources/js/modules/hero-scenes.js",
+    "isDynamicEntry": true,
+    "imports": [
+      "_three.module-tR3jVNrN.js"
     ]
   },
   "resources/js/modules/print-showcase.js": {
-    "file": "assets/print-showcase-DohADSjK.js",
+    "file": "assets/print-showcase-CyIyVsxm.js",
     "name": "print-showcase",
     "src": "resources/js/modules/print-showcase.js",
     "isDynamicEntry": true,
     "imports": [
-      "_three.module-UX2nf8Un.js"
+      "_three.module-tR3jVNrN.js"
     ]
   }
 }

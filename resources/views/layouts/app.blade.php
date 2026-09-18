@@ -24,14 +24,20 @@
         Lompat ke konten utama
     </a>
 
-    @include('partials.navbar')
+    {{-- Halaman layar penuh (mis. 3D Viewer) memasang @section('bare') untuk
+         menyembunyikan navbar, footer, dan tombol kembali ke atas. --}}
+    @unless (View::hasSection('bare'))
+        @include('partials.navbar')
+    @endunless
 
     <main id="main">
         @yield('content')
     </main>
 
-    @include('partials.footer')
-    @include('partials.scroll-top')
+    @unless (View::hasSection('bare'))
+        @include('partials.footer')
+        @include('partials.scroll-top')
+    @endunless
 
     @stack('scripts')
 </body>

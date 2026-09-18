@@ -6,6 +6,7 @@
 @section('content')
 
     <x-page-hero
+        scene="technologies"
         eyebrow="Teknologi"
         current="Technologies"
         title='Empat teknologi cetak, <span class="text-brand-400">satu standar kualitas</span>'

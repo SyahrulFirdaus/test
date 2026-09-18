@@ -121,8 +121,9 @@ class PrintEstimator
                 'minWallThicknessMm' => $technology['min_wall_thickness_mm'],
                 'throughput' => $technology['throughput_cm3_per_hour'],
                 'setupHours' => $technology['setup_hours'],
-                'setupFee' => $technology['setup_fee'],
-                'machineRate' => $technology['machine_rate_per_hour'],
+                // Biaya persiapan dan tarif mesin per teknologi adalah angka
+                // internal Price List dan tidak dipakai Calculator di browser,
+                // jadi sengaja tidak dikirim.
                 'supportFactor' => $technology['support_volume_factor'] ?? 0.0,
                 'supportRequired' => $this->support->isRequiredFor($code),
                 'supportNote' => $this->support->unavailableReason($code),

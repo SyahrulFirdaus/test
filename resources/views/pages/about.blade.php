@@ -6,6 +6,7 @@
 @section('content')
 
     <x-page-hero
+        scene="about"
         eyebrow="Tentang Kami"
         current="About"
         title='Tim yang percaya bahwa <span class="text-brand-400">ide baik</span> layak diwujudkan'

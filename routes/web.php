@@ -34,8 +34,14 @@ Route::get('/', [HomeController::class, 'index'])->name('home');
 Route::get('/services', [ServiceController::class, 'index'])->name('services');
 Route::get('/technologies', [TechnologyController::class, 'index'])->name('technologies');
 Route::get('/3d-models', [ModelCheckController::class, 'index'])->name('models');
-// Viewer 3D satu model, dibuka di tab baru dari daftar halaman 3D Models.
-Route::get('/3d-models/viewer', [ModelCheckController::class, 'viewer'])->name('models.viewer');
+// 3D Viewer satu model, dibuka di tab yang sama dari daftar halaman 3D Models.
+// `{model}` adalah id berkas di browser pengunjung, bukan path — polanya
+// dibatasi ketat, di luar itu 404.
+Route::get('/3d-models/{model}/viewer', [ModelCheckController::class, 'show'])
+    ->where('model', ModelCheckController::MODEL_ID_PATTERN)
+    ->name('models.viewer.show');
+// Alamat lama (?model={id}) diteruskan ke alamat barunya.
+Route::get('/3d-models/viewer', [ModelCheckController::class, 'legacyViewer'])->name('models.viewer');
 // Panduan menyiapkan model, ditautkan tombol di atas area unggah.
 Route::get('/3d-models/panduan', [ModelCheckController::class, 'guide'])->name('models.guide');
 Route::get('/about', [AboutController::class, 'index'])->name('about');
@@ -329,6 +335,13 @@ $staffRoutes = function () {
         Route::get('penawaran/penawaran/{quotation}/model/{item}/unduh', [Admin\QuotationRequestController::class, 'downloadItem'])
             ->scopeBindings()
             ->name('quotations.items.download');
+
+        // Pratinjau 3D satu model. Hanya membaca: berkasnya diambil browser
+        // lewat route unduh di atas, jadi tidak ada salinan berkas baru dan
+        // hak aksesnya sama persis dengan mengunduh (quotation.view).
+        Route::get('penawaran/penawaran/{quotation}/model/{item}/lihat-3d', [Admin\QuotationRequestController::class, 'viewItem'])
+            ->scopeBindings()
+            ->name('quotations.items.viewer');
         Route::patch('penawaran/penawaran/{quotation}/model/{item}', [Admin\QuotationRequestController::class, 'updateItem'])
             ->scopeBindings()
             ->middleware($can(AdminPermission::QUOTATION_EDIT))

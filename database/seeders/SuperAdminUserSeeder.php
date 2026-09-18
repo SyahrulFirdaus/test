@@ -25,7 +25,8 @@ class SuperAdminUserSeeder extends Seeder
 
         $superAdmin = User::firstOrNew(['email' => $email]);
 
-        $superAdmin->fill([
+        // `role` dan `is_active` bukan kolom fillable (lihat App\Models\User).
+        $superAdmin->forceFill([
             'name' => env('SUPERADMIN_NAME', 'Superadmin'),
             'role' => User::ROLE_SUPERADMIN,
             'is_active' => true,
@@ -33,7 +34,16 @@ class SuperAdminUserSeeder extends Seeder
         ]);
 
         if (! $superAdmin->exists) {
-            $superAdmin->password = Hash::make(env('SUPERADMIN_PASSWORD', 'superadminnusama'));
+            // Kata sandi bawaan hanya kredensial awal. Di production wajib
+            // diberikan lewat SUPERADMIN_PASSWORD — kata sandi yang tertulis
+            // di kode sumber tidak boleh menjadi kata sandi akun tertinggi.
+            $password = env('SUPERADMIN_PASSWORD');
+
+            if (blank($password) && app()->isProduction()) {
+                throw new \RuntimeException('Setel SUPERADMIN_PASSWORD pada .env sebelum membuat akun Superadmin di production.');
+            }
+
+            $superAdmin->password = Hash::make($password ?: 'superadminnusama');
         }
 
         $superAdmin->save();

@@ -169,129 +169,67 @@
     </section>
 
     {{-- ===================== PRE-PRINT ANALYZER ===================== --}}
-    <section class="relative overflow-hidden bg-ink-950 py-20 md:py-28">
-        <div class="blueprint-grid-dark absolute inset-0" aria-hidden="true"></div>
-        <div class="absolute -right-32 top-0 h-96 w-96 rounded-full bg-brand-700/25 blur-3xl" aria-hidden="true"></div>
-        <div class="absolute -left-24 bottom-0 h-80 w-80 rounded-full bg-brand-900/40 blur-3xl" aria-hidden="true"></div>
+    {{-- Latar 3D senada dengan hero, dengan objeknya sendiri: bracket yang
+         sedang dianalisis (varian "analyzer" di hero-scenes.js). Teks dibuat
+         ringkas; objek 3D di kanan yang bercerita. --}}
+    <section class="relative flex min-h-[560px] items-center overflow-hidden bg-brand-950 py-20 md:h-[620px] md:min-h-0 md:py-0">
+        <x-scene-3d variant="analyzer" shift-x="0.27" shift-y="0" scale="1.2" />
 
-        <div class="container-page relative">
-            <div class="grid items-center gap-14 lg:grid-cols-12 lg:gap-16">
+        <div class="pointer-events-none absolute inset-0 bg-gradient-to-r from-brand-950/80 via-brand-950/35 to-transparent" aria-hidden="true"></div>
 
-                <div class="lg:col-span-6" data-aos="fade-right">
-                    <span class="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/5 px-4 py-1.5 text-xs font-semibold uppercase tracking-[0.18em] text-brand-300">
-                        <span class="inline-block h-1.5 w-1.5 rounded-full bg-brand-500"></span>
-                        Gratis &amp; Instan
-                    </span>
+        <div class="container-page relative w-full">
+            <div class="max-w-xl" data-aos="fade-up">
+                <span class="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-4 py-1.5 text-xs font-semibold uppercase tracking-[0.18em] text-brand-300 backdrop-blur">
+                    <span class="inline-block h-1.5 w-1.5 rounded-full bg-brand-500"></span>
+                    Gratis &amp; Instan
+                </span>
 
-                    <h2 class="mt-6 text-3xl font-bold leading-tight tracking-tight text-white sm:text-4xl lg:text-[2.6rem]">
-                        Cek kelayakan cetak model Anda
-                        <span class="text-brand-400">sebelum menghubungi kami</span>
-                    </h2>
+                <h2 class="mt-6 text-3xl font-bold leading-tight tracking-tight text-white drop-shadow-lg sm:text-4xl lg:text-[2.6rem]">
+                    Cek kelayakan cetak model Anda
+                    <span class="text-brand-300">sebelum menghubungi kami</span>
+                </h2>
 
-                    <p class="mt-6 max-w-xl text-base leading-relaxed text-ink-300 sm:text-lg">
-                        Unggah file STL atau OBJ langsung di browser. Dalam hitungan detik Anda tahu apakah
-                        model sudah siap dicetak, di mana masalahnya bila belum, serta perkiraan waktu dan biayanya.
-                    </p>
+                <p class="mt-5 text-base leading-relaxed text-white/75 drop-shadow sm:text-lg">
+                    Unggah STL atau OBJ di browser, dan dalam hitungan detik Anda tahu kelayakan cetak,
+                    lead time, serta perkiraan biayanya.
+                </p>
 
-                    <ul class="mt-9 space-y-4">
-                        @foreach ([
-                            ['icon' => 'cube', 'title' => 'Viewer 3D interaktif', 'text' => 'Putar, zoom, dan geser model. Lengkap dengan mode wireframe serta tujuh preset sudut pandang.'],
-                            ['icon' => 'shield', 'title' => 'Analisis kelayakan otomatis', 'text' => 'Mesh tertutup, lubang, non-manifold edge, arah normal, ukuran, dan kesesuaian area cetak.'],
-                            ['icon' => 'spark', 'title' => 'Estimasi lead time & biaya', 'text' => 'Pilih teknologi dan material, lead time pengerjaan serta biayanya langsung dihitung.'],
-                        ] as $feature)
-                            <li class="flex gap-4">
-                                <span class="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-brand-600/20 text-brand-300">
-                                    <x-dynamic-component :component="'icons.'.$feature['icon']" class="h-5 w-5" />
-                                </span>
-                                <div>
-                                    <p class="font-semibold text-white">{{ $feature['title'] }}</p>
-                                    <p class="mt-1 text-sm leading-relaxed text-ink-400">{{ $feature['text'] }}</p>
-                                </div>
-                            </li>
-                        @endforeach
-                    </ul>
+                <ul class="mt-7 flex flex-wrap gap-2.5">
+                    @foreach ([
+                        ['icon' => 'cube', 'label' => 'Viewer 3D'],
+                        ['icon' => 'shield', 'label' => 'Analisis otomatis'],
+                        ['icon' => 'spark', 'label' => 'Estimasi biaya'],
+                    ] as $feature)
+                        <li class="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3.5 py-2 text-xs font-semibold text-white/85 backdrop-blur">
+                            <x-dynamic-component :component="'icons.'.$feature['icon']" class="h-3.5 w-3.5 text-brand-300" />
+                            {{ $feature['label'] }}
+                        </li>
+                    @endforeach
+                </ul>
 
-                    <div class="mt-10 flex flex-col gap-3 sm:flex-row">
-                        <a href="{{ route('models') }}" class="btn-primary w-full sm:w-auto">
-                            <x-icons.upload class="h-4 w-4" />
-                            Mulai 3D Models
-                        </a>
-                        <a href="{{ route('technologies') }}" class="btn-ghost-light w-full sm:w-auto">
-                            Lihat Teknologi Kami
-                        </a>
-                    </div>
-
-                    <p class="mt-5 flex items-start gap-2.5 text-xs leading-relaxed text-ink-400">
-                        <x-icons.lock class="mt-0.5 h-4 w-4 shrink-0 text-brand-400" />
-                        File diproses sepenuhnya di perangkat Anda. Tidak ada berkas yang terkirim ke server
-                        kecuali Anda sendiri yang meminta penawaran.
-                    </p>
+                <div class="mt-9 flex flex-col gap-3 sm:flex-row">
+                    <a href="{{ route('models') }}" class="btn-primary w-full sm:w-auto">
+                        <x-icons.upload class="h-4 w-4" />
+                        Mulai 3D Models
+                    </a>
+                    <a href="{{ route('technologies') }}" class="btn-ghost-light w-full sm:w-auto">
+                        Lihat Teknologi Kami
+                    </a>
                 </div>
 
-                {{-- Pratinjau tampilan analyzer --}}
-                <div class="lg:col-span-6" data-aos="fade-left" data-aos-delay="100">
-                    <div class="relative mx-auto max-w-lg lg:max-w-none">
-                        <div class="overflow-hidden rounded-3xl border border-white/10 bg-ink-900/70 shadow-glow backdrop-blur">
-
-                            <div class="flex items-center justify-between gap-3 border-b border-white/10 px-5 py-4">
-                                <div class="flex items-center gap-2.5">
-                                    <span class="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-brand-600 text-white">
-                                        <x-icons.cube class="h-4 w-4" />
-                                    </span>
-                                    <span class="font-display text-sm font-bold text-white">bracket-motor.stl</span>
-                                </div>
-                                <span class="rounded-full border border-emerald-400/30 bg-emerald-400/10 px-3 py-1 text-[0.65rem] font-bold text-emerald-300">
-                                    &#128994; Ready to Print
-                                </span>
-                            </div>
-
-                            <div class="grid gap-px bg-white/10 sm:grid-cols-3">
-                                @foreach ([
-                                    ['Dimensi', '84 × 52 × 26 mm'],
-                                    ['Volume', '38,4 cm³'],
-                                    ['Segitiga', '48.212'],
-                                ] as [$label, $value])
-                                    <div class="bg-ink-900/80 px-5 py-4">
-                                        <p class="text-[0.6rem] font-semibold uppercase tracking-[0.14em] text-ink-500">{{ $label }}</p>
-                                        <p class="mt-1 font-display text-sm font-bold text-white">{{ $value }}</p>
-                                    </div>
-                                @endforeach
-                            </div>
-
-                            <div class="space-y-2.5 px-5 py-5">
-                                @foreach ([
-                                    ['pass', 'Mesh tertutup (watertight)'],
-                                    ['pass', 'Tidak ada lubang pada permukaan'],
-                                    ['pass', 'Tidak ada non-manifold edge'],
-                                    ['warn', 'Sisi tertipis 1,4 mm, rawan pada FDM'],
-                                ] as [$state, $label])
-                                    <div class="flex items-center gap-3 rounded-xl border border-white/5 bg-white/5 px-4 py-2.5">
-                                        <span class="h-2 w-2 shrink-0 rounded-full {{ $state === 'pass' ? 'bg-emerald-400' : 'bg-amber-400' }}"></span>
-                                        <span class="text-xs text-ink-300">{{ $label }}</span>
-                                    </div>
-                                @endforeach
-                            </div>
-
-                            <div class="border-t border-white/10 bg-gradient-to-br from-brand-700/80 to-brand-900/80 px-5 py-5">
-                                <div class="flex items-end justify-between gap-4">
-                                    <div>
-                                        <p class="text-[0.6rem] font-semibold uppercase tracking-[0.14em] text-white/60">Estimasi untuk FDM / PLA</p>
-                                        <p class="mt-1 font-display text-2xl font-bold text-white">Rp 68.000</p>
-                                    </div>
-                                    <div class="text-right">
-                                        <p class="text-[0.6rem] font-semibold uppercase tracking-[0.14em] text-white/60">Estimasi Lead Time</p>
-                                        <p class="mt-1 font-display text-sm font-bold text-white">3–5 Hari Kerja</p>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <p class="mt-4 text-center text-[0.7rem] text-ink-500">
-                            Contoh tampilan hasil analisis pada halaman 3D Models.
-                        </p>
-                    </div>
-                </div>
+                <p class="mt-5 flex items-start gap-2.5 text-xs leading-relaxed text-white/55">
+                    <x-icons.lock class="mt-0.5 h-4 w-4 shrink-0 text-brand-300" />
+                    File diproses di perangkat Anda dan hanya terkirim saat Anda meminta penawaran.
+                </p>
             </div>
+        </div>
+
+        {{-- Satu keterangan ringkas di dekat objek 3D, pengganti kartu analyzer. --}}
+        <div class="pointer-events-none absolute bottom-10 right-8 hidden items-center gap-3 rounded-2xl border border-white/10 bg-brand-950/60 px-4 py-3 backdrop-blur lg:flex xl:right-16"
+             aria-hidden="true">
+            <span class="h-2 w-2 rounded-full bg-emerald-400"></span>
+            <span class="text-xs font-semibold text-white">bracket-motor.stl</span>
+            <span class="text-xs text-white/50">Ready to Print &middot; 84 × 52 × 26 mm &middot; Rp 68.000</span>
         </div>
     </section>
 

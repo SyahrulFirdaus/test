@@ -76,7 +76,12 @@ class AdminAccountController extends Controller
         $admin = DB::transaction(function () use ($data, $keys) {
             // Role selalu ditetapkan di sini, tidak pernah dari kiriman formulir,
             // jadi akun yang dibuat lewat menu ini tidak dapat menjadi Superadmin.
-            $admin = User::create([...$data, 'role' => User::ROLE_ADMIN]);
+            // Keduanya bukan kolom fillable, jadi dipasang lewat forceFill().
+            $admin = (new User($data))->forceFill([
+                'role' => User::ROLE_ADMIN,
+                'is_active' => (bool) ($data['is_active'] ?? false),
+            ]);
+            $admin->save();
             $this->syncPermissions($admin, $keys);
 
             return $admin;
@@ -133,7 +138,8 @@ class AdminAccountController extends Controller
         }
 
         DB::transaction(function () use ($admin, $data, $keys) {
-            $admin->update($data);
+            // Status aktif bukan kolom fillable; dipasang eksplisit di sini.
+            $admin->fill($data)->forceFill(['is_active' => (bool) ($data['is_active'] ?? false)])->save();
 
             // Berlaku pada permintaan Admin berikutnya: hak akses selalu
             // dibaca ulang dari basis data, tidak disalin ke session atau

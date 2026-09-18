@@ -77,6 +77,24 @@ class AuthenticatedSessionController extends Controller
             ]);
         }
 
+        // Akun yang dinonaktifkan tetap ditolak meski kata sandinya benar —
+        // termasuk akun Admin yang mencoba lewat halaman login pelanggan.
+        if (! $request->user()->isActive()) {
+            $this->activity->logFailure(
+                action: ActivityAction::LOGIN_FAILED,
+                description: 'Akun nonaktif mencoba masuk.',
+                actor: $request->user(),
+            );
+
+            Auth::logout();
+            $request->session()->invalidate();
+            $request->session()->regenerateToken();
+
+            throw ValidationException::withMessages([
+                'email' => 'Akun tersebut sedang dinonaktifkan. Hubungi Superadmin.',
+            ]);
+        }
+
         RateLimiter::clear($throttleKey);
         $request->session()->regenerate();
 

@@ -57,10 +57,10 @@ const sizeText = (size) =>
  * analisis kelayakan, menghitung estimasi, dan memotret modelnya sebagai
  * thumbnail — lalu langsung dibuang.
  *
- * Hasilnya disimpan di IndexedDB dan ditampilkan sebagai kartu ringkas. Viewer
- * 3D beserta seluruh fitur analisis dan simulasinya dibuka di tab tersendiri
- * lewat tombol "Lihat 3D", sehingga halaman ini tetap ringan meski memuat
- * puluhan model.
+ * Hasilnya disimpan di IndexedDB dan ditampilkan sebagai kartu ringkas. Tombol
+ * "Lihat 3D" berpindah (di tab yang sama) ke halaman pratinjau
+ * /3d-models/{id}/viewer, yang membaca berkasnya dari IndexedDB yang sama —
+ * sehingga halaman ini tetap ringan meski memuat puluhan model.
  *
  * Seperti sebelumnya, berkas tidak pernah dikirim ke server sampai pengguna
  * benar-benar menekan "Minta Penawaran".
@@ -91,7 +91,8 @@ export default class ModelWorkspace {
 
         this.config = this.readConfig();
         this.maxModels = Number(this.config.limits?.maxModels) || DEFAULT_MAX_MODELS;
-        this.viewerUrl = this.config.viewerUrl ?? '/3d-models/viewer';
+        // Pola alamat viewer, mis. "/3d-models/MODELID/viewer"; MODELID diganti id model.
+        this.viewerUrl = this.config.viewerUrl ?? '/3d-models/MODELID/viewer';
 
         // Seluruh angka biaya hanya ditampilkan kepada pengguna yang sudah masuk.
         // Pengunjung tanpa akun tetap dapat mengunggah, meninjau, dan mengatur
@@ -1130,7 +1131,8 @@ export default class ModelWorkspace {
     /** Satu kartu ringkas: thumbnail asli model beserta informasi pentingnya. */
     cardMarkup(record) {
         const summary = record.summary ?? {};
-        const url = `${this.viewerUrl}?model=${encodeURIComponent(record.id)}`;
+        // Berpindah ke halaman viewer di tab yang sama — bukan tab baru.
+        const url = this.viewerUrl.replace('MODELID', encodeURIComponent(record.id));
         const dimensions = summary.dimensions
             ? `${formatNumber(summary.dimensions.x, 1)} × ${formatNumber(summary.dimensions.y, 1)} × ${formatNumber(summary.dimensions.z, 1)} mm`
             : '-';
@@ -1154,8 +1156,6 @@ export default class ModelWorkspace {
             <article class="card overflow-hidden">
                 <div class="flex gap-3 p-3">
                     <a href="${escapeAttribute(url)}"
-                       target="_blank"
-                       rel="noopener"
                        class="group relative block h-20 w-20 shrink-0 overflow-hidden rounded-xl bg-ink-100"
                        title="Buka viewer 3D ${escapeAttribute(record.name)}">
                         ${record.thumbnail
@@ -1233,6 +1233,13 @@ export default class ModelWorkspace {
                     : ''}
 
                 <div class="flex items-center gap-2 border-t border-ink-100 px-3 py-2">
+                    <a href="${escapeAttribute(url)}"
+                       class="btn-outline shrink-0 px-3 py-1.5 text-[0.7rem]"
+                       title="Lihat 3D ${escapeAttribute(record.name)}"
+                       data-view-model="${escapeAttribute(record.id)}">
+                        Lihat 3D
+                    </a>
+
                     <button type="button" class="btn-outline flex-1 px-3 py-1.5 text-[0.7rem]" data-edit-spec="${escapeAttribute(record.id)}">
                         Edit Specification
                     </button>

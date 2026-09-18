@@ -6,11 +6,11 @@ use App\Http\Controllers\Controller;
 use App\Models\QuotationRequest;
 use App\Services\PaymentFlow;
 use App\Services\PaymentTermPlanner;
+use App\Support\PaymentProofFile;
 use App\Support\QuotationStatus;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Storage;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 /**
@@ -110,16 +110,8 @@ class PaymentController extends Controller
                     : 'Penawaran ini berstatus "'.$quotation->status_label.'" sehingga bukti pembayaran tidak dapat diunggah.');
         }
 
-        $extensions = (array) config('payment.proof.extensions', ['jpg', 'jpeg', 'png', 'pdf']);
-        $maxKilobytes = (int) config('payment.proof.max_kilobytes', 5120);
-
-        $request->validate([
-            'proof' => ['required', 'file', 'extensions:'.implode(',', $extensions), 'max:'.$maxKilobytes],
-        ], [
-            'proof.required' => 'Pilih berkas bukti pembayaran lebih dulu.',
-            'proof.extensions' => 'Bukti pembayaran harus berformat '.strtoupper(implode(', ', $extensions)).'.',
-            'proof.max' => 'Ukuran berkas melebihi batas '.round($maxKilobytes / 1024).' MB.',
-        ]);
+        // Ekstensi DAN isi berkas diperiksa — lihat App\Support\PaymentProofFile.
+        $request->validate(['proof' => PaymentProofFile::rules()], PaymentProofFile::messages());
 
         $this->payments->submitProof($quotation, $request->file('proof'), $request->user());
 
@@ -137,10 +129,7 @@ class PaymentController extends Controller
             return back()->with('error', 'Bukti pembayaran tidak ditemukan di penyimpanan.');
         }
 
-        return Storage::disk('local')->response(
-            $quotation->payment_proof_path,
-            $quotation->payment_proof_name,
-        );
+        return PaymentProofFile::response($quotation->payment_proof_path, $quotation->payment_proof_name);
     }
 
     /** Penawaran milik akun lain tidak boleh terbaca sama sekali. */
