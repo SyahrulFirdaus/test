@@ -64,6 +64,18 @@ function sidesOf(size) {
 }
 
 /**
+ * Batas yang benar-benar dapat dibandingkan: ketiga sisinya ada dan positif.
+ *
+ * Batas maksimum material diturunkan dari mesinnya, jadi material yang belum
+ * ditentukan mesinnya tidak memilikinya. Itu bukan pelanggaran — model apa pun
+ * tetap boleh lewat. Tanpa penjaga ini, batas kosong terbaca sebagai 0 mm dan
+ * setiap model akan ditolak.
+ */
+function isLimit(size) {
+    return !!size && ['x', 'y', 'z'].every((axis) => Number.isFinite(Number(size[axis])) && Number(size[axis]) > 0);
+}
+
+/**
  * Periksa ukuran model terhadap batas material yang dipilih.
  *
  * Perbandingan dilakukan sisi-terpanjang-lawan-sisi-terpanjang sehingga model
@@ -80,7 +92,7 @@ export function validateModelSize(dimensions, material) {
 
     const model = sidesOf(dimensions);
 
-    if (material.maxSize) {
+    if (isLimit(material.maxSize)) {
         const max = sidesOf(material.maxSize);
 
         if (model.some((side, index) => side > max[index] + SIZE_TOLERANCE_MM)) {
@@ -88,7 +100,7 @@ export function validateModelSize(dimensions, material) {
         }
     }
 
-    const minimums = [material.minSize, material.minSizeSlender].filter(Boolean);
+    const minimums = [material.minSize, material.minSizeSlender].filter(isLimit);
 
     if (minimums.length) {
         const fits = minimums.some((minimum) => {
@@ -332,6 +344,7 @@ export function applySpecification(record, config, spec) {
                 totalWeightG: estimate.totalWeightG,
                 totalMinutes: estimate.totalMinutes,
                 totalCost: estimate.totalCost,
+                manualPricing: estimate.manualPricing,
                 breakdown: estimate.breakdown,
             },
         },
@@ -342,6 +355,7 @@ export function applySpecification(record, config, spec) {
             weightG: estimate.totalWeightG * quantity,
             minutes: estimate.totalMinutes,
             cost: estimate.totalCost,
+            manualPricing: estimate.manualPricing,
             technology: spec.technology,
             material: spec.material,
             color,

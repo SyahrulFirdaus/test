@@ -359,14 +359,19 @@
                                         <ul class="mt-1.5 space-y-1" data-spec-material-cons></ul>
                                     </div>
 
-                                    <dl class="mt-4 border-t border-ink-100 pt-3 space-y-1">
-                                        <div class="spec-info-row">
+                                    {{-- Kedua baris batas ukuran hanya ada bila angkanya memang
+                                         ada. Ukuran maksimum berasal dari mesin material; material
+                                         yang belum ditentukan mesinnya tidak menampilkan barisnya
+                                         sama sekali — bukan "-" — dan bila keduanya kosong
+                                         pembatas <dl> ini pun tidak digambar. --}}
+                                    <dl class="mt-4 border-t border-ink-100 pt-3 space-y-1" data-spec-material-limits style="display: none">
+                                        <div class="spec-info-row" data-spec-material-max-row style="display: none">
                                             <dt class="text-ink-400">Ukuran maksimum</dt>
-                                            <dd class="text-right font-semibold text-ink-700" data-spec-material-max>-</dd>
+                                            <dd class="text-right font-semibold text-ink-700" data-spec-material-max></dd>
                                         </div>
-                                        <div class="spec-info-row">
+                                        <div class="spec-info-row" data-spec-material-min-row style="display: none">
                                             <dt class="text-ink-400">Ukuran minimum</dt>
-                                            <dd class="text-right font-semibold text-ink-700" data-spec-material-min>-</dd>
+                                            <dd class="text-right font-semibold text-ink-700" data-spec-material-min></dd>
                                         </div>
                                     </dl>
 

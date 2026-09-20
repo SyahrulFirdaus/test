@@ -2,15 +2,26 @@
 
 @section('title', 'Verifikasi Pembayaran')
 
+{{--
+    Pusat verifikasi pembayaran BERTAHAP.
+
+    Pembayaran sekali bayar tidak lagi mengantre di sini: keputusannya diambil
+    langsung dari Penawaran › Detail Penawaran, tempat admin memang sudah
+    berada saat memeriksa penawarannya. Yang tinggal adalah bukti per termin
+    milik pelanggan Business dengan Payment Term — satu penawaran dengan
+    beberapa pembayaran, masing-masing dengan jadwal dan keputusannya sendiri.
+--}}
+
 @section('content')
     @php
+        use App\Support\InstallmentStatus;
+
         $rupiah = fn ($value) => 'Rp'.number_format((float) $value, 0, ',', '.');
 
         $tabs = [
             'review' => 'Menunggu Verifikasi',
-            'installments' => 'Bukti Termin',
-            'awaiting' => 'Menunggu Pembayaran',
-            'decided' => 'Sudah Diputuskan',
+            'scheduled' => 'Jadwal Berjalan',
+            'decided' => 'Sudah Lunas',
         ];
     @endphp
 
@@ -18,10 +29,19 @@
         <div class="flex flex-wrap items-end justify-between gap-4">
             <div>
                 <h2 class="text-2xl font-bold tracking-tight text-ink-900 sm:text-3xl">Verifikasi Pembayaran</h2>
-                <p class="mt-2 text-sm text-ink-500">
-                    Bukti pembayaran yang diunggah pelanggan beserta keputusan terima atau tolaknya.
+                <p class="mt-2 max-w-2xl text-sm leading-relaxed text-ink-500">
+                    Bukti pembayaran per termin dari pelanggan Business yang memakai Payment Term.
+                    Pembayaran sekali bayar diverifikasi langsung dari
+                    <strong class="font-semibold text-ink-700">Penawaran &rsaquo; Detail Penawaran</strong>.
                 </p>
             </div>
+
+            @can(\App\Support\AdminPermission::PAYMENT_TERM_VIEW)
+                <a href="{{ staff_route('payment-terms.index') }}" class="viewer-tool">
+                    Kelola Payment Term
+                    <span class="ml-1 rounded-full bg-ink-100 px-2 py-0.5 text-[0.65rem] font-bold text-ink-600">{{ $activeTerms }}</span>
+                </a>
+            @endcan
         </div>
 
         {{-- Tab antrean. Yang menunggu verifikasi selalu jadi tab pertama karena
@@ -42,140 +62,58 @@
             @endforeach
         </div>
 
-        {{-- ============ ANTREAN BUKTI PEMBAYARAN PER TERMIN (B2B) ============ --}}
-        @if ($filter === 'installments')
-            <div class="mt-6 space-y-4">
-                @forelse ($installments as $installment)
-                    @php
-                        $term = $installment->term;
-                        $quotation = $term->quotation;
-                        $proof = $installment->latestProof;
-                    @endphp
-
-                    <article class="rounded-2xl border border-ink-100 bg-white p-6 shadow-card">
-                        <div class="flex flex-wrap items-start justify-between gap-4">
-                            <div class="min-w-0">
-                                <p class="font-mono text-sm font-semibold text-brand-600">{{ $quotation->tracking_number }}</p>
-                                <h3 class="mt-1 font-display text-lg font-bold text-ink-900">{{ $quotation->name }}</h3>
-                                <p class="mt-0.5 text-xs text-ink-400">
-                                    {{ $quotation->email }}@if ($quotation->company) &middot; {{ $quotation->company }} @endif
-                                </p>
-                            </div>
-
-                            <div class="text-right">
-                                <p class="text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-ink-400">
-                                    {{ $installment->title }} dari {{ $term->installment_count }}
-                                </p>
-                                <p class="mt-1 font-display text-xl font-bold text-brand-700">{{ $rupiah($installment->amount) }}</p>
-                            </div>
-                        </div>
-
-                        <dl class="mt-5 grid gap-4 border-t border-ink-100 pt-5 sm:grid-cols-2 lg:grid-cols-4">
-                            @php
-                                $facts = [
-                                    'Payment Term' => $term->scheme_label,
-                                    'Milestone' => $installment->milestone ?: '-',
-                                    'Tanggal Upload' => $proof
-                                        ? $proof->uploaded_at->translatedFormat('d F Y, H:i').' WIB'
-                                        : 'Belum diunggah',
-                                    'Jatuh Tempo' => $installment->due_date
-                                        ? $installment->due_date->translatedFormat('d F Y')
-                                        : '-',
-                                ];
-                            @endphp
-
-                            @foreach ($facts as $label => $value)
-                                <div>
-                                    <dt class="text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-ink-400">{{ $label }}</dt>
-                                    <dd class="mt-1 text-sm font-semibold text-ink-800">{{ $value }}</dd>
-                                </div>
-                            @endforeach
-                        </dl>
-
-                        <div class="mt-5 flex flex-wrap items-center gap-2 border-t border-ink-100 pt-5">
-                            @can(\App\Support\AdminPermission::PAYMENT_TERM_VIEW)
-                            <a href="{{ staff_route('payment-terms.show', $term) }}" class="viewer-tool">Kelola Payment Term</a>
-                            @endcan
-
-                            @if ($proof)
-                                <a href="{{ staff_route('payments.installments.proof', [$installment, $proof]) }}"
-                                   target="_blank"
-                                   rel="noopener"
-                                   class="viewer-tool">
-                                    <x-icons.download class="h-4 w-4" />
-                                    Lihat Bukti Pembayaran
-                                </a>
-                            @endif
-                        </div>
-
-                        {{-- Menerima termin ini sekaligus mengaktifkan termin
-                             berikutnya sesuai jadwal. --}}
-                        @can(\App\Support\AdminPermission::PAYMENT_VERIFY)
-                        <div class="mt-5 grid gap-4 rounded-2xl border border-ink-100 bg-ink-50/70 p-5 lg:grid-cols-2">
-                            <form method="POST" action="{{ staff_route('payments.installments.approve', $installment) }}">
-                                @csrf
-                                <p class="text-sm font-bold text-ink-900">Terima Pembayaran</p>
-                                <p class="mt-1 text-xs leading-relaxed text-ink-500">
-                                    {{ $installment->title }} ditandai lunas dan termin berikutnya diaktifkan.
-                                </p>
-                                <button type="submit" class="btn-primary mt-3 w-full">Terima Pembayaran</button>
-                            </form>
-
-                            <form method="POST" action="{{ staff_route('payments.installments.reject', $installment) }}">
-                                @csrf
-                                <label for="reason-termin-{{ $installment->id }}" class="text-sm font-bold text-ink-900">Tolak Pembayaran</label>
-                                <textarea id="reason-termin-{{ $installment->id }}"
-                                          name="reason"
-                                          rows="2"
-                                          required
-                                          maxlength="2000"
-                                          placeholder="Alasan penolakan, mis. nominal transfer tidak sesuai nominal termin."
-                                          class="mt-1 w-full rounded-xl border border-ink-200 px-4 py-2.5 text-sm focus:border-brand-600 focus:outline-none"></textarea>
-                                <button type="submit" class="btn-outline mt-3 w-full">Tolak Pembayaran</button>
-                            </form>
-                        </div>
-                        @endcan
-                    </article>
-                @empty
-                    <p class="rounded-2xl border border-dashed border-ink-200 bg-white p-10 text-center text-sm text-ink-500">
-                        Tidak ada bukti pembayaran termin yang menunggu verifikasi.
-                    </p>
-                @endforelse
-            </div>
-
-            <div class="mt-6">{{ $installments->links() }}</div>
-        @else
-
         <div class="mt-6 space-y-4">
-            @forelse ($quotations as $quotation)
-                <article class="rounded-2xl border border-ink-100 bg-white p-6 shadow-card">
+            @forelse ($installments as $installment)
+                @php
+                    $term = $installment->term;
+                    $quotation = $term->quotation;
+                    $proof = $installment->latestProof;
+                    $menunggu = $installment->isAwaitingVerification();
+                @endphp
 
+                <article class="rounded-2xl border p-6 shadow-card
+                                {{ $menunggu ? 'border-2 border-amber-300 bg-amber-50' : 'border-ink-100 bg-white' }}">
                     <div class="flex flex-wrap items-start justify-between gap-4">
                         <div class="min-w-0">
-                            <p class="font-mono text-sm font-semibold text-brand-600">{{ $quotation->tracking_number }}</p>
+                            <a href="{{ staff_route('quotations.show', $quotation) }}"
+                               class="font-mono text-sm font-semibold text-brand-600 hover:text-brand-700">
+                                {{ $quotation->tracking_number }}
+                            </a>
                             <h3 class="mt-1 font-display text-lg font-bold text-ink-900">{{ $quotation->name }}</h3>
                             <p class="mt-0.5 text-xs text-ink-400">
                                 {{ $quotation->email }}@if ($quotation->company) &middot; {{ $quotation->company }} @endif
                             </p>
+                            <p class="mt-1.5">
+                                <span class="inline-flex rounded-full bg-ink-100 px-2.5 py-0.5 text-[0.6rem] font-bold uppercase tracking-[0.1em] text-ink-600">
+                                    {{ $quotation->user?->customer_type_label ?? 'Business' }}
+                                </span>
+                            </p>
                         </div>
 
                         <div class="text-right">
-                            <p class="text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-ink-400">Nominal Pembayaran</p>
-                            <p class="mt-1 font-display text-xl font-bold text-brand-700">{{ $rupiah($quotation->payment_amount) }}</p>
+                            <p class="text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-ink-400">
+                                {{ $installment->title }} dari {{ $term->installment_count }}
+                            </p>
+                            <p class="mt-1 font-display text-xl font-bold text-brand-700">{{ $rupiah($installment->amount) }}</p>
+                            <p class="mt-1.5 text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-ink-500">
+                                {{ InstallmentStatus::label($installment->status) }}
+                            </p>
                         </div>
                     </div>
 
                     <dl class="mt-5 grid gap-4 border-t border-ink-100 pt-5 sm:grid-cols-2 lg:grid-cols-4">
                         @php
                             $facts = [
-                                'Status' => $quotation->status_label,
-                                'Tanggal Upload' => $quotation->payment_proof_uploaded_at
-                                    ? $quotation->payment_proof_uploaded_at->translatedFormat('d F Y, H:i').' WIB'
+                                'Total Penawaran' => $quotation->display_price === null
+                                    ? 'Menunggu Perhitungan'
+                                    : $rupiah($quotation->payment_amount),
+                                'Payment Term' => $term->scheme_label,
+                                'Tanggal Upload' => $proof
+                                    ? $proof->uploaded_at->translatedFormat('d F Y, H:i').' WIB'
                                     : 'Belum diunggah',
-                                'Batas Pembayaran' => $quotation->payment_due_at
-                                    ? $quotation->payment_due_at->translatedFormat('d F Y, H:i').' WIB'
+                                'Jatuh Tempo' => $installment->due_date
+                                    ? $installment->due_date->translatedFormat('d F Y')
                                     : '-',
-                                'Akun' => $quotation->user?->name ?? 'Tanpa akun',
                             ];
                         @endphp
 
@@ -187,68 +125,78 @@
                         @endforeach
                     </dl>
 
-                    @if ($quotation->payment_rejection_reason)
-                        <p class="mt-4 rounded-xl border border-brand-200 bg-brand-50 p-4 text-sm text-brand-800">
-                            <span class="font-bold">Alasan penolakan:</span> {{ $quotation->payment_rejection_reason }}
-                        </p>
-                    @endif
-
                     <div class="mt-5 flex flex-wrap items-center gap-2 border-t border-ink-100 pt-5">
-                        @can(\App\Support\AdminPermission::QUOTATION_VIEW)
-                        <a href="{{ staff_route('quotations.show', $quotation) }}" class="viewer-tool">Detail Penawaran</a>
+                        @can(\App\Support\AdminPermission::PAYMENT_TERM_VIEW)
+                            <a href="{{ staff_route('payment-terms.show', $term) }}" class="viewer-tool">Kelola Payment Term</a>
                         @endcan
 
-                        @if ($quotation->hasPaymentProof())
-                            <a href="{{ staff_route('payments.proof', $quotation) }}"
+                        @if ($proof)
+                            <a href="{{ staff_route('payments.installments.proof', [$installment, $proof]) }}"
                                target="_blank"
                                rel="noopener"
                                class="viewer-tool">
                                 <x-icons.download class="h-4 w-4" />
                                 Lihat Bukti Pembayaran
                             </a>
-                        @else
-                            <span class="text-xs font-semibold text-ink-400">Bukti pembayaran belum diunggah pelanggan.</span>
                         @endif
                     </div>
 
-                    {{-- Dua keputusan admin. Penolakan menuntut alasan agar
-                         pelanggan tahu apa yang harus diperbaiki. --}}
-                    @if ($quotation->status === \App\Support\QuotationStatus::PAYMENT_REVIEW && auth()->user()->can(\App\Support\AdminPermission::PAYMENT_VERIFY))
-                        <div class="mt-5 grid gap-4 rounded-2xl border border-ink-100 bg-ink-50/70 p-5 lg:grid-cols-2">
-                            <form method="POST" action="{{ staff_route('payments.approve', $quotation) }}">
-                                @csrf
-                                <p class="text-sm font-bold text-ink-900">Terima Pembayaran</p>
-                                <p class="mt-1 text-xs leading-relaxed text-ink-500">
-                                    Status berubah menjadi "Pembayaran Diterima" dan pelanggan langsung diberi tahu.
-                                </p>
-                                <button type="submit" class="btn-primary mt-3 w-full">Terima Pembayaran</button>
-                            </form>
+                    {{-- Keputusan hanya pada termin yang memang menunggu, dan
+                         hanya menyentuh termin ini — termin lain tidak ikut
+                         berubah. Menerima sekaligus mengaktifkan termin
+                         berikutnya sesuai jadwalnya. --}}
+                    @if ($menunggu)
+                        @can(\App\Support\AdminPermission::PAYMENT_VERIFY)
+                            <div class="mt-5 grid gap-4 rounded-2xl border border-ink-100 bg-white p-5 lg:grid-cols-2">
+                                <form method="POST" action="{{ staff_route('payments.installments.approve', $installment) }}">
+                                    @csrf
+                                    <p class="text-sm font-bold text-ink-900">Terima Pembayaran</p>
+                                    <p class="mt-1 text-xs leading-relaxed text-ink-500">
+                                        {{ $installment->title }} ditandai lunas dan termin berikutnya diaktifkan.
+                                    </p>
+                                    <button type="submit" class="btn-primary mt-3 w-full">Terima Pembayaran</button>
+                                </form>
 
-                            <form method="POST" action="{{ staff_route('payments.reject', $quotation) }}">
-                                @csrf
-                                <label for="reason-{{ $quotation->id }}" class="text-sm font-bold text-ink-900">Tolak Pembayaran</label>
-                                <textarea id="reason-{{ $quotation->id }}"
-                                          name="reason"
-                                          rows="2"
-                                          required
-                                          maxlength="2000"
-                                          placeholder="Alasan penolakan, mis. nominal transfer tidak sesuai tagihan."
-                                          class="mt-1 w-full rounded-xl border border-ink-200 px-4 py-2.5 text-sm focus:border-brand-600 focus:outline-none"></textarea>
-                                <button type="submit" class="btn-outline mt-3 w-full">Tolak Pembayaran</button>
-                            </form>
-                        </div>
+                                <form method="POST" action="{{ staff_route('payments.installments.reject', $installment) }}">
+                                    @csrf
+                                    <label for="reason-termin-{{ $installment->id }}" class="text-sm font-bold text-ink-900">Tolak Pembayaran</label>
+                                    <textarea id="reason-termin-{{ $installment->id }}"
+                                              name="reason"
+                                              rows="2"
+                                              required
+                                              maxlength="2000"
+                                              placeholder="Alasan penolakan, mis. nominal transfer tidak sesuai nominal termin."
+                                              class="mt-1 w-full rounded-xl border border-ink-200 px-4 py-2.5 text-sm focus:border-brand-600 focus:outline-none"></textarea>
+                                    <button type="submit" class="btn-outline mt-3 w-full">Tolak Pembayaran</button>
+                                </form>
+                            </div>
+                        @else
+                            <p class="mt-5 border-t border-ink-100 pt-5 text-xs text-ink-400">
+                                Bukti pembayaran menunggu verifikasi. Akun Anda tidak memiliki hak Verifikasi Pembayaran.
+                            </p>
+                        @endcan
                     @endif
                 </article>
             @empty
-                <p class="rounded-2xl border border-dashed border-ink-200 bg-white p-10 text-center text-sm text-ink-500">
-                    Tidak ada penawaran pada antrean ini.
-                </p>
+                <div class="rounded-2xl border border-dashed border-ink-200 bg-white p-10 text-center">
+                    <p class="text-sm text-ink-500">
+                        @if ($filter === 'review')
+                            Tidak ada bukti pembayaran termin yang menunggu verifikasi.
+                        @elseif ($filter === 'scheduled')
+                            Tidak ada termin yang sedang berjalan.
+                        @else
+                            Belum ada termin yang lunas.
+                        @endif
+                    </p>
+                    <p class="mt-2 text-xs text-ink-400">
+                        Pembayaran sekali bayar diverifikasi dari Penawaran &rsaquo; Detail Penawaran, bukan dari halaman ini.
+                    </p>
+                </div>
             @endforelse
         </div>
 
-        <div class="mt-6">
-            {{ $quotations->links() }}
-        </div>
+        @if ($installments->hasPages())
+            <div class="mt-6">{{ $installments->links() }}</div>
         @endif
     </div>
 @endsection

@@ -437,7 +437,18 @@ class MaterialMachineTest extends TestCase
         $this->assertNull($this->maxSizeOf('PLA+'));
     }
 
-    /** Tanpa mesin dan tanpa batas terkurasi, nilainya kosong — UI menulis "-". */
+    /** Volume cetak bersisi nol bukan batas; nol sisi pun sama saja dengan kosong. */
+    public function test_volume_cetak_mesin_bersisi_nol_tidak_dipakai(): void
+    {
+        $mesin = $this->mesin('Bambu Lab X1 Carbon', 'FDM');
+        $mesin->update(['build_volume_x' => 0, 'build_volume_y' => 0, 'build_volume_z' => 0]);
+
+        $this->material('PLA+', $mesin);
+
+        $this->assertNull($this->maxSizeOf('PLA+'));
+    }
+
+    /** Tanpa mesin tidak ada batas ukuran — Edit Specification tidak menulis barisnya. */
     public function test_material_tanpa_mesin_tidak_punya_batas_ukuran(): void
     {
         $this->material('PLA+', null);
@@ -446,17 +457,20 @@ class MaterialMachineTest extends TestCase
     }
 
     /**
-     * Batas terkurasi pada `technical_spec` tetap dipakai selama mesinnya belum
-     * ditentukan — tanpa cadangan ini, material SLA/MJF/SLM yang batasnya sudah
-     * terisi justru berubah menjadi "-".
+     * Mesin adalah satu-satunya sumber batas ukuran.
+     *
+     * Batas terkurasi pada `technical_spec` TIDAK lagi dipakai sebagai cadangan:
+     * angka itu tidak mewakili mesin mana pun yang benar-benar mengerjakan
+     * material tersebut, dan menampilkannya membuat pelanggan percaya pada batas
+     * yang tidak ada dasarnya.
      */
-    public function test_batas_terkurasi_dipakai_selama_mesin_belum_ditentukan(): void
+    public function test_batas_terkurasi_tidak_dipakai_saat_mesin_belum_ditentukan(): void
     {
         $this->material('PLA+', null, null, [
             'technical_spec' => ['maxSize' => ['x' => 300, 'y' => 200, 'z' => 300]],
         ]);
 
-        $this->assertSame(['x' => 300, 'y' => 200, 'z' => 300], $this->maxSizeOf('PLA+'));
+        $this->assertNull($this->maxSizeOf('PLA+'));
     }
 
     /** Begitu mesinnya ditentukan, volume mesin yang menang. */
@@ -485,6 +499,26 @@ class MaterialMachineTest extends TestCase
 
         $this->assertNotNull($payload);
         $this->assertSame(['x' => 200, 'y' => 200, 'z' => 200], $payload['maxSize']);
+    }
+
+    /** Material tanpa mesin sampai ke browser sebagai null, bukan angka pinjaman. */
+    public function test_payload_edit_specification_tanpa_mesin_tidak_membawa_batas_ukuran(): void
+    {
+        $mesin = $this->mesin('Bambu Lab X1 Carbon', 'FDM');
+        $mesin->update(['build_volume_x' => 200, 'build_volume_y' => 200, 'build_volume_z' => 200]);
+
+        // Mesin dengan volume cetak tetap ada di teknologi yang sama; material
+        // tanpa mesin tidak boleh ikut memakainya.
+        $this->material('PLA+', $mesin);
+        $this->material('PETG', null, null, [
+            'technical_spec' => ['maxSize' => ['x' => 300, 'y' => 200, 'z' => 300]],
+        ]);
+
+        $payload = collect(app(PrintEstimator::class)->browserPayload()['FDM']['materials'])
+            ->firstWhere('name', 'PETG');
+
+        $this->assertNotNull($payload);
+        $this->assertNull($payload['maxSize']);
     }
 
     /* -------------------------------------------------------- batas harga --- */

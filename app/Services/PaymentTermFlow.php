@@ -523,6 +523,11 @@ class PaymentTermFlow
         $quotation->forceFill([
             'status' => QuotationStatus::PAYMENT_RECEIVED,
             'payment_verified_at' => now(),
+            // Siapa yang memutuskan ikut tercatat, sama seperti pembayaran
+            // sekali bayar — lihat App\Services\PaymentFlow::approve().
+            'payment_verified_by' => $actor?->getKey(),
+            'payment_rejected_at' => null,
+            'payment_rejected_by' => null,
             'payment_rejection_reason' => null,
         ])->save();
 

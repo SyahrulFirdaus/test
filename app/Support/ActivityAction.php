@@ -100,6 +100,16 @@ class ActivityAction
 
     public const SETTING_UPDATE = 'setting_update';
 
+    /*
+     * Menu Color: warna material yang tersedia. Dikelola Admin maupun
+     * Superadmin, jadi modulnya Admin — bukan Superadmin.
+     */
+    public const COLOR_CREATE = 'color_create';
+
+    public const COLOR_UPDATE = 'color_update';
+
+    public const COLOR_DELETE = 'color_delete';
+
     /* -------------------------------------------------------- superadmin */
 
     public const ADMIN_CREATE = 'admin_create';
@@ -115,6 +125,17 @@ class ActivityAction
     public const ADMIN_STATUS_UPDATE = 'admin_status_update';
 
     public const PRICE_LIST_UPDATE = 'price_list_update';
+
+    /*
+     * Import/Export Excel material Price List. Unduhan Template dan Contoh
+     * ikut dicatat: keduanya tidak mengubah apa pun, tetapi menunjukkan siapa
+     * yang sedang menyiapkan perubahan massal.
+     */
+    public const PRICE_LIST_EXPORT = 'price_list_export';
+
+    public const PRICE_LIST_IMPORT = 'price_list_import';
+
+    public const PRICE_LIST_DOWNLOAD = 'price_list_download';
 
     public const TECHNOLOGY_CREATE = 'technology_create';
 
@@ -177,7 +198,13 @@ class ActivityAction
             self::ADMIN_PASSWORD_RESET => ['label' => 'Reset Password Admin', 'module' => ActivityModule::SUPERADMIN],
             self::ADMIN_PERMISSION_UPDATE => ['label' => 'Update Admin Permission', 'module' => ActivityModule::SUPERADMIN],
             self::ADMIN_STATUS_UPDATE => ['label' => 'Ubah Status Admin', 'module' => ActivityModule::SUPERADMIN],
+            self::COLOR_CREATE => ['label' => 'Tambah Warna', 'module' => ActivityModule::ADMIN],
+            self::COLOR_UPDATE => ['label' => 'Ubah Warna', 'module' => ActivityModule::ADMIN],
+            self::COLOR_DELETE => ['label' => 'Hapus Warna', 'module' => ActivityModule::ADMIN],
             self::PRICE_LIST_UPDATE => ['label' => 'Ubah Price List', 'module' => ActivityModule::SUPERADMIN],
+            self::PRICE_LIST_EXPORT => ['label' => 'Export Material Price List', 'module' => ActivityModule::SUPERADMIN],
+            self::PRICE_LIST_IMPORT => ['label' => 'Import Material Price List', 'module' => ActivityModule::SUPERADMIN],
+            self::PRICE_LIST_DOWNLOAD => ['label' => 'Unduh Berkas Price List', 'module' => ActivityModule::SUPERADMIN],
             self::TECHNOLOGY_CREATE => ['label' => 'Tambah Teknologi', 'module' => ActivityModule::SUPERADMIN],
             self::TECHNOLOGY_UPDATE => ['label' => 'Ubah Teknologi', 'module' => ActivityModule::SUPERADMIN],
             self::TECHNOLOGY_DELETE => ['label' => 'Hapus Teknologi', 'module' => ActivityModule::SUPERADMIN],

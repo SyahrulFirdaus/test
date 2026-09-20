@@ -2,9 +2,12 @@
 
 namespace Tests\Feature;
 
+use App\Models\PrintMaterial;
+use App\Models\PrintTechnology;
 use App\Models\QuotationRequest;
 use App\Support\LeadTime;
 use App\Support\QuotationStatus;
+use App\Support\SlaIndustries;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
@@ -157,5 +160,72 @@ class LeadTimeTest extends TestCase
         $this->assertSame(1200, $payload['tiers'][0]['maxMinutes']);
         $this->assertSame('Standard', $payload['tiers'][1]['name']);
         $this->assertNull($payload['tiers'][1]['maxMinutes']);
+    }
+
+    /* ============================================ Rumus Harga Manual === */
+
+    /**
+     * Teknologi yang harganya dihitung dengan Rumus Harga Manual memakai
+     * rentang tetapnya sendiri: 5–7 Hari Kerja, bukan 3–5.
+     *
+     * Partnya menunggu kuotasi vendor lebih dahulu, jadi jam mesin hasil
+     * estimasi tidak menentukan kapan pesanannya selesai — termasuk saat
+     * totalnya masih di bawah 20 jam, yang pada pekerjaan biasa berarti
+     * Express.
+     */
+    public function test_rumus_harga_manual_lima_sampai_tujuh_hari(): void
+    {
+        $this->assertSame('Standard (5–7 Hari Kerja)', LeadTime::label(2 * self::JAM, manualPricing: true));
+        $this->assertSame('Standard (5–7 Hari Kerja)', LeadTime::label(100 * self::JAM, manualPricing: true));
+        $this->assertSame(['min' => 5, 'max' => 7], LeadTime::days(100 * self::JAM, manualPricing: true));
+
+        // Pekerjaan biasa tidak ikut berubah.
+        $this->assertSame('Express (1 Hari Kerja)', LeadTime::label(2 * self::JAM));
+        $this->assertSame('Standard (3–5 Hari Kerja)', LeadTime::label(100 * self::JAM));
+    }
+
+    public function test_penawaran_berteknologi_rumus_manual_memakai_lima_sampai_tujuh_hari(): void
+    {
+        $material = $this->materialManual();
+
+        $quotation = $this->penawaran([8, 6, 5]);
+        $quotation->items()->update([
+            'technology' => SlaIndustries::CODE,
+            'material' => $material->material,
+        ]);
+
+        $quotation = $quotation->fresh();
+
+        // Total menitnya tidak berubah — yang berbeda hanya cara membacanya.
+        $this->assertSame(19 * self::JAM, (int) $quotation->estimated_minutes);
+        $this->assertSame('Standard (5–7 Hari Kerja)', $quotation->items->first()->lead_time);
+        $this->assertSame('Standard (5–7 Hari Kerja)', $quotation->lead_time);
+    }
+
+    public function test_payload_browser_membawa_tingkat_rumus_manual(): void
+    {
+        $payload = LeadTime::browserPayload();
+
+        $this->assertSame(5, $payload['manual']['minDays']);
+        $this->assertSame(7, $payload['manual']['maxDays']);
+    }
+
+    /** Material SLA yang harganya ditetapkan tim lewat Kalkulator Manual. */
+    private function materialManual(): PrintMaterial
+    {
+        $material = PrintTechnology::where('code', SlaIndustries::CODE)
+            ->firstOrFail()
+            ->materials()
+            ->create([
+                'material' => 'Resin Kuotasi Vendor',
+                'brand' => 'Uji',
+                'purchase_price' => 400000,
+                'sale_price' => 1500,
+                'pricing_method' => PrintMaterial::PRICING_MANUAL,
+            ]);
+
+        PrintTechnology::forgetCache();
+
+        return $material;
     }
 }

@@ -175,8 +175,8 @@ class SecurityAuditTest extends TestCase
         $quotation = $this->quotation(User::factory()->create(), QuotationStatus::PAYMENT_REVIEW);
         $admin = User::factory()->withPermissions([P::PAYMENT_VIEW])->create();
 
-        $this->actingAs($admin)->post(route('admin.payments.approve', $quotation))->assertForbidden();
-        $this->actingAs($admin)->post(route('admin.payments.reject', $quotation), ['reason' => 'x'])->assertForbidden();
+        $this->actingAs($admin)->post(route('admin.quotations.payment.accept', $quotation))->assertForbidden();
+        $this->actingAs($admin)->post(route('admin.quotations.payment.reject', $quotation), ['reason' => 'x'])->assertForbidden();
 
         $this->assertSame(QuotationStatus::PAYMENT_REVIEW, $quotation->fresh()->status);
     }
@@ -330,7 +330,7 @@ class SecurityAuditTest extends TestCase
             ->patch(route('admin.quotations.update', $quotation), ['status' => QuotationStatus::PAYMENT_RECEIVED])
             ->assertRedirect(route('dashboard'));
         $this->actingAs($user)
-            ->post(route('admin.payments.approve', $quotation))
+            ->post(route('admin.quotations.payment.accept', $quotation))
             ->assertRedirect(route('dashboard'));
         $this->actingAs($user)
             ->patch(route('superadmin.quotations.update', $quotation), ['status' => QuotationStatus::COMPLETED])
@@ -429,7 +429,7 @@ class SecurityAuditTest extends TestCase
         ]);
 
         $this->actingAs(User::factory()->superAdmin()->create())
-            ->get(route('superadmin.payments.proof', $quotation))
+            ->get(route('superadmin.quotations.payment.proof', $quotation))
             ->assertOk()
             ->assertHeader('Content-Type', 'image/png')
             ->assertHeader('X-Content-Type-Options', 'nosniff');

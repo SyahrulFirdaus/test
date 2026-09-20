@@ -160,7 +160,11 @@
                 @auth
                     <a href="{{ route($dashboardRoute) }}" class="nav-cta">Dashboard</a>
 
-                    <form method="POST" action="{{ route('logout') }}">
+                    <form method="POST" action="{{ route('logout') }}"
+                          data-confirm="Apakah Anda yakin ingin keluar dari akun?"
+                          data-confirm-title="Konfirmasi Logout"
+                          data-confirm-accept="Ya, Logout"
+                          data-confirm-cancel="Batal">
                         @csrf
                         <button type="submit" class="nav-link">Logout</button>
                     </form>
@@ -231,7 +235,11 @@
                 @auth
                     <a href="{{ route($dashboardRoute) }}" class="btn-primary mt-2 w-full">Dashboard</a>
 
-                    <form method="POST" action="{{ route('logout') }}" class="mt-2">
+                    <form method="POST" action="{{ route('logout') }}" class="mt-2"
+                          data-confirm="Apakah Anda yakin ingin keluar dari akun?"
+                          data-confirm-title="Konfirmasi Logout"
+                          data-confirm-accept="Ya, Logout"
+                          data-confirm-cancel="Batal">
                         @csrf
                         <button type="submit" class="nav-link-mobile w-full justify-center">Logout</button>
                     </form>

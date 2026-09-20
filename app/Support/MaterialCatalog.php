@@ -99,11 +99,13 @@ class MaterialCatalog
                         ])
                         ->values()
                         ->all(),
-                    'maxSize' => $material['max_size'] ?? null,
-                    'minSize' => $material['min_size'] ?? null,
+                    // Batas maksimum berasal dari mesin material; null bila
+                    // mesinnya belum dipilih atau volume cetaknya belum lengkap.
+                    'maxSize' => self::size($material['max_size'] ?? null),
+                    'minSize' => self::size($material['min_size'] ?? null),
                     // Batas alternatif untuk part memanjang; model yang lolos
                     // salah satu dari keduanya dianggap memenuhi syarat.
-                    'minSizeSlender' => $material['min_size_slender'] ?? null,
+                    'minSizeSlender' => self::size($material['min_size_slender'] ?? null),
                 ];
             })
             ->values()
@@ -180,13 +182,43 @@ class MaterialCatalog
         return $offered === [] ? $materials : $offered;
     }
 
-    /** Tulisan ukuran "250 × 250 × 300 mm"; null bila batasnya belum diatur. */
+    /**
+     * Tulisan ukuran "250 × 250 × 300 mm"; null bila batasnya belum diatur.
+     *
+     * Ketiga sisinya harus ada dan lebih besar dari nol. Ukuran setengah jadi
+     * lebih baik tidak ditulis sama sekali daripada muncul sebagai
+     * "0 × 0 × 0 mm" — angka itu terbaca sebagai batas yang sungguh berlaku.
+     */
     public static function sizeLabel(?array $size): ?string
+    {
+        $size = self::size($size);
+
+        return $size === null ? null : $size['x'].' × '.$size['y'].' × '.$size['z'].' mm';
+    }
+
+    /**
+     * Ukuran {x, y, z} yang layak dipakai, atau null.
+     *
+     * Satu-satunya penjaga bentuk ukuran di seluruh aplikasi: ketiga sisinya
+     * harus ada dan lebih besar dari nol. Dipakai sebelum ukuran dikirim ke
+     * browser maupun sebelum ditulis ke halaman, sehingga batas setengah jadi
+     * tidak pernah sampai ke pelanggan sebagai "0 × 0 × 0 mm".
+     *
+     * @param  array<string, mixed>|null  $size
+     * @return array{x: float|int, y: float|int, z: float|int}|null
+     */
+    public static function size(?array $size): ?array
     {
         if (! is_array($size)) {
             return null;
         }
 
-        return $size['x'].' × '.$size['y'].' × '.$size['z'].' mm';
+        foreach (['x', 'y', 'z'] as $axis) {
+            if (! is_numeric($size[$axis] ?? null) || (float) $size[$axis] <= 0) {
+                return null;
+            }
+        }
+
+        return ['x' => $size['x'], 'y' => $size['y'], 'z' => $size['z']];
     }
 }

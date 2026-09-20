@@ -28,15 +28,36 @@ class LeadTime
     }
 
     /**
+     * Tingkat tetap bagi pekerjaan berharga Rumus Harga Manual.
+     *
+     * Bukan bagian dari `tiers`: pekerjaan seperti ini menunggu kuotasi vendor
+     * lebih dahulu, jadi jam mesinnya tidak menentukan apa pun — lihat
+     * App\Support\PricingMethod.
+     *
+     * @return array<string, mixed>
+     */
+    public static function manualTier(): array
+    {
+        return config('printing.lead_time.manual', ['name' => 'Standard', 'min_days' => 5, 'max_days' => 7]);
+    }
+
+    /**
      * Tingkat yang berlaku untuk sekian menit mesin.
      *
      * Menit yang masuk adalah TOTAL seluruh object dalam satu penawaran —
      * penentunya keseluruhan pesanan, bukan object yang paling lama.
      *
+     * `$manualPricing` menandai pekerjaan berharga Rumus Harga Manual, yang
+     * memakai rentang tetapnya sendiri berapa pun menit mesinnya.
+     *
      * @return array<string, mixed>
      */
-    public static function tierFor(?float $minutes): array
+    public static function tierFor(?float $minutes, bool $manualPricing = false): array
     {
+        if ($manualPricing) {
+            return self::manualTier();
+        }
+
         $minutes = max(0.0, (float) $minutes);
         $tiers = self::tiers();
 
@@ -58,17 +79,17 @@ class LeadTime
      *
      * @return array{min: int, max: int}
      */
-    public static function days(?float $minutes): array
+    public static function days(?float $minutes, bool $manualPricing = false): array
     {
-        $tier = self::tierFor($minutes);
+        $tier = self::tierFor($minutes, $manualPricing);
 
         return ['min' => (int) $tier['min_days'], 'max' => (int) $tier['max_days']];
     }
 
     /** Nama tingkatnya, mis. "Express". */
-    public static function name(?float $minutes): string
+    public static function name(?float $minutes, bool $manualPricing = false): string
     {
-        return (string) (self::tierFor($minutes)['name'] ?? '');
+        return (string) (self::tierFor($minutes, $manualPricing)['name'] ?? '');
     }
 
     /**
@@ -79,9 +100,9 @@ class LeadTime
      * dipakai sebagai data internal — di sini hanya menentukan tingkat mana
      * yang berlaku.
      */
-    public static function label(?float $minutes): string
+    public static function label(?float $minutes, bool $manualPricing = false): string
     {
-        $tier = self::tierFor($minutes);
+        $tier = self::tierFor($minutes, $manualPricing);
         $min = (int) $tier['min_days'];
         $max = (int) $tier['max_days'];
 
@@ -98,6 +119,8 @@ class LeadTime
      */
     public static function browserPayload(): array
     {
+        $manual = self::manualTier();
+
         return [
             'unit' => self::unit(),
             'tiers' => array_map(fn (array $tier) => [
@@ -106,6 +129,12 @@ class LeadTime
                 'minDays' => $tier['min_days'],
                 'maxDays' => $tier['max_days'],
             ], self::tiers()),
+            'manual' => [
+                'name' => $manual['name'] ?? null,
+                'maxMinutes' => null,
+                'minDays' => $manual['min_days'],
+                'maxDays' => $manual['max_days'],
+            ],
         ];
     }
 }

@@ -1,6 +1,7 @@
 import './bootstrap';
 import AOS from 'aos';
 
+import initConfirmDialog from './modules/confirm-dialog';
 import initNavbar from './modules/navbar';
 import initCounters from './modules/counters';
 import initSmoothScroll from './modules/smooth-scroll';
@@ -15,6 +16,7 @@ AOS.init({
     disable: prefersReducedMotion,
 });
 
+initConfirmDialog();
 initNavbar();
 initSmoothScroll();
 initCounters({ animate: !prefersReducedMotion });

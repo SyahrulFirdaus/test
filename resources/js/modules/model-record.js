@@ -48,6 +48,9 @@ export function toRecord(card, { id, position, name, size }) {
             // null berarti harganya memang belum ada (teknologi yang
             // ditetapkan tim), bukan nol — jangan dipaksa menjadi angka.
             cost: card.estimate?.totalCost ?? null,
+            // Menentukan lead time: pekerjaan berharga Rumus Harga Manual
+            // memakai rentang tetapnya sendiri, bukan tingkat menit mesin.
+            manualPricing: card.estimate?.manualPricing === true,
             technology: card.settings.technology,
             material: card.settings.material,
             color: card.settings.color,

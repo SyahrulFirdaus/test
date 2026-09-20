@@ -7,6 +7,7 @@ use App\Http\Requests\StoreSlaIndustriesQuoteRequest;
 use App\Models\PrintTechnology;
 use App\Models\QuotationItem;
 use App\Models\QuotationRequest;
+use App\Models\User;
 use App\Models\SlaIndustriesFormula;
 use App\Notifications\CancellationDecided;
 use App\Notifications\QuotationStatusUpdated;
@@ -352,6 +353,142 @@ class QuotationRequestController extends Controller
         $quotation->user?->notify(new CancellationDecided($quotation, false, $note));
 
         return back()->with('status', 'Permintaan pembatalan ditolak. Penawaran dilanjutkan pada tahap '.QuotationStatus::label($restored).'.');
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Pembatalan atas inisiatif admin
+    |--------------------------------------------------------------------------
+    | Tombol "Hapus" pada daftar penawaran TIDAK menghapus apa pun: penawaran
+    | dipindahkan ke keadaan pembatalan dan berhenti di situ. Seluruh datanya —
+    | akun pemilik, berkas model, snapshot harga, pembayaran, riwayat status,
+    | dan Activity Log — tetap utuh karena history dan audit justru bergantung
+    | padanya. Penghapusan permanen tetap ada, terpisah, di halaman detail.
+    |
+    | Status yang dipasang adalah CANCELLATION_APPROVED ("Pembatalan Disetujui"),
+    | satu-satunya keadaan pembatalan yang memang dipasang admin. Memakainya —
+    | alih-alih menambah status baru — membuat seluruh angka yang sudah ada
+    | (`closedKeys`, `cancelledKeys`, ringkasan dashboard, timeline tracking)
+    | langsung ikut benar tanpa satu pun tempat yang perlu menyusul.
+    */
+
+    /** Batalkan satu penawaran dari daftar. */
+    public function cancel(Request $request, QuotationRequest $quotation): RedirectResponse
+    {
+        $note = $this->decisionNote($request);
+
+        if (! $this->cancelQuotation($quotation, $request->user(), $note)) {
+            return back()->with(
+                'error',
+                'Penawaran '.$quotation->tracking_number.' sudah berada dalam keadaan pembatalan.'
+            );
+        }
+
+        $this->notifyCancelled($quotation, $note);
+
+        return back()->with('status', 'Penawaran '.$quotation->tracking_number.' dibatalkan.');
+    }
+
+    /**
+     * Batalkan beberapa penawaran sekaligus.
+     *
+     * Satu transaksi untuk seluruh pilihan: bila ada satu baris yang gagal
+     * disimpan, tidak ada satu pun yang berubah — daftar tidak pernah berakhir
+     * setengah dibatalkan. Pemberitahuan sengaja dikirim SESUDAH transaksi
+     * ditutup supaya pelanggan tidak menerima kabar atas perubahan yang
+     * ternyata dibatalkan basis data.
+     */
+    public function cancelMany(Request $request): RedirectResponse
+    {
+        $validated = $request->validate([
+            'ids' => ['required', 'array', 'min:1'],
+            'ids.*' => ['integer', 'exists:quotation_requests,id'],
+            'note' => ['nullable', 'string', 'max:2000'],
+        ], [
+            'ids.required' => 'Pilih minimal satu penawaran.',
+            'ids.array' => 'Pilih minimal satu penawaran.',
+            'ids.min' => 'Pilih minimal satu penawaran.',
+        ]);
+
+        $note = filled($validated['note'] ?? null) ? trim($validated['note']) : null;
+        $actor = $request->user();
+
+        $cancelled = DB::transaction(function () use ($validated, $actor, $note) {
+            return QuotationRequest::query()
+                ->whereIn('id', $validated['ids'])
+                ->lockForUpdate()
+                ->get()
+                ->filter(fn (QuotationRequest $quotation) => $this->cancelQuotation($quotation, $actor, $note))
+                ->values();
+        });
+
+        $cancelled->each(fn (QuotationRequest $quotation) => $this->notifyCancelled($quotation, $note));
+
+        $skipped = count($validated['ids']) - $cancelled->count();
+
+        if ($cancelled->isEmpty()) {
+            return back()->with('error', 'Tidak ada penawaran yang dibatalkan: seluruh pilihan sudah dalam keadaan pembatalan.');
+        }
+
+        return back()->with('status', $cancelled->count().' penawaran dibatalkan.'
+            .($skipped > 0 ? ' '.$skipped.' lainnya dilewati karena sudah dibatalkan.' : ''));
+    }
+
+    /**
+     * Pindahkan satu penawaran ke keadaan pembatalan.
+     *
+     * Dipakai bersama aksi satuan dan aksi massal supaya keduanya benar-benar
+     * menjalankan langkah yang sama: status, tahap yang sedang dijalani
+     * (`status_before_cancellation`, dipakai timeline tracking), riwayat, dan
+     * Activity Log. `cancellation_reason` sengaja tidak disentuh — kolom itu
+     * milik alasan yang ditulis pelanggan.
+     *
+     * @return bool false bila penawaran sudah dalam keadaan pembatalan
+     */
+    private function cancelQuotation(QuotationRequest $quotation, ?User $actor, ?string $note): bool
+    {
+        if (QuotationStatus::isCancellation($quotation->status)) {
+            return false;
+        }
+
+        $statusBefore = $quotation->status;
+
+        $quotation->update([
+            'status' => QuotationStatus::CANCELLATION_APPROVED,
+            'status_before_cancellation' => $statusBefore,
+            'cancellation_requested_at' => $quotation->cancellation_requested_at ?? now(),
+            'cancellation_resolved_at' => now(),
+            'cancellation_admin_note' => $note,
+        ]);
+
+        $quotation->recordHistory(
+            QuotationStatus::CANCELLATION_APPROVED,
+            $note ?? 'Penawaran dibatalkan admin dan tidak diteruskan ke tahap berikutnya.',
+            $actor?->name,
+        );
+
+        $this->activity->log(
+            action: ActivityAction::QUOTATION_CANCEL,
+            description: 'Membatalkan penawaran '.$quotation->tracking_number
+                .($note ? ' dengan catatan: '.$note : '.'),
+            subject: $quotation,
+            old: ['status' => QuotationStatus::label($statusBefore)],
+            new: ['status' => QuotationStatus::label(QuotationStatus::CANCELLATION_APPROVED)],
+            actor: $actor,
+        );
+
+        return true;
+    }
+
+    /** Kabari pemilik penawaran bahwa penawarannya dihentikan. */
+    private function notifyCancelled(QuotationRequest $quotation, ?string $note): void
+    {
+        $quotation->user?->notify(new QuotationStatusUpdated(
+            $quotation,
+            QuotationStatus::CANCELLATION_APPROVED,
+            $note ?: 'Penawaran '.$quotation->tracking_number
+                .' dibatalkan admin dan tidak diproses ke tahap berikutnya.',
+        ));
     }
 
     /** Catatan admin yang menyertai keputusan pembatalan. */

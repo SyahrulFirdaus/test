@@ -56,6 +56,9 @@ class PaymentFlow
             'payment_proof_name' => null,
             'payment_proof_uploaded_at' => null,
             'payment_verified_at' => null,
+            'payment_verified_by' => null,
+            'payment_rejected_at' => null,
+            'payment_rejected_by' => null,
             'payment_rejection_reason' => null,
         ])->save();
 
@@ -95,6 +98,9 @@ class PaymentFlow
             'payment_proof_uploaded_at' => now(),
             'payment_rejection_reason' => null,
             'payment_verified_at' => null,
+            'payment_verified_by' => null,
+            'payment_rejected_at' => null,
+            'payment_rejected_by' => null,
         ])->save();
 
         $quotation->recordHistory(
@@ -130,6 +136,12 @@ class PaymentFlow
         $quotation->forceFill([
             'status' => QuotationStatus::PAYMENT_RECEIVED,
             'payment_verified_at' => now(),
+            // Siapa yang menerimanya ikut tercatat, bukan hanya kapan: sejak
+            // keputusannya diambil dari Detail Penawaran, lebih banyak orang
+            // melewati tombol ini.
+            'payment_verified_by' => $actor?->getKey(),
+            'payment_rejected_at' => null,
+            'payment_rejected_by' => null,
             'payment_rejection_reason' => null,
         ])->save();
 
@@ -163,7 +175,13 @@ class PaymentFlow
 
         $quotation->forceFill([
             'status' => QuotationStatus::PAYMENT_REJECTED,
-            'payment_verified_at' => now(),
+            // Penolakan BUKAN verifikasi. Sebelumnya keduanya memakai kolom
+            // yang sama, sehingga penawaran yang buktinya ditolak ikut terbaca
+            // "Paid" pada dashboard Business.
+            'payment_verified_at' => null,
+            'payment_verified_by' => null,
+            'payment_rejected_at' => now(),
+            'payment_rejected_by' => $actor?->getKey(),
             'payment_rejection_reason' => $reason,
         ])->save();
 

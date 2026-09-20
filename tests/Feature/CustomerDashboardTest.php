@@ -377,4 +377,33 @@ class CustomerDashboardTest extends TestCase
 
         $this->assertSame(0, QuotationItem::where('quotation_request_id', $quotation->id)->count());
     }
+
+    /**
+     * "Lihat Website" mengantar pelanggan ke halaman Order Now.
+     *
+     * Yang dicari pelanggan saat meninggalkan dashboard memang memesan lagi,
+     * bukan beranda — jadi tautannya menunjuk halaman 3D Models, tempat
+     * tombol Order Now di navbar juga bermuara. Pengelola tetap ke beranda.
+     */
+    public function test_lihat_website_mengantar_pelanggan_ke_order_now(): void
+    {
+        $tautan = fn (string $html) => preg_match(
+            '/<a href="([^"]+)" class="sidebar-label viewer-tool[^"]*">Lihat Website<\/a>/',
+            $html,
+            $cocok,
+        ) === 1 ? $cocok[1] : null;
+
+        foreach ([$this->personal, $this->business] as $pelanggan) {
+            $html = $this->actingAs($pelanggan)->get(route('dashboard'))->assertOk()->getContent();
+
+            $this->assertSame(route('models'), $tautan($html));
+        }
+
+        $html = $this->actingAs(User::factory()->admin()->create(['email' => 'admin@nusama3d.com']))
+            ->get(route('admin.dashboard'))
+            ->assertOk()
+            ->getContent();
+
+        $this->assertSame(route('home'), $tautan($html));
+    }
 }

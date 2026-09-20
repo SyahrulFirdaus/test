@@ -147,9 +147,13 @@ class MachineCost extends Model
             'z' => $this->build_volume_z,
         ];
 
-        // Ketiga sisinya harus ada: dua sisi saja bukan volume.
-        if (in_array(null, $sides, true)) {
-            return null;
+        // Ketiga sisinya harus ada DAN lebih besar dari nol: dua sisi saja
+        // bukan volume, dan sisi 0 mm bukan batas cetak yang bermakna — lebih
+        // baik tidak ada angka sama sekali daripada "0 × 0 × 0 mm".
+        foreach ($sides as $side) {
+            if ($side === null || (int) $side <= 0) {
+                return null;
+            }
         }
 
         return array_map('intval', $sides);

@@ -64,20 +64,25 @@ trait HasMaterialPricing
      * material atau mengubah volume cetak mesinnya langsung mengubah batas yang
      * tampil — tidak ada angka kedua yang perlu ikut disunting.
      *
-     * `technical_spec.maxSize` tetap dipakai sebagai cadangan bagi material
-     * yang mesinnya belum ditentukan — tanpa itu, material SLA/MJF/SLM yang
-     * batasnya sudah terkurasi akan berubah menjadi "-" begitu fitur ini
-     * berlaku. Keduanya sama-sama dari basis data, bukan angka di tampilan.
+     * Mesin adalah SATU-SATUNYA sumbernya. Material yang mesinnya belum
+     * ditentukan tidak punya batas ukuran — `technical_spec.maxSize` sengaja
+     * tidak lagi dipakai sebagai cadangan, karena angka terkurasi itu tidak
+     * mewakili mesin mana pun yang benar-benar mengerjakan material tersebut.
+     * Begitu pula volume cetak teknologinya: itu milik teknologi, bukan
+     * material. Tidak ada mesin berarti null, dan tampilan tidak menampilkan
+     * apa-apa.
+     *
+     * `build_volume` mesin sendiri sudah null bila salah satu sisinya kosong
+     * atau nol, jadi nilai yang lolos ke sini selalu lengkap dan masuk akal.
      *
      * Dipakai bersama App\Models\PrintMaterial, satu-satunya pemakai trait
      * ini, jadi relasi `machine()` selalu tersedia.
      *
-     * @param  array<string, mixed>  $spec
      * @return array{x: int, y: int, z: int}|null
      */
-    protected function maxSize(array $spec): ?array
+    protected function maxSize(): ?array
     {
-        return $this->machine?->build_volume ?? ($spec['maxSize'] ?? null);
+        return $this->machine?->build_volume;
     }
 
     /** Harga modal per gram, dari Harga Beli dibagi asumsi berat spool. */
@@ -116,7 +121,7 @@ trait HasMaterialPricing
             'characteristics' => $spec['characteristics'] ?? [],
             'pros' => $spec['pros'] ?? [],
             'cons' => $spec['cons'] ?? [],
-            'max_size' => $this->maxSize($spec),
+            'max_size' => $this->maxSize(),
             'min_size' => $spec['minSize'] ?? null,
             'min_size_slender' => $spec['minSizeSlender'] ?? null,
             'pricing_method' => $this->pricing_method ?? 'manual',

@@ -53,6 +53,31 @@ class AdminPermission
 
     public const NOTIFICATION_VIEW = 'notification.view';
 
+    /* -------------------------------------------------------- Price List */
+
+    /*
+     * Import/Export Excel material Price List.
+     *
+     * Price List sendiri masih milik Superadmin sepenuhnya — seluruh route-nya
+     * berada di dalam grup yang dijaga middleware `superadmin`. Hak akses ini
+     * tetap didaftarkan dan tetap DIPERIKSA di backend, bukan hanya dipakai
+     * menyembunyikan tombol, sehingga pemeriksaannya sudah pada tempatnya bila
+     * suatu saat menu Price List dibuka juga untuk Admin.
+     */
+    public const PRICE_LIST_EXPORT = 'price_list.export';
+
+    public const PRICE_LIST_IMPORT = 'price_list.import';
+
+    /* ------------------------------------------------------------- Color */
+
+    public const COLOR_VIEW = 'color.view';
+
+    public const COLOR_CREATE = 'color.create';
+
+    public const COLOR_EDIT = 'color.edit';
+
+    public const COLOR_DELETE = 'color.delete';
+
     /* -------------------------------------------------------------- User */
 
     public const USER_VIEW = 'user.view';
@@ -148,6 +173,46 @@ class AdminPermission
                     self::NOTIFICATION_VIEW => [
                         'label' => 'Lihat',
                         'description' => 'Halaman notifikasi dan ikon lonceng di header.',
+                        'default' => false,
+                    ],
+                ],
+            ],
+            'price_list' => [
+                'label' => 'Price List',
+                'permissions' => [
+                    self::PRICE_LIST_EXPORT => [
+                        'label' => 'Export Excel',
+                        'description' => 'Mengunduh material Price List sebagai Excel, beserta Template dan Contohnya.',
+                        'default' => false,
+                    ],
+                    self::PRICE_LIST_IMPORT => [
+                        'label' => 'Import Excel',
+                        'description' => 'Menambah dan memperbarui material Price List secara massal dari file Excel.',
+                        'default' => false,
+                    ],
+                ],
+            ],
+            'color' => [
+                'label' => 'Color',
+                'permissions' => [
+                    self::COLOR_VIEW => [
+                        'label' => 'Lihat',
+                        'description' => 'Membuka menu Color dan melihat daftar warna material yang tersedia.',
+                        'default' => false,
+                    ],
+                    self::COLOR_CREATE => [
+                        'label' => 'Tambah',
+                        'description' => 'Menambah warna baru beserta kode hexanya.',
+                        'default' => false,
+                    ],
+                    self::COLOR_EDIT => [
+                        'label' => 'Edit',
+                        'description' => 'Mengubah nama dan kode hexa warna yang sudah ada.',
+                        'default' => false,
+                    ],
+                    self::COLOR_DELETE => [
+                        'label' => 'Hapus',
+                        'description' => 'Menghapus warna dari daftar. Warna yang sudah dipakai penawaran tidak dapat dihapus.',
                         'default' => false,
                     ],
                 ],

@@ -39,6 +39,9 @@
         @include('partials.scroll-top')
     @endunless
 
+    {{-- Modal konfirmasi bersama; dipakai tombol Logout pada navbar. --}}
+    <x-confirm-dialog />
+
     @stack('scripts')
 </body>
 </html>

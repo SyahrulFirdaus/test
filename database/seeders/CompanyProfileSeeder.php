@@ -71,11 +71,11 @@ class CompanyProfileSeeder extends Seeder
                 'email' => 'cs@nusama3d.com',
                 'operational_hours' => 'Senin – Jumat, 08.00 – 17.00 WIB',
                 'maps_url' => 'https://maps.google.com/?q=Jl.+Cibadak+3+No.+42+Jatibaru+Cikarang+Timur+Kabupaten+Bekasi+17533',
+                // Hanya kanal yang benar-benar dipakai NUSAMA3D. Footer dan
+                // penanda `sameAs` pada structured data sama-sama membaca daftar
+                // ini, jadi menambah kanal baru nanti cukup satu baris di sini.
                 'socials' => [
-                    'instagram' => 'https://instagram.com/',
-                    'linkedin' => 'https://linkedin.com/',
-                    'youtube' => 'https://youtube.com/',
-                    'facebook' => 'https://facebook.com/',
+                    'instagram' => 'https://www.instagram.com/nusama3d/',
                 ],
             ]
         );

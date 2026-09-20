@@ -725,6 +725,16 @@ return [
             ['name' => 'Express', 'max_minutes' => 1200, 'min_days' => 1, 'max_days' => 1],
             ['name' => 'Standard', 'max_minutes' => null, 'min_days' => 3, 'max_days' => 5],
         ],
+
+        /*
+        | Teknologi yang harganya dihitung dengan Rumus Harga Manual
+        | (Kalkulator Manual — lihat App\Support\PricingMethod) tidak
+        | mengikuti tingkat di atas sama sekali. Partnya menunggu kuotasi
+        | vendor lebih dahulu, jadi jam mesin hasil estimasi tidak menentukan
+        | kapan pesanannya selesai; rentangnya tetap, lebih panjang daripada
+        | pekerjaan yang dikerjakan sendiri.
+        */
+        'manual' => ['name' => 'Standard', 'min_days' => 5, 'max_days' => 7],
     ],
 
     /*

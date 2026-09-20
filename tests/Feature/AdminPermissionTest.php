@@ -195,7 +195,7 @@ class AdminPermissionTest extends TestCase
         $this->get(route('admin.exchange-rate.usd'))->assertForbidden();
 
         $this->get(route('admin.payments.index'))->assertForbidden();
-        $this->post(route('admin.payments.approve', $quotation))->assertForbidden();
+        $this->post(route('admin.quotations.payment.accept', $quotation))->assertForbidden();
 
         $this->get(route('admin.payment-terms.index'))->assertForbidden();
         $this->get(route('admin.payment-terms.settings.edit'))->assertForbidden();
@@ -255,7 +255,7 @@ class AdminPermissionTest extends TestCase
         $this->patch(route('admin.quotations.update', $quotation), ['status' => QuotationStatus::REVIEWING])->assertRedirect();
         $this->delete(route('admin.quotations.destroy', $quotation))->assertForbidden();
         $this->get(route('admin.payments.index'))->assertForbidden();
-        $this->post(route('admin.payments.approve', $quotation))->assertForbidden();
+        $this->post(route('admin.quotations.payment.accept', $quotation))->assertForbidden();
 
         // Admin Finance: hanya melihat penawaran, menangani pembayaran & payment term.
         $finance = $this->adminWith(
@@ -273,7 +273,7 @@ class AdminPermissionTest extends TestCase
 
         $this->get(route('admin.payments.index'))->assertOk();
         // Tidak 403: controller yang menolak karena tidak ada bukti menunggu.
-        $this->post(route('admin.payments.approve', $quotation))->assertRedirect();
+        $this->post(route('admin.quotations.payment.accept', $quotation))->assertRedirect();
         $this->get(route('admin.payment-terms.index'))->assertOk();
         $this->get(route('admin.payment-terms.settings.edit'))->assertOk();
     }
@@ -285,9 +285,9 @@ class AdminPermissionTest extends TestCase
         $this->actingAs($this->adminWith([P::PAYMENT_VIEW, P::PAYMENT_TERM_VIEW]));
 
         $this->get(route('admin.payments.index'))->assertOk()
-            ->assertDontSee(route('admin.payments.approve', $quotation));
-        $this->post(route('admin.payments.approve', $quotation))->assertForbidden();
-        $this->post(route('admin.payments.reject', $quotation), ['reason' => 'x'])->assertForbidden();
+            ->assertDontSee(route('admin.quotations.payment.accept', $quotation));
+        $this->post(route('admin.quotations.payment.accept', $quotation))->assertForbidden();
+        $this->post(route('admin.quotations.payment.reject', $quotation), ['reason' => 'x'])->assertForbidden();
 
         $this->get(route('admin.payment-terms.index'))->assertOk()
             ->assertDontSee(route('admin.payment-terms.settings.edit'));

@@ -82,6 +82,9 @@
         ['group' => 'Pembayaran', 'label' => 'Verifikasi Pembayaran', 'route' => $area.'payments.index', 'icon' => 'check', 'active' => $area.'payments.*', 'permission' => \App\Support\AdminPermission::PAYMENT_VIEW],
         ['group' => 'Pembayaran', 'label' => 'Payment Term', 'route' => $area.'payment-terms.index', 'icon' => 'clock', 'active' => $area.'payment-terms.*', 'permission' => \App\Support\AdminPermission::PAYMENT_TERM_VIEW],
 
+        // Warna material yang tersedia pada Edit Specification.
+        ['group' => 'Color', 'label' => 'Color', 'route' => $area.'colors.index', 'icon' => 'brush', 'active' => $area.'colors.*', 'permission' => \App\Support\AdminPermission::COLOR_VIEW],
+
         // Price List tampil sebagai empat grup accordion — lihat $priceListGroups.
         ['type' => 'price-list', 'superadmin' => true],
 
@@ -170,7 +173,9 @@
             <span class="sidebar-label flex min-w-0 flex-col leading-tight">
                 <span class="truncate font-display text-sm font-bold text-ink-900">{{ $company->name }}</span>
                 <span class="text-[0.6rem] font-semibold uppercase tracking-[0.18em] text-brand-600">
-                    {{ $isAdmin ? 'Dashboard Admin' : ($isBusiness ? 'Business Account' : 'Dashboard Akun') }}
+                    {{ $isSuperAdmin
+                        ? 'Dashboard Superadmin'
+                        : ($isAdmin ? 'Dashboard Admin' : ($isBusiness ? 'Business Account' : 'Dashboard Akun')) }}
                 </span>
             </span>
         </div>
@@ -264,7 +269,10 @@
         </nav>
 
         <div class="sidebar-footer flex shrink-0 items-center gap-2 border-t border-ink-100 p-4">
-            <a href="{{ route('home') }}" class="sidebar-label viewer-tool flex-1 justify-center">Lihat Website</a>
+            {{-- Pelanggan diantar langsung ke halaman Order Now (3D Models):
+                 dari dashboard, yang dicari memang memesan lagi — bukan
+                 beranda. Pengelola tetap ke beranda. --}}
+            <a href="{{ route($isAdmin ? 'home' : 'models') }}" class="sidebar-label viewer-tool flex-1 justify-center">Lihat Website</a>
 
             {{-- Hanya pada desktop; di tablet sidebar selalu icon-only. --}}
             <button type="button"
@@ -362,7 +370,13 @@
                         <span class="max-w-[10rem] truncate text-sm font-semibold text-ink-700">{{ $user->name }}</span>
                     </span>
 
-                    <form method="POST" action="{{ $logoutRoute }}">
+                    {{-- Keluar selalu ditanya lebih dulu; rutenya sendiri tidak
+                         berubah, hanya ditahan sampai dikonfirmasi. --}}
+                    <form method="POST" action="{{ $logoutRoute }}"
+                          data-confirm="Apakah Anda yakin ingin keluar dari akun?"
+                          data-confirm-title="Konfirmasi Logout"
+                          data-confirm-accept="Ya, Logout"
+                          data-confirm-cancel="Batal">
                         @csrf
                         <button type="submit" class="viewer-tool">Logout</button>
                     </form>
@@ -400,6 +414,10 @@
 
     {{-- Popup notifikasi real-time --}}
     <div class="pointer-events-none fixed bottom-6 right-6 z-[60] flex flex-col gap-3" data-notification-toasts></div>
+
+    {{-- Modal konfirmasi bersama: logout, pembatalan penawaran, dan aksi lain
+         yang perlu ditanya lebih dulu. Satu markup untuk semuanya. --}}
+    <x-confirm-dialog />
 
     @stack('scripts')
 

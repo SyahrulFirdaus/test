@@ -304,11 +304,18 @@ let leadTimeConfig = {
         { name: 'Express', maxMinutes: 1200, minDays: 1, maxDays: 1 },
         { name: 'Standard', maxMinutes: null, minDays: 3, maxDays: 5 },
     ],
+    // Pekerjaan berharga Rumus Harga Manual menunggu kuotasi vendor lebih
+    // dahulu, jadi rentangnya tetap dan tidak mengikuti tingkat di atas.
+    manual: { name: 'Standard', maxMinutes: null, minDays: 5, maxDays: 7 },
 };
 
 export function configureLeadTime(config) {
     if (config?.tiers?.length) {
-        leadTimeConfig = { unit: config.unit ?? leadTimeConfig.unit, tiers: config.tiers };
+        leadTimeConfig = {
+            unit: config.unit ?? leadTimeConfig.unit,
+            tiers: config.tiers,
+            manual: config.manual ?? leadTimeConfig.manual,
+        };
     }
 }
 
@@ -318,16 +325,31 @@ export function configureLeadTime(config) {
  * Menit yang masuk adalah TOTAL seluruh object dalam satu penawaran, bukan
  * waktu satu object — lihat App\Support\LeadTime.
  */
-function leadTimeTier(minutes) {
+function leadTimeTier(minutes, manualPricing = false) {
+    if (manualPricing) {
+        return leadTimeConfig.manual;
+    }
+
     const total = Math.max(0, Number(minutes) || 0);
     const tiers = leadTimeConfig.tiers;
 
     return tiers.find((entry) => entry.maxMinutes === null || total <= entry.maxMinutes) ?? tiers[tiers.length - 1];
 }
 
+/**
+ * Penanda Rumus Harga Manual pada estimasi yang sudah tersimpan.
+ *
+ * Record yang dibuat sebelum penanda ini ada hanya menyimpannya di dalam
+ * rincian harga, jadi keduanya dibaca — model yang sudah lebih dulu ada di
+ * browser pelanggan tetap memperoleh lead time yang benar.
+ */
+export function isManualEstimate(estimate) {
+    return estimate?.manualPricing === true || estimate?.breakdown?.manual_pricing === true;
+}
+
 /** @returns {{min:number, max:number}} rentang hari kerja untuk sekian menit mesin */
-export function leadTimeDays(minutes) {
-    const tier = leadTimeTier(minutes);
+export function leadTimeDays(minutes, manualPricing = false) {
+    const tier = leadTimeTier(minutes, manualPricing);
 
     return { min: tier.minDays, max: tier.maxDays };
 }
@@ -337,9 +359,12 @@ export function leadTimeDays(minutes) {
  *
  * Jam mesin tetap dipakai sebagai data perhitungan, tetapi yang ditampilkan
  * kepada pelanggan hanya nama tingkat beserta rentang hari kerjanya.
+ *
+ * `manualPricing` menandai pekerjaan yang harganya dihitung dengan Rumus Harga
+ * Manual; rentangnya tetap, berapa pun menit mesinnya.
  */
-export function formatLeadTime(minutes) {
-    const tier = leadTimeTier(minutes);
+export function formatLeadTime(minutes, manualPricing = false) {
+    const tier = leadTimeTier(minutes, manualPricing);
     const range = `${tier.minDays === tier.maxDays ? tier.minDays : `${tier.minDays}–${tier.maxDays}`} ${leadTimeConfig.unit}`;
 
     return tier.name ? `${tier.name} (${range})` : range;

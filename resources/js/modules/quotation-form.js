@@ -135,7 +135,7 @@ export default function initQuotationForm(viewer, root) {
                 ${[
                     // Model dicetak paralel, jadi lead time mengikuti mesin terlama.
                     // Total waktu proses seluruh object, bukan object terlama.
-                    ['Estimasi Lead Time', formatLeadTime(payload.totals.minutes ?? 0)],
+                    ['Estimasi Lead Time', formatLeadTime(payload.totals.minutes ?? 0, payload.totals.manualPricing)],
                     ['Total Biaya', formatCurrency(payload.totals.cost)],
                 ]
                     .map(

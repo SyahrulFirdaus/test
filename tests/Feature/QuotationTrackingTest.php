@@ -147,6 +147,65 @@ class QuotationTrackingTest extends TestCase
         $this->assertGreaterThan(5000, strlen($content));
     }
 
+    /**
+     * Bukti Permintaan Penawaran tidak menyebut infill, nama mesin, maupun
+     * resolusi.
+     *
+     * Ketiganya keputusan produksi yang masih dapat bergeser sampai pengerjaan
+     * dimulai, dan pelanggan tidak memesan mesin tertentu. Yang diperiksa di
+     * sini adalah HTML sumber dokumennya — isi PDF-nya sendiri terkompresi
+     * sehingga tidak dapat dibaca sebagai teks biasa.
+     */
+    public function test_bukti_penawaran_tidak_memuat_infill_mesin_dan_resolusi(): void
+    {
+        $quotation = $this->quotation();
+
+        $quotation->items()->first()->update([
+            'printer' => 'bambu-p1s',
+            'printer_name' => 'Bambu Lab P1S',
+            'infill_density' => 0.2,
+            'infill_pattern' => 'gyroid',
+        ]);
+
+        $html = view('pdf.quotation-receipt', [
+            'quotation' => $quotation->fresh()->load('items'),
+            'trackingUrl' => route('tracking.show', $quotation->tracking_number),
+            'qrCode' => '',
+            'logo' => '',
+        ])->render();
+
+        $this->assertStringNotContainsString('Bambu Lab P1S', $html);
+        $this->assertStringNotContainsStringIgnoringCase('infill', $html);
+        $this->assertStringNotContainsString('Mesin', $html);
+
+        // Resolusi juga parameter mesin, bukan bagian dari apa yang dipesan.
+        $this->assertStringNotContainsStringIgnoringCase('resolusi', $html);
+
+        // Yang tersisa tetap lengkap: teknologi, material, dan harganya.
+        $this->assertStringContainsString('FDM', $html);
+        $this->assertStringContainsString($quotation->tracking_number, $html);
+    }
+
+    /** Datanya sendiri tetap tersimpan; yang berubah hanya dokumen keluarannya. */
+    public function test_infill_mesin_dan_resolusi_tetap_tersimpan_di_basis_data(): void
+    {
+        $quotation = $this->quotation();
+
+        $quotation->items()->first()->update([
+            'printer' => 'bambu-p1s',
+            'printer_name' => 'Bambu Lab P1S',
+            'infill_density' => 0.2,
+            'infill_pattern' => 'gyroid',
+        ]);
+
+        $item = $quotation->fresh()->items()->first();
+
+        $this->assertSame('Bambu Lab P1S', $item->printer_name);
+        $this->assertSame(0.2, (float) $item->infill_density);
+        $this->assertSame('gyroid', $item->infill_pattern);
+        $this->assertSame('0.25', (string) $item->resolution);
+    }
+
     public function test_perubahan_status_admin_tercatat_di_riwayat_dan_tampil_ke_pelanggan(): void
     {
         $quotation = $this->quotation();

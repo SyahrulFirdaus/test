@@ -69,12 +69,16 @@ trait DescribesPrintJob
      * antrean produksi, post-processing, dan quality control. Jam mesinnya
      * sendiri tetap tersimpan dan dipakai halaman admin lewat
      * `estimated_duration`.
+     *
+     * Pekerjaan berharga Rumus Harga Manual memakai rentangnya sendiri, lebih
+     * panjang karena partnya menunggu kuotasi vendor lebih dahulu — lihat
+     * App\Support\LeadTime::manualTier().
      */
     public function getLeadTimeAttribute(): ?string
     {
         return blank($this->estimated_minutes)
             ? null
-            : LeadTime::label((float) $this->estimated_minutes);
+            : LeadTime::label((float) $this->estimated_minutes, $this->usesManualPricing());
     }
 
     /**
@@ -154,6 +158,19 @@ trait DescribesPrintJob
      * App\Models\QuotationRequest menimpanya masing-masing.
      */
     public function awaitsPricing(): bool
+    {
+        return false;
+    }
+
+    /**
+     * Harganya dihitung dengan Rumus Harga Manual (Kalkulator Manual).
+     *
+     * Nilai bawaannya false; App\Models\QuotationItem dan
+     * App\Models\QuotationRequest menimpanya masing-masing. Berbeda dengan
+     * awaitsPricing(), penanda ini tetap true setelah harganya ditetapkan tim
+     * — yang ditentukannya lead time, bukan ada tidaknya harga.
+     */
+    public function usesManualPricing(): bool
     {
         return false;
     }

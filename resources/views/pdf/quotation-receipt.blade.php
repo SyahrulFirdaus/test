@@ -187,18 +187,23 @@
         </table>
 
         {{-- ===================== DAFTAR MODEL ===================== --}}
-        <h2 class="section">Daftar Printer &amp; Model ({{ $quotation->items->count() }})</h2>
+        {{-- Nama mesin, infill, dan resolusi sengaja TIDAK ikut di bukti ini:
+             ketiganya keputusan produksi yang masih dapat bergeser sampai
+             pengerjaan dimulai, dan pelanggan tidak memesan mesin tertentu.
+             Datanya tetap tersimpan dan tetap terbaca di dashboard
+             Admin/Superadmin maupun oleh Pricing Engine — yang berubah hanya
+             dokumen keluarannya. --}}
+        <h2 class="section">Daftar Model ({{ $quotation->items->count() }})</h2>
         <table class="data items">
             <thead>
                 <tr>
                     {{-- Kolom Berat ditiadakan: bukti ini dipegang pelanggan, dan
                          pelanggan tidak melihat berat model di mana pun. --}}
-                    <th style="width: 8%;">Printer</th>
-                    <th style="width: 30%;">Nama File</th>
-                    <th style="width: 27%;">Mesin, Teknologi &amp; Material</th>
-                    <th style="width: 12%;">Resolusi</th>
-                    <th style="width: 10%;" class="num">Jumlah</th>
-                    <th style="width: 13%;" class="num">Estimasi</th>
+                    <th style="width: 8%;">No</th>
+                    <th style="width: 34%;">Nama File</th>
+                    <th style="width: 33%;">Teknologi &amp; Material</th>
+                    <th style="width: 11%;" class="num">Jumlah</th>
+                    <th style="width: 14%;" class="num">Estimasi</th>
                 </tr>
             </thead>
             <tbody>
@@ -212,18 +217,20 @@
                             @endunless
                         </td>
                         @php
-                            $extras = collect(['infill '.$item->infill_label, strtolower($item->finishing_label)])
+                            // Tanpa infill: angkanya parameter mesin, bukan bagian
+                            // dari apa yang dipesan pelanggan.
+                            $extras = collect([strtolower($item->finishing_label)])
                                 ->when($item->support_enabled, fn ($list) => $list->push('support'))
                                 ->when($item->hollow_enabled, fn ($list) => $list->push('hollow'))
+                                ->filter()
                                 ->implode(', ');
                         @endphp
                         <td>
-                            {{ $item->printer_name }}
-                            <br><span style="color: #776862; font-weight: normal;">
-                                {{ $item->technology }} &middot; {{ $item->material_label }} &middot; {{ $extras }}
-                            </span>
+                            {{ $item->technology }} &middot; {{ $item->material_label }}
+                            @if ($extras !== '')
+                                <br><span style="color: #776862; font-weight: normal;">{{ $extras }}</span>
+                            @endif
                         </td>
-                        <td>{{ $item->resolution_label }}</td>
                         <td class="num">{{ $item->quantity }} unit</td>
                         <td class="num">{{ harga_penawaran($item->display_price) }}</td>
                     </tr>
@@ -231,7 +238,7 @@
             </tbody>
             <tfoot>
                 <tr>
-                    <td colspan="4" style="text-transform: uppercase; letter-spacing: 1px; font-size: 8.5px;">Total</td>
+                    <td colspan="3" style="text-transform: uppercase; letter-spacing: 1px; font-size: 8.5px;">Total</td>
                     <td class="num">{{ $quotation->quantity }} unit</td>
                     <td class="num">
                         @if ($quotation->display_price !== null)
@@ -258,10 +265,6 @@
                         <tr class="alt">
                             <th>Tanggal Pengajuan</th>
                             <td>{{ $quotation->created_at->translatedFormat('d F Y, H:i') }} WIB</td>
-                        </tr>
-                        <tr>
-                            <th>Printer</th>
-                            <td>{{ $quotation->printer_summary }}</td>
                         </tr>
                         <tr>
                             <th>Status</th>

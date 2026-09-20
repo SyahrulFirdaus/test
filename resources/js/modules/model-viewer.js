@@ -2300,7 +2300,11 @@ export default class ModelViewer {
         // belum ada — bukan nol, dan bukan jumlah model lainnya saja.
         const cost = sumPrices(items.map((item) => item.estimate.totalCost));
 
-        return { ...summary, cost, breakdown };
+        // Satu model berharga Rumus Harga Manual sudah menentukan lead time
+        // seluruh penawaran: yang lain menunggu model yang paling lama.
+        const manualPricing = items.some((item) => item.estimate.manualPricing === true);
+
+        return { ...summary, cost, manualPricing, breakdown };
     }
 
     /** Rincian biaya gabungan seluruh model pada ringkasan penawaran. */
@@ -3071,6 +3075,7 @@ export default class ModelViewer {
                 totalWeightG: item.estimate.totalWeightG,
                 totalMinutes: item.estimate.totalMinutes,
                 totalCost: item.estimate.totalCost,
+                manualPricing: item.estimate.manualPricing,
                 breakdown: item.estimate.breakdown,
             },
             model_stats: {

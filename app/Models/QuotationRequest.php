@@ -74,6 +74,9 @@ class QuotationRequest extends Model
         'payment_proof_name',
         'payment_proof_uploaded_at',
         'payment_verified_at',
+        'payment_verified_by',
+        'payment_rejected_at',
+        'payment_rejected_by',
         'payment_rejection_reason',
 
         'cancellation_reason',
@@ -109,6 +112,7 @@ class QuotationRequest extends Model
             'payment_due_at' => 'datetime',
             'payment_proof_uploaded_at' => 'datetime',
             'payment_verified_at' => 'datetime',
+            'payment_rejected_at' => 'datetime',
         ];
     }
 
@@ -367,6 +371,46 @@ class QuotationRequest extends Model
         return (bool) $this->paymentTerm?->isPending();
     }
 
+    /* ----------------------------------------- verifikasi pembayaran --- */
+
+    /**
+     * Pembayaran penawaran ini diverifikasi dari Detail Penawaran.
+     *
+     * Inilah aturan yang menentukan SATU tempat verifikasi bagi setiap
+     * pembayaran, sehingga tidak ada bukti yang menunggu di dua antrean:
+     *
+     *   pembayaran sekali bayar  → Penawaran › Detail Penawaran (di sini)
+     *   pembayaran bertahap      → Pembayaran › Verifikasi Pembayaran
+     *
+     * Yang memisahkan adalah BENTUK pembayarannya, bukan tipe akunnya:
+     * pelanggan Business yang membayar sekali tetap diverifikasi dari Detail
+     * Penawaran, karena pembayarannya memang satu — dan satu-satunya yang
+     * membutuhkan antrean per termin adalah penawaran yang benar-benar punya
+     * jadwal termin.
+     */
+    public function verifiedFromDetail(): bool
+    {
+        return ! $this->usesInstallments();
+    }
+
+    /** Ada bukti pembayaran sekali bayar yang menunggu keputusan admin. */
+    public function awaitsPaymentDecision(): bool
+    {
+        return $this->status === QuotationStatus::PAYMENT_REVIEW && $this->verifiedFromDetail();
+    }
+
+    /** Pengelola yang menerima pembayarannya. */
+    public function paymentVerifier(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'payment_verified_by');
+    }
+
+    /** Pengelola yang menolak pembayarannya. */
+    public function paymentRejecter(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'payment_rejected_by');
+    }
+
     /** Sisa waktu pembayaran dalam detik; 0 bila sudah lewat atau tanpa batas. */
     public function paymentSecondsLeft(): int
     {
@@ -394,6 +438,18 @@ class QuotationRequest extends Model
     public function awaitsPricing(): bool
     {
         return $this->items->contains(fn (QuotationItem $item) => $item->awaitsPricing());
+    }
+
+    /**
+     * Ada model yang harganya dihitung dengan Rumus Harga Manual.
+     *
+     * Lead time penawaran mengikuti model yang paling lama menunggu, jadi satu
+     * model semacam itu sudah menentukan rentang seluruh penawarannya — sama
+     * seperti waktu mesin yang dijumlahkan, bukan dipilih yang terkecil.
+     */
+    public function usesManualPricing(): bool
+    {
+        return $this->items->contains(fn (QuotationItem $item) => $item->usesManualPricing());
     }
 
     /** Model SLA Industries yang masih menunggu kuotasi JLC. */

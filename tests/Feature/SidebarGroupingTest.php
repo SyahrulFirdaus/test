@@ -95,6 +95,28 @@ class SidebarGroupingTest extends TestCase
         $this->assertSame('/admin/penawaran/penawaran', route('admin.quotations.index', [], false));
     }
 
+    /**
+     * Keterangan di bawah nama brand menyebut area yang sedang dibuka.
+     *
+     * Superadmin lolos `isAdmin()` juga — seluruh tugas operasional Admin
+     * memang miliknya — jadi role yang lebih khusus harus diperiksa lebih dulu,
+     * kalau tidak Superadmin ikut terbaca sebagai "Dashboard Admin".
+     */
+    public function test_label_sidebar_mengikuti_role(): void
+    {
+        $superAdmin = $this->actingAs($this->superAdmin())
+            ->get(route('superadmin.dashboard'))->assertOk()->getContent();
+
+        $this->assertStringContainsString('Dashboard Superadmin', $superAdmin);
+        $this->assertStringNotContainsString('Dashboard Admin', $superAdmin);
+
+        $admin = $this->actingAs($this->admin())
+            ->get(route('admin.dashboard'))->assertOk()->getContent();
+
+        $this->assertStringContainsString('Dashboard Admin', $admin);
+        $this->assertStringNotContainsString('Dashboard Superadmin', $admin);
+    }
+
     public function test_alamat_lama_diteruskan_ke_alamat_baru(): void
     {
         $superAdmin = $this->superAdmin();

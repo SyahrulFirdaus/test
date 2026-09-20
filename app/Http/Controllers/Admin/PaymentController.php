@@ -5,91 +5,102 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\PaymentInstallment;
 use App\Models\PaymentProof;
-use App\Models\QuotationRequest;
-use App\Services\PaymentFlow;
-use App\Services\PaymentTermFlow;
+use App\Models\PaymentTerm;
+use App\Services\PaymentVerificationService;
 use App\Support\InstallmentStatus;
 use App\Support\PaymentProofFile;
 use App\Support\PaymentTermStatus;
-use App\Support\QuotationStatus;
+use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Pagination\LengthAwarePaginator;
+use RuntimeException;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 /**
- * Menu "Verifikasi Pembayaran" pada dashboard admin.
+ * Menu "Verifikasi Pembayaran": pusat verifikasi pembayaran BERTAHAP.
  *
- * Menampilkan bukti transfer yang masuk beserta nama pelanggan, nomor
- * penawaran, nominal, dan waktu unggahnya, lalu menyediakan dua keputusan:
- * terima atau tolak beserta alasannya.
+ * Halaman ini dahulu mengantre dua hal sekaligus — pembayaran sekali bayar dan
+ * bukti tiap termin. Yang pertama kini diputuskan langsung dari Detail
+ * Penawaran (App\Http\Controllers\Admin\QuotationPaymentController), tempat
+ * admin memang sudah berada ketika memeriksa penawarannya, sehingga tidak perlu
+ * lagi berpindah halaman untuk menekan satu tombol.
  *
- * Dua jenis pembayaran mengantre di halaman yang sama namun pada tab
- * berbeda: pembayaran sekali bayar dan bukti tiap termin milik pelanggan
- * Business.
+ * Yang tinggal di sini justru yang benar-benar membutuhkan antrean tersendiri:
+ * penawaran pelanggan Business dengan Payment Term punya beberapa bukti
+ * pembayaran untuk satu penawaran, masing-masing dengan jadwal, nominal, dan
+ * keputusannya sendiri. Satu bukti hanya pernah muncul di satu tempat.
  */
 class PaymentController extends Controller
 {
-    public function __construct(
-        private readonly PaymentFlow $payments,
-        private readonly PaymentTermFlow $terms,
-    ) {}
+    /**
+     * Termin yang belum diputuskan: belum aktif, menunggu dibayar, buktinya
+     * ditolak, atau sudah lewat jatuh tempo. Semuanya belum menuntut keputusan
+     * admin sekarang, tetapi perlu terlihat sebagai jadwal yang berjalan.
+     */
+    private const SCHEDULED = [
+        InstallmentStatus::INACTIVE,
+        InstallmentStatus::PENDING,
+        InstallmentStatus::REJECTED,
+        InstallmentStatus::OVERDUE,
+    ];
+
+    public function __construct(private readonly PaymentVerificationService $verification) {}
 
     public function index(Request $request): View
     {
-        // Bukti yang belum diperiksa selalu di atas, lalu yang paling lama
-        // menunggu — daftar ini adalah antrean kerja, bukan arsip.
-        $filter = in_array($request->query('filter'), ['review', 'installments', 'awaiting', 'decided'], true)
+        $filter = in_array($request->query('filter'), ['review', 'scheduled', 'decided'], true)
             ? $request->query('filter')
             : 'review';
 
-        $statuses = match ($filter) {
-            'awaiting' => [QuotationStatus::AWAITING_PAYMENT],
-            'decided' => [QuotationStatus::PAYMENT_RECEIVED, QuotationStatus::PAYMENT_REJECTED],
-            default => [QuotationStatus::PAYMENT_REVIEW],
-        };
-
-        // Tab "Bukti Termin" mengantre bukti pembayaran bertahap; tab lainnya
-        // tetap mengantre pembayaran sekali bayar seperti sebelumnya.
-        $quotations = $filter === 'installments'
-            ? new LengthAwarePaginator([], 0, 15)
-            : QuotationRequest::query()
-                ->whereIn('status', $statuses)
-                // Penawaran yang memakai pembayaran bertahap punya antreannya
-                // sendiri, jadi tidak ikut muncul di tab sekali bayar.
-                ->whereDoesntHave('paymentTerm', fn ($term) => $term->where('status', PaymentTermStatus::APPROVED)
-                    ->where('installment_count', '>', 1))
-                ->with('user')
-                ->orderByRaw('payment_proof_uploaded_at IS NULL')
-                ->orderBy('payment_proof_uploaded_at')
-                ->orderByDesc('created_at')
-                ->paginate(15)
-                ->withQueryString();
-
-        $installments = $filter === 'installments'
-            ? PaymentInstallment::query()
+        /*
+         * Antrean kerja, bukan arsip: bukti yang paling lama menunggu di atas.
+         *
+         * Seluruh tab dibatasi pada termin milik Payment Term yang berjalan,
+         * jadi pembayaran sekali bayar tidak pernah muncul di sini — termasuk
+         * milik pelanggan Business yang memang membayar sekali.
+         */
+        $installments = PaymentInstallment::query()
+            ->whereHas('term', fn ($term) => $term->whereIn('status', [
+                PaymentTermStatus::APPROVED,
+                PaymentTermStatus::COMPLETED,
+            ]))
+            ->with(['latestProof', 'term.quotation.user'])
+            ->when($filter === 'review', fn ($q) => $q
                 ->where('status', InstallmentStatus::VERIFICATION)
-                ->with(['latestProof', 'term.quotation.user'])
-                ->orderBy('updated_at')
-                ->paginate(15)
-                ->withQueryString()
-            : new LengthAwarePaginator([], 0, 15);
+                ->orderBy('updated_at'))
+            ->when($filter === 'scheduled', fn ($q) => $q
+                ->whereIn('status', self::SCHEDULED)
+                ->orderBy('due_date'))
+            ->when($filter === 'decided', fn ($q) => $q
+                ->where('status', InstallmentStatus::RECEIVED)
+                ->orderByDesc('paid_at'))
+            ->paginate(15)
+            ->withQueryString();
 
         return view('admin.payments.index', [
-            'quotations' => $quotations,
             'installments' => $installments,
             'filter' => $filter,
-            'counts' => [
-                'review' => QuotationRequest::where('status', QuotationStatus::PAYMENT_REVIEW)->count(),
-                'installments' => PaymentInstallment::where('status', InstallmentStatus::VERIFICATION)->count(),
-                'awaiting' => QuotationRequest::where('status', QuotationStatus::AWAITING_PAYMENT)->count(),
-                'decided' => QuotationRequest::whereIn('status', [
-                    QuotationStatus::PAYMENT_RECEIVED,
-                    QuotationStatus::PAYMENT_REJECTED,
-                ])->count(),
-            ],
+            'counts' => $this->counts(),
+            // Penawaran Business yang sedang berjalan dengan termin, untuk
+            // ringkasan di atas antrean.
+            'activeTerms' => PaymentTerm::whereIn('status', [PaymentTermStatus::APPROVED])->count(),
         ]);
+    }
+
+    /** @return array<string, int> */
+    private function counts(): array
+    {
+        $scoped = fn () => PaymentInstallment::query()->whereHas('term', fn ($term) => $term->whereIn('status', [
+            PaymentTermStatus::APPROVED,
+            PaymentTermStatus::COMPLETED,
+        ]));
+
+        return [
+            'review' => $scoped()->where('status', InstallmentStatus::VERIFICATION)->count(),
+            'scheduled' => $scoped()->whereIn('status', self::SCHEDULED)->count(),
+            'decided' => $scoped()->where('status', InstallmentStatus::RECEIVED)->count(),
+        ];
     }
 
     /* --------------------------------------------- verifikasi per termin --- */
@@ -109,73 +120,43 @@ class PaymentController extends Controller
     /** Terima pembayaran satu termin; termin berikutnya ikut diaktifkan. */
     public function approveInstallment(Request $request, PaymentInstallment $installment): RedirectResponse
     {
-        if (! $installment->isAwaitingVerification()) {
-            return back()->with('error', 'Tidak ada bukti pembayaran yang menunggu verifikasi pada termin ini.');
-        }
-
-        $this->terms->approveProof($installment, $request->user());
-
-        return back()->with('status', 'Pembayaran '.$installment->title.' diterima dan pelanggan sudah diberi tahu.');
+        return $this->decide(
+            fn () => $this->verification->acceptInstallment($installment, $request->user()),
+            'Pembayaran '.$installment->title.' diterima dan pelanggan sudah diberi tahu.',
+        );
     }
 
     /** Tolak bukti pembayaran satu termin beserta alasannya. */
     public function rejectInstallment(Request $request, PaymentInstallment $installment): RedirectResponse
     {
-        if (! $installment->isAwaitingVerification()) {
-            return back()->with('error', 'Tidak ada bukti pembayaran yang menunggu verifikasi pada termin ini.');
-        }
-
         $validated = $request->validate([
             'reason' => ['required', 'string', 'max:2000'],
         ], [
             'reason.required' => 'Isi alasan penolakan agar pelanggan mengetahui penyebabnya.',
         ]);
 
-        $this->terms->rejectProof($installment, trim($validated['reason']), $request->user());
-
-        return back()->with('status', 'Pembayaran '.$installment->title.' ditolak beserta alasannya.');
+        return $this->decide(
+            fn () => $this->verification->rejectInstallment($installment, trim($validated['reason']), $request->user()),
+            'Pembayaran '.$installment->title.' ditolak beserta alasannya.',
+        );
     }
 
-    /** Tampilkan berkas bukti pembayaran; berkasnya disimpan pada disk privat. */
-    public function proof(QuotationRequest $quotation): StreamedResponse|RedirectResponse
+    /**
+     * Jalankan keputusannya, lalu terjemahkan penolakan service menjadi jawaban.
+     *
+     * Sama persis dengan yang dilakukan Detail Penawaran: hak yang kurang
+     * menjadi 403, keadaan yang tidak memungkinkan menjadi pesan di halaman.
+     */
+    private function decide(callable $action, string $success): RedirectResponse
     {
-        if (! $quotation->paymentProofExists()) {
-            return back()->with('error', 'Bukti pembayaran tidak ditemukan di penyimpanan.');
+        try {
+            $action();
+        } catch (AuthorizationException $exception) {
+            abort(403, $exception->getMessage());
+        } catch (RuntimeException $exception) {
+            return back()->with('error', $exception->getMessage());
         }
 
-        return PaymentProofFile::response($quotation->payment_proof_path, $quotation->payment_proof_name);
-    }
-
-    public function approve(Request $request, QuotationRequest $quotation): RedirectResponse
-    {
-        if (! $this->awaitsDecision($quotation)) {
-            return back()->with('error', 'Tidak ada bukti pembayaran yang menunggu verifikasi pada penawaran ini.');
-        }
-
-        $this->payments->approve($quotation, $request->user());
-
-        return back()->with('status', 'Pembayaran '.$quotation->tracking_number.' diterima dan pelanggan sudah diberi tahu.');
-    }
-
-    public function reject(Request $request, QuotationRequest $quotation): RedirectResponse
-    {
-        if (! $this->awaitsDecision($quotation)) {
-            return back()->with('error', 'Tidak ada bukti pembayaran yang menunggu verifikasi pada penawaran ini.');
-        }
-
-        $validated = $request->validate([
-            'reason' => ['required', 'string', 'max:2000'],
-        ], [
-            'reason.required' => 'Isi alasan penolakan agar pelanggan mengetahui penyebabnya.',
-        ]);
-
-        $this->payments->reject($quotation, trim($validated['reason']), $request->user());
-
-        return back()->with('status', 'Pembayaran '.$quotation->tracking_number.' ditolak beserta alasannya.');
-    }
-
-    private function awaitsDecision(QuotationRequest $quotation): bool
-    {
-        return $quotation->status === QuotationStatus::PAYMENT_REVIEW;
+        return back()->with('status', $success);
     }
 }

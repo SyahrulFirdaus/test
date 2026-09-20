@@ -8,9 +8,10 @@
  *  4. hitung mundur batas waktu pembayaran;
  *  5. tombol salin (mis. nomor rekening);
  *  6. pengalih mode terang/gelap;
- *  7. penghapusan massal pada tabel Price List;
+ *  7. penghapusan massal pada tabel Price List maupun daftar Penawaran;
  *  8. expand detail mesin pada tabel Machine Cost;
- *  9. perhitungan realtime Rumus Harga SLA Industries.
+ *  9. perhitungan realtime Rumus Harga SLA Industries;
+ * 10. modal konfirmasi bersama (pembatalan penawaran, logout).
  *
  * Notifikasi ditarik berkala (polling) alih-alih lewat WebSocket supaya
  * pemberitahuan terasa langsung tanpa menuntut server tambahan. Endpointnya
@@ -18,11 +19,14 @@
  * masuk.
  */
 
+import initConfirmDialog, { confirmAction } from './modules/confirm-dialog';
 import initRupiahInputs from './modules/rupiah-input';
 import initSlaIndustriesFormulas from './modules/sla-industries-formula';
 
 const POLL_INTERVAL_MS = 20000;
 
+// Modal konfirmasi dipasang paling awal: modul lain memanggilnya.
+initConfirmDialog();
 initThemeToggle();
 initSidebar();
 initNotifications();
@@ -457,16 +461,21 @@ function initCopyButtons() {
 }
 
 /**
- * Penghapusan massal pada tabel Price List (Material FDM & SLA).
+ * Aksi massal bertanda `data-bulk-*`: Price List (Material FDM & SLA) dan
+ * daftar Penawaran.
  *
- * Satu fungsi melayani kedua tab; yang membedakan hanya nilai atribut
- * `data-bulk-*`, jadi menambah tabel ketiga nanti cukup menyalin markupnya
- * tanpa menyentuh berkas ini.
+ * Satu fungsi melayani seluruhnya; yang membedakan hanya nilai atributnya,
+ * jadi menambah tabel berikutnya cukup menyalin markupnya tanpa menyentuh
+ * berkas ini.
  *
  * Kotak centang baris berada di dalam <table> sedangkan formulirnya di luar —
  * keduanya dijembatani atribut `form` pada HTML, bukan oleh JavaScript. Yang
- * dikerjakan di sini hanya tiga: centang-semua, menghitung yang terpilih, dan
- * menahan pengiriman sampai dikonfirmasi.
+ * dikerjakan di sini hanya empat: centang-semua, menghitung yang terpilih,
+ * menolak pengiriman kosong, dan menahan sisanya sampai dikonfirmasi.
+ *
+ * Tabel yang bilah aksinya selalu tampil (mis. Penawaran) cukup tidak memasang
+ * `data-bulk-bar`; tanpa itu tidak ada yang disembunyikan, dan tombolnya dapat
+ * ditekan untuk memunculkan pesan "pilih dulu".
  */
 function initBulkDelete() {
     document.querySelectorAll('[data-bulk-form]').forEach((form) => {
@@ -478,12 +487,12 @@ function initBulkDelete() {
         const bar = scope.querySelector(`[data-bulk-bar="${key}"]`);
         const counter = scope.querySelector(`[data-bulk-count="${key}"]`);
         const clear = scope.querySelector(`[data-bulk-clear="${key}"]`);
+        const empty = scope.querySelector(`[data-bulk-empty="${key}"]`);
         const items = () => Array.from(scope.querySelectorAll(`[data-bulk-item="${key}"]`));
 
-        if (items().length === 0) {
-            return;
-        }
-
+        // Sengaja TIDAK berhenti saat belum ada satu pun baris yang dapat
+        // dipilih: justru di situlah tombolnya perlu menjawab "pilih dulu"
+        // alih-alih mengirim formulir kosong ke server.
         const selected = () => items().filter((item) => item.checked);
 
         const render = () => {
@@ -497,7 +506,16 @@ function initBulkDelete() {
             bar?.classList.toggle('hidden', count === 0);
             bar?.classList.toggle('flex', count > 0);
 
+            // Pesan "pilih dulu" hilang begitu ada yang dipilih.
+            if (count > 0) {
+                empty?.classList.add('hidden');
+            }
+
             if (all) {
+                // Tidak ada satu pun baris yang dapat dipilih — mis. seluruh
+                // penawaran di halaman ini sudah dibatalkan — maka centang-semua
+                // pun tidak ada gunanya ditekan.
+                all.disabled = total === 0;
                 all.checked = count > 0 && count === total;
                 // Sebagian terpilih ditandai garis, bukan centang penuh.
                 all.indeterminate = count > 0 && count < total;
@@ -532,21 +550,43 @@ function initBulkDelete() {
         });
 
         form.addEventListener('submit', (event) => {
-            const count = selected().length;
-
-            if (count === 0) {
-                event.preventDefault();
+            if (form.dataset.bulkConfirmed === 'true') {
+                delete form.dataset.bulkConfirmed;
 
                 return;
             }
 
-            const confirmed = window.confirm(
-                `Hapus ${count} ${noun} yang dipilih? Tindakan ini tidak dapat dibatalkan.`
-            );
+            event.preventDefault();
 
-            if (!confirmed) {
-                event.preventDefault();
+            const count = selected().length;
+
+            // Tidak ada yang dipilih bukan alasan untuk diam: pesannya tampil
+            // di samping tombolnya sendiri, bukan sebagai kotak peringatan.
+            if (count === 0) {
+                empty?.classList.remove('hidden');
+                empty?.focus?.();
+
+                return;
             }
+
+            const fill = (text) => String(text).replace(/\{count\}/g, String(count));
+
+            confirmAction({
+                title: form.dataset.bulkTitle || 'Hapus Terpilih?',
+                message: fill(
+                    form.dataset.bulkMessage
+                        || `Hapus {count} ${noun} yang dipilih? Tindakan ini tidak dapat dibatalkan.`
+                ),
+                accept: fill(form.dataset.bulkAccept || 'Ya, Hapus'),
+                cancel: form.dataset.bulkCancel || 'Batal',
+            }).then((confirmed) => {
+                if (!confirmed) {
+                    return;
+                }
+
+                form.dataset.bulkConfirmed = 'true';
+                form.requestSubmit();
+            });
         });
 
         render();

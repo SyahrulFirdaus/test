@@ -53,9 +53,49 @@
 
     <div class="flex flex-wrap gap-2">
         <a href="{{ route('superadmin.price-list.technologies.edit', $technology) }}" class="viewer-tool">Parameter Teknologi</a>
-        <a href="{{ route('superadmin.price-list.materials.create', $technology) }}" class="btn-primary">Tambah Material {{ $label }}</a>
+        <a href="{{ route('superadmin.price-list.materials.create', $technology) }}" class="btn-primary">+ Tambah Material {{ $label }}</a>
     </div>
 </div>
+
+{{-- ================= Import & Export Excel =================
+     Cara kedua mengelola material yang sama, untuk pekerjaan massal — CRUD di
+     bawah tidak berubah sedikit pun. Berlaku bagi SELURUH teknologi: berkasnya
+     satu bentuk, dan kolom yang memang hanya dimiliki sebagian teknologi
+     (Metode Harga) ditambahkan sendiri oleh
+     App\Services\PriceList\Excel\MaterialSheet. --}}
+@if (auth()->user()->can(\App\Support\AdminPermission::PRICE_LIST_EXPORT) || auth()->user()->can(\App\Support\AdminPermission::PRICE_LIST_IMPORT))
+    <div class="mt-4 flex flex-wrap items-center gap-2 rounded-2xl border border-ink-100 bg-white px-4 py-3 shadow-card">
+        <span class="mr-1 text-[0.65rem] font-bold uppercase tracking-[0.14em] text-ink-400">Excel</span>
+
+        @can(\App\Support\AdminPermission::PRICE_LIST_IMPORT)
+            <button type="button" class="viewer-tool" data-excel-open>
+                <x-icons.upload class="h-4 w-4" />
+                Import Excel
+            </button>
+        @endcan
+
+        @can(\App\Support\AdminPermission::PRICE_LIST_EXPORT)
+            <a href="{{ route('superadmin.price-list.materials.excel.export', $technology) }}" class="viewer-tool">
+                <x-icons.download class="h-4 w-4" />
+                Export Excel
+            </a>
+
+            <a href="{{ route('superadmin.price-list.materials.excel.template', $technology) }}" class="viewer-tool">
+                <x-icons.download class="h-4 w-4" />
+                Template Excel
+            </a>
+
+            <a href="{{ route('superadmin.price-list.materials.excel.example', $technology) }}" class="viewer-tool">
+                <x-icons.book class="h-4 w-4" />
+                Contoh Excel
+            </a>
+        @endcan
+    </div>
+
+    @can(\App\Support\AdminPermission::PRICE_LIST_IMPORT)
+        @include('superadmin.price-list.material.import-modal', ['technology' => $technology, 'label' => $label])
+    @endcan
+@endif
 
 {{-- Penghapusan massal. Formulirnya sengaja DI LUAR tabel: tiap baris sudah
      punya formulir hapus satuannya sendiri, dan formulir bersarang bukan HTML

@@ -321,6 +321,17 @@ $staffRoutes = function () {
             ->middleware($can(AdminPermission::QUOTATION_DELETE))
             ->name('quotations.destroy');
 
+        // Tombol "Hapus" pada DAFTAR penawaran berhenti di sini: penawaran
+        // dibatalkan, bukan dihapus, sehingga history dan Activity Log-nya
+        // tetap dapat diperiksa. Keduanya menuntut hak yang sama dengan
+        // penghapusan, dan aksi massalnya memakai jalur yang sama persis.
+        Route::post('penawaran/penawaran/pembatalan-massal', [Admin\QuotationRequestController::class, 'cancelMany'])
+            ->middleware($can(AdminPermission::QUOTATION_DELETE))
+            ->name('quotations.cancel-many');
+        Route::post('penawaran/penawaran/{quotation}/batalkan', [Admin\QuotationRequestController::class, 'cancel'])
+            ->middleware($can(AdminPermission::QUOTATION_DELETE))
+            ->name('quotations.cancel');
+
         // Keputusan atas permintaan pembatalan yang diajukan pelanggan — ikut
         // mengubah status penawaran.
         Route::post('penawaran/penawaran/{quotation}/pembatalan/setujui', [Admin\QuotationRequestController::class, 'approveCancellation'])
@@ -348,6 +359,28 @@ $staffRoutes = function () {
             ->name('quotations.items.update');
 
         /*
+        | Verifikasi pembayaran SEKALI BAYAR, langsung dari Detail Penawaran.
+        |
+        | Inilah satu-satunya tempat pembayaran sekali bayar diputuskan; menu
+        | Pembayaran khusus menangani pembayaran bertahap. Satu bukti karena itu
+        | tidak pernah menunggu di dua antrean sekaligus.
+        |
+        | Keputusannya menuntut hak `payment.verify` di samping `quotation.view`
+        | grup ini: membuka penawaran tidak dengan sendirinya berarti boleh
+        | memutuskan uang yang masuk. Melihat buktinya cukup `quotation.view`,
+        | sama seperti mengunduh berkas modelnya.
+        */
+        Route::get('penawaran/penawaran/{quotation}/pembayaran/bukti', [Admin\QuotationPaymentController::class, 'proof'])
+            ->name('quotations.payment.proof');
+
+        Route::middleware($can(AdminPermission::PAYMENT_VERIFY))->group(function () {
+            Route::post('penawaran/penawaran/{quotation}/pembayaran/terima', [Admin\QuotationPaymentController::class, 'accept'])
+                ->name('quotations.payment.accept');
+            Route::post('penawaran/penawaran/{quotation}/pembayaran/tolak', [Admin\QuotationPaymentController::class, 'reject'])
+                ->name('quotations.payment.reject');
+        });
+
+        /*
         | Kurs USD/IDR untuk Form Perhitungan SLA Industries. Dibaca formulirnya
         | saat dibuka, pada tiap penyegaran berkala, dan oleh tombol "Coba Lagi".
         | Hanya dipakai formulir penetapan harga, jadi mengikuti hak Edit.
@@ -365,17 +398,20 @@ $staffRoutes = function () {
             ->name('quotations.items.sla-industries');
     });
 
-    // Verifikasi Pembayaran: bukti transfer yang masuk beserta keputusan
-    // terima atau tolak.
+    /*
+    | Verifikasi Pembayaran: khusus pembayaran BERTAHAP.
+    |
+    | Penawaran yang membayar sekali diputuskan dari Detail Penawaran (lihat
+    | grup Penawaran di atas), jadi route terima/tolak untuk penawaran utuh
+    | tidak lagi ada di sini — satu pembayaran hanya punya satu sumber
+    | verifikasi. Yang tinggal adalah antrean per termin beserta keputusannya,
+    | yang memang hanya dimiliki pelanggan Business dengan Payment Term.
+    */
     Route::middleware($can(AdminPermission::PAYMENT_VIEW))->group(function () use ($can) {
         Route::get('pembayaran/verifikasi', [Admin\PaymentController::class, 'index'])->name('payments.index');
-        Route::get('pembayaran/verifikasi/{quotation}/bukti', [Admin\PaymentController::class, 'proof'])->name('payments.proof');
         Route::get('pembayaran/verifikasi/termin/{installment}/bukti/{proof}', [Admin\PaymentController::class, 'installmentProof'])->name('payments.installments.proof');
 
-        // Keputusan pembayaran penuh maupun per termin.
         Route::middleware($can(AdminPermission::PAYMENT_VERIFY))->group(function () {
-            Route::post('pembayaran/verifikasi/{quotation}/terima', [Admin\PaymentController::class, 'approve'])->name('payments.approve');
-            Route::post('pembayaran/verifikasi/{quotation}/tolak', [Admin\PaymentController::class, 'reject'])->name('payments.reject');
             Route::post('pembayaran/verifikasi/termin/{installment}/terima', [Admin\PaymentController::class, 'approveInstallment'])->name('payments.installments.approve');
             Route::post('pembayaran/verifikasi/termin/{installment}/tolak', [Admin\PaymentController::class, 'rejectInstallment'])->name('payments.installments.reject');
         });
@@ -413,6 +449,35 @@ $staffRoutes = function () {
         Route::get('penawaran/notifikasi/terbaru', [Admin\NotificationController::class, 'latest'])->name('notifications.latest');
         Route::post('penawaran/notifikasi/baca-semua', [Admin\NotificationController::class, 'readAll'])->name('notifications.read-all');
         Route::post('penawaran/notifikasi/{notification}/baca', [Admin\NotificationController::class, 'read'])->name('notifications.read');
+    });
+
+    /*
+    | Color: warna material yang tersedia beserta kode hexanya. Dipakai Admin
+    | maupun Superadmin, jadi berada di sini bersama menu operasional lain.
+    |
+    | Route "tambah" didaftarkan sebelum route berparameter agar tidak
+    | tertangkap sebagai id warna.
+    */
+    Route::middleware($can(AdminPermission::COLOR_VIEW))->group(function () use ($can) {
+        Route::get('color/warna', [Admin\ColorController::class, 'index'])->name('colors.index');
+
+        Route::get('color/warna/tambah', [Admin\ColorController::class, 'create'])
+            ->middleware($can(AdminPermission::COLOR_CREATE))
+            ->name('colors.create');
+        Route::post('color/warna', [Admin\ColorController::class, 'store'])
+            ->middleware($can(AdminPermission::COLOR_CREATE))
+            ->name('colors.store');
+
+        Route::get('color/warna/{color}/ubah', [Admin\ColorController::class, 'edit'])
+            ->middleware($can(AdminPermission::COLOR_EDIT))
+            ->name('colors.edit');
+        Route::patch('color/warna/{color}', [Admin\ColorController::class, 'update'])
+            ->middleware($can(AdminPermission::COLOR_EDIT))
+            ->name('colors.update');
+
+        Route::delete('color/warna/{color}', [Admin\ColorController::class, 'destroy'])
+            ->middleware($can(AdminPermission::COLOR_DELETE))
+            ->name('colors.destroy');
     });
 
     /*
@@ -532,6 +597,33 @@ Route::prefix('superadmin')->name('superadmin.')->middleware(['auth', 'superadmi
     // Switch Status pada tabel Teknologi: aktif = tampil di Edit Specification.
     Route::patch('price-list/teknologi/{technology}/status', [SuperAdmin\PrintTechnologyController::class, 'updateStatus'])->name('price-list.technologies.status');
     Route::delete('price-list/teknologi/{technology}', [SuperAdmin\PrintTechnologyController::class, 'destroy'])->name('price-list.technologies.destroy');
+
+    /*
+    | Import & Export Excel material satu teknologi.
+    |
+    | Pelengkap CRUD di bawah, bukan penggantinya. Didaftarkan SEBELUM route
+    | material berparameter agar "excel" tidak tertangkap sebagai id material.
+    |
+    | Seluruh grup ini sudah berada di dalam wilayah Superadmin (middleware
+    | `superadmin` di atas). Hak akses `price_list.export`/`price_list.import`
+    | dipasang di ATAS itu supaya pemeriksaannya benar-benar ada di backend —
+    | bukan sekadar tombol yang disembunyikan — dan tetap berlaku bila menu
+    | Price List suatu saat dibuka juga untuk Admin. Superadmin selalu lolos.
+    */
+    $canPriceList = fn (string $permission) => 'admin.permission:'.$permission;
+
+    Route::middleware($canPriceList(AdminPermission::PRICE_LIST_EXPORT))->group(function () {
+        Route::get('price-list/material/{technology}/excel/export', [SuperAdmin\MaterialExcelController::class, 'export'])->name('price-list.materials.excel.export');
+        Route::get('price-list/material/{technology}/excel/template', [SuperAdmin\MaterialExcelController::class, 'template'])->name('price-list.materials.excel.template');
+        Route::get('price-list/material/{technology}/excel/contoh', [SuperAdmin\MaterialExcelController::class, 'example'])->name('price-list.materials.excel.example');
+    });
+
+    Route::middleware($canPriceList(AdminPermission::PRICE_LIST_IMPORT))->group(function () {
+        // Dua langkah: pratinjau dulu, simpan kemudian. Lihat controllernya.
+        Route::post('price-list/material/{technology}/excel/pratinjau', [SuperAdmin\MaterialExcelController::class, 'preview'])->name('price-list.materials.excel.preview');
+        Route::post('price-list/material/{technology}/excel/import', [SuperAdmin\MaterialExcelController::class, 'store'])->name('price-list.materials.excel.import');
+        Route::post('price-list/material/{technology}/excel/batal', [SuperAdmin\MaterialExcelController::class, 'cancel'])->name('price-list.materials.excel.cancel');
+    });
 
     /*
     | Material milik satu teknologi. Teknologinya menjadi parameter route,

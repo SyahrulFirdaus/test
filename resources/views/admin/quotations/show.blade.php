@@ -97,8 +97,15 @@
                 </a>
 
                 @can(\App\Support\AdminPermission::QUOTATION_DELETE)
+                {{-- Penghapusan PERMANEN, berbeda dari tombol "Hapus" pada daftar
+                     penawaran yang hanya membatalkan. Pertanyaannya memakai modal
+                     yang sama supaya rupanya konsisten, dan kata-katanya menegaskan
+                     bedanya. --}}
                 <form method="POST" action="{{ staff_route('quotations.destroy', $quotation) }}"
-                      onsubmit="return confirm('Hapus permintaan {{ $quotation->tracking_number }} beserta berkas modelnya? Tindakan ini tidak dapat dibatalkan.');">
+                      data-confirm="Permintaan {{ $quotation->tracking_number }} beserta berkas modelnya akan dihapus permanen. Tindakan ini tidak dapat dibatalkan. Untuk menghentikan penawaran tanpa kehilangan datanya, batalkan saja dari daftar Penawaran."
+                      data-confirm-title="Hapus Permanen?"
+                      data-confirm-accept="Ya, Hapus Permanen"
+                      data-confirm-cancel="Batal">
                     @csrf
                     @method('DELETE')
                     <button type="submit" class="viewer-tool border-brand-200 text-brand-700 hover:border-brand-600 hover:bg-brand-50">
@@ -165,6 +172,15 @@
                         </div>
                     @endif
                 </section>
+
+                {{-- ============ PEMBAYARAN ============
+                     Verifikasi pembayaran sekali bayar dilakukan di sini, bukan
+                     lagi lewat menu Pembayaran — yang kini khusus menangani
+                     pembayaran bertahap. --}}
+                @include('admin.quotations.partials.payment', [
+                    'quotation' => $quotation,
+                    'rupiah' => fn ($value) => 'Rp'.number_format((float) $value, 0, ',', '.'),
+                ])
 
                 {{-- ============ DAFTAR MODEL DALAM SATU PENAWARAN ============ --}}
                 @php

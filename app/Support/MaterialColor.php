@@ -2,7 +2,9 @@
 
 namespace App\Support;
 
+use App\Models\PrintColor;
 use App\Services\PrintEstimator;
+use Throwable;
 
 /**
  * Simulasi warna material.
@@ -10,13 +12,61 @@ use App\Services\PrintEstimator;
  * Pilihan ini hanya mengubah tampilan model di viewer dan dicatat sebagai
  * preferensi pelanggan pada permintaan penawaran — berkas model yang diunggah
  * sama sekali tidak diubah.
+ *
+ * Daftarnya dikelola pengelola lewat menu Color (tabel `print_colors`). Isi
+ * `printing.material_colors.options` tetap ada sebagai cadangan: dipakai bila
+ * tabelnya belum sempat dibuat — saat migrasi berjalan, misalnya — sehingga
+ * halaman tidak pernah kehabisan warna sama sekali.
  */
 class MaterialColor
 {
+    /**
+     * Cache satu permintaan.
+     *
+     * Warna dibaca berkali-kali dalam satu halaman (setiap material, setiap
+     * model pada penawaran), jadi tabelnya cukup dibaca sekali. null berarti
+     * belum pernah dibaca pada permintaan ini.
+     *
+     * @var array<string, array<string, string>>|null
+     */
+    private static ?array $cache = null;
+
     /** @return array<string, array<string, string>> */
     public static function all(): array
     {
+        if (self::$cache !== null) {
+            return self::$cache;
+        }
+
+        try {
+            $colors = PrintColor::ordered()
+                ->get()
+                ->mapWithKeys(fn (PrintColor $color) => [
+                    $color->key => ['label' => $color->label, 'hex' => $color->hex],
+                ])
+                ->all();
+        } catch (Throwable) {
+            // Tabelnya belum ada (mis. saat migrasi pertama dijalankan).
+            $colors = [];
+        }
+
+        return self::$cache = $colors !== [] ? $colors : self::fallback();
+    }
+
+    /**
+     * Daftar bawaan dari config, dipakai selama tabelnya masih kosong.
+     *
+     * @return array<string, array<string, string>>
+     */
+    public static function fallback(): array
+    {
         return config('printing.material_colors.options', []);
+    }
+
+    /** Lupakan hasil bacaan tabel — dipanggil setelah menu Color menyimpan. */
+    public static function forget(): void
+    {
+        self::$cache = null;
     }
 
     /** @return array<int, string> */

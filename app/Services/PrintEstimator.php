@@ -158,9 +158,13 @@ class PrintEstimator
                         'characteristics' => (object) ($material['characteristics'] ?? []),
                         'pros' => array_values((array) ($material['pros'] ?? [])),
                         'cons' => array_values((array) ($material['cons'] ?? [])),
-                        'maxSize' => $material['max_size'] ?? null,
-                        'minSize' => $material['min_size'] ?? null,
-                        'minSizeSlender' => $material['min_size_slender'] ?? null,
+                        // `maxSize` hanya ada bila material itu terhubung ke
+                        // sebuah mesin yang volume cetaknya lengkap; tanpa itu
+                        // nilainya null dan Edit Specification tidak menuliskan
+                        // baris ukuran maksimum sama sekali.
+                        'maxSize' => MaterialCatalog::size($material['max_size'] ?? null),
+                        'minSize' => MaterialCatalog::size($material['min_size'] ?? null),
+                        'minSizeSlender' => MaterialCatalog::size($material['min_size_slender'] ?? null),
 
                         // Material SLA/MJF/SLM dengan Kalkulator Manual:
                         // harganya ditetapkan tim setelah penawaran masuk, jadi

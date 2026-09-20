@@ -1,4 +1,8 @@
 {
+  "_confirm-dialog-y3DWp8NB.js": {
+    "file": "assets/confirm-dialog-y3DWp8NB.js",
+    "name": "confirm-dialog"
+  },
   "_mesh-preview-BekuCK68.js": {
     "file": "assets/mesh-preview-BekuCK68.js",
     "name": "mesh-preview",
@@ -23,7 +27,7 @@
     "name": "three.module"
   },
   "resources/css/app.css": {
-    "file": "assets/app-Br8owKUd.css",
+    "file": "assets/app-BwFUjYAb.css",
     "src": "resources/css/app.css",
     "isEntry": true
   },
@@ -39,10 +43,13 @@
     ]
   },
   "resources/js/app.js": {
-    "file": "assets/app-BTqHjmLT.js",
+    "file": "assets/app-WqI957RO.js",
     "name": "app",
     "src": "resources/js/app.js",
-    "isEntry": true
+    "isEntry": true,
+    "imports": [
+      "_confirm-dialog-y3DWp8NB.js"
+    ]
   },
   "resources/js/auth-scene.js": {
     "file": "assets/auth-scene-BZrOMgmb.js",
@@ -55,10 +62,13 @@
     ]
   },
   "resources/js/dashboard.js": {
-    "file": "assets/dashboard-BpG5le-z.js",
+    "file": "assets/dashboard-CJhn18uD.js",
     "name": "dashboard",
     "src": "resources/js/dashboard.js",
-    "isEntry": true
+    "isEntry": true,
+    "imports": [
+      "_confirm-dialog-y3DWp8NB.js"
+    ]
   },
   "resources/js/model-preview.js": {
     "file": "assets/model-preview-CWdP3lsj.js",
@@ -73,7 +83,7 @@
     ]
   },
   "resources/js/model-viewer.js": {
-    "file": "assets/model-viewer-B5td3UKz.js",
+    "file": "assets/model-viewer-BX_ce_8U.js",
     "name": "model-viewer",
     "src": "resources/js/model-viewer.js",
     "isEntry": true,

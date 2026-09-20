@@ -59,6 +59,20 @@ class PaymentFlowTest extends TestCase
             'payment_due_at' => now()->addHours(24),
         ], $overrides));
 
+        /*
+         * Status "Pengecekan Pembayaran" selalu berarti buktinya sudah masuk —
+         * itulah yang memindahkannya ke sana. Fixture yang melompatinya akan
+         * menguji keadaan yang tidak pernah ada di produksi, jadi bukti
+         * bawaannya dipasang di sini kecuali pengujinya menentukan sendiri.
+         */
+        if ($quotation->status === QuotationStatus::PAYMENT_REVIEW && blank($quotation->payment_proof_path)) {
+            $quotation->forceFill([
+                'payment_proof_path' => 'payments/2026-08/bukti.jpg',
+                'payment_proof_name' => 'bukti.jpg',
+                'payment_proof_uploaded_at' => now(),
+            ])->save();
+        }
+
         $quotation->items()->create([
             'position' => 1,
             'file_name' => 'bracket.stl',
@@ -189,7 +203,13 @@ class PaymentFlowTest extends TestCase
 
     /* ------------------------------------------------ verifikasi admin --- */
 
-    public function test_admin_melihat_daftar_verifikasi_pembayaran(): void
+    /**
+     * Bukti pembayaran sekali bayar diputuskan dari Detail Penawaran.
+     *
+     * Menu Pembayaran tidak lagi mengantrenya: halaman itu kini khusus
+     * pembayaran bertahap, yang memang punya beberapa bukti per penawaran.
+     */
+    public function test_verifikasi_pembayaran_ada_di_detail_penawaran(): void
     {
         $quotation = $this->quotation([
             'status' => QuotationStatus::PAYMENT_REVIEW,
@@ -199,14 +219,19 @@ class PaymentFlowTest extends TestCase
         ]);
 
         $this->actingAs($this->admin)
-            ->get(route('admin.payments.index'))
+            ->get(route('admin.quotations.show', $quotation))
             ->assertOk()
-            ->assertSee('Verifikasi Pembayaran')
-            ->assertSee($quotation->tracking_number)
-            ->assertSee('Andi Saputra')
+            ->assertSee('Pembayaran')
+            ->assertSee('bukti.jpg')
             ->assertSee('Rp175.000')
             ->assertSee('Terima Pembayaran')
             ->assertSee('Tolak Pembayaran');
+
+        // Dan TIDAK mengantre lagi di menu Pembayaran.
+        $this->actingAs($this->admin)
+            ->get(route('admin.payments.index'))
+            ->assertOk()
+            ->assertDontSee($quotation->tracking_number);
     }
 
     public function test_admin_dapat_menerima_pembayaran(): void
@@ -216,13 +241,14 @@ class PaymentFlowTest extends TestCase
         $quotation = $this->quotation(['status' => QuotationStatus::PAYMENT_REVIEW]);
 
         $this->actingAs($this->admin)
-            ->post(route('admin.payments.approve', $quotation))
+            ->post(route('admin.quotations.payment.accept', $quotation))
             ->assertSessionHas('status');
 
         $quotation->refresh();
 
         $this->assertSame(QuotationStatus::PAYMENT_RECEIVED, $quotation->status);
         $this->assertNotNull($quotation->payment_verified_at);
+        $this->assertSame($this->admin->id, $quotation->payment_verified_by);
 
         Notification::assertSentTo($this->customer, QuotationStatusUpdated::class);
     }
@@ -234,7 +260,7 @@ class PaymentFlowTest extends TestCase
         $quotation = $this->quotation(['status' => QuotationStatus::PAYMENT_REVIEW]);
 
         $this->actingAs($this->admin)
-            ->post(route('admin.payments.reject', $quotation), [
+            ->post(route('admin.quotations.payment.reject', $quotation), [
                 'reason' => 'Nominal transfer kurang dari total tagihan.',
             ])
             ->assertSessionHas('status');
@@ -243,6 +269,10 @@ class PaymentFlowTest extends TestCase
 
         $this->assertSame(QuotationStatus::PAYMENT_REJECTED, $quotation->status);
         $this->assertSame('Nominal transfer kurang dari total tagihan.', $quotation->payment_rejection_reason);
+        $this->assertSame($this->admin->id, $quotation->payment_rejected_by);
+        $this->assertNotNull($quotation->payment_rejected_at);
+        // Penolakan bukan verifikasi.
+        $this->assertNull($quotation->payment_verified_at);
 
         Notification::assertSentTo($this->customer, QuotationStatusUpdated::class);
     }
@@ -252,7 +282,7 @@ class PaymentFlowTest extends TestCase
         $quotation = $this->quotation(['status' => QuotationStatus::PAYMENT_REVIEW]);
 
         $this->actingAs($this->admin)
-            ->post(route('admin.payments.reject', $quotation), ['reason' => ''])
+            ->post(route('admin.quotations.payment.reject', $quotation), ['reason' => ''])
             ->assertSessionHasErrors('reason');
 
         $this->assertSame(QuotationStatus::PAYMENT_REVIEW, $quotation->fresh()->status);

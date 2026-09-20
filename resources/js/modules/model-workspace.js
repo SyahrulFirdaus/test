@@ -31,6 +31,7 @@ import {
     formatCount,
     formatCurrency,
     formatLeadTime,
+    isManualEstimate,
     formatNumber,
     sumPrices,
 } from './print-estimator';
@@ -41,10 +42,21 @@ const DEFAULT_MAX_MODELS = 25;
 const show = (el, display = 'flex') => el && (el.style.display = display);
 const hide = (el) => el && (el.style.display = 'none');
 
+/**
+ * Ukuran yang layak ditulis: ketiga sisinya ada dan lebih besar dari nol.
+ *
+ * Server sudah menyaringnya lewat App\Support\MaterialCatalog::size(), tetapi
+ * penjaga yang sama diulang di sini supaya tidak ada jalan mana pun — model
+ * lama di localStorage, payload yang di-cache — yang berakhir sebagai
+ * "0 × 0 × 0 mm" di layar.
+ */
+const isSize = (size) =>
+    !!size && ['x', 'y', 'z'].every((axis) => Number.isFinite(Number(size[axis])) && Number(size[axis]) > 0);
+
 /** Ukuran ditulis "250 × 250 × 300 mm"; pecahannya dibulatkan satu desimal. */
 const sizeFormatter = new Intl.NumberFormat('id-ID', { maximumFractionDigits: 1 });
 const sizeText = (size) =>
-    size
+    isSize(size)
         ? `${sizeFormatter.format(size.x)} × ${sizeFormatter.format(size.y)} × ${sizeFormatter.format(size.z)} mm`
         : '-';
 
@@ -813,7 +825,15 @@ export default class ModelWorkspace {
                             data-spec-material-option="${escapeAttribute(material.name)}"
                             aria-pressed="${material.name === this.draft.material}">
                         <span class="spec-option-title">${escapeHtml(materialLabel(material))}</span>
-                        <span class="spec-option-note">Maks. ${escapeHtml(sizeText(material.maxSize))}</span>
+                        ${
+                            // Batas ukuran hanya dimiliki material yang sudah
+                            // terhubung ke sebuah mesin. Tanpa mesin tidak ada
+                            // angka yang benar untuk ditulis, jadi keterangannya
+                            // ditiadakan — bukan diisi "Maks. -".
+                            isSize(material.maxSize)
+                                ? `<span class="spec-option-note">Maks. ${escapeHtml(sizeText(material.maxSize))}</span>`
+                                : ''
+                        }
                     </button>
                 `
             )
@@ -894,13 +914,46 @@ export default class ModelWorkspace {
 
         setText('[data-spec-material-name]', material ? materialLabel(material) : '-');
         setText('[data-spec-material-description]', material?.description ?? '');
-        setText('[data-spec-material-max]', sizeText(material?.maxSize));
+        // Batas ukuran: barisnya hanya digambar bila angkanya ada. Ukuran
+        // maksimum berasal dari mesin material, jadi material tanpa mesin
+        // memang tidak punya — dan barisnya ditiadakan, bukan diisi "-".
+        const setLimit = (rowSelector, valueSelector, value) => {
+            const row = this.specModal.querySelector(rowSelector);
 
-        const minimum = sizeText(material?.minSize);
-        setText(
-            '[data-spec-material-min]',
-            material?.minSizeSlender ? `${minimum} / ${sizeText(material.minSizeSlender)}` : minimum
+            // Dikosongkan saat tidak ada angkanya, supaya batas material
+            // sebelumnya tidak tertinggal di dalam baris yang disembunyikan.
+            setText(valueSelector, value ?? '');
+
+            if (row) {
+                row.style.display = value ? 'flex' : 'none';
+            }
+
+            return !!value;
+        };
+
+        const hasMax = setLimit(
+            '[data-spec-material-max-row]',
+            '[data-spec-material-max]',
+            isSize(material?.maxSize) ? sizeText(material.maxSize) : null
         );
+
+        const hasMin = setLimit(
+            '[data-spec-material-min-row]',
+            '[data-spec-material-min]',
+            isSize(material?.minSize)
+                ? isSize(material?.minSizeSlender)
+                    ? `${sizeText(material.minSize)} / ${sizeText(material.minSizeSlender)}`
+                    : sizeText(material.minSize)
+                : null
+        );
+
+        // Tanpa satu pun batas, pembatas dan jarak di atasnya ikut hilang agar
+        // tidak menyisakan garis kosong menggantung.
+        const limits = this.specModal.querySelector('[data-spec-material-limits]');
+
+        if (limits) {
+            limits.style.display = hasMax || hasMin ? 'block' : 'none';
+        }
 
         const characteristics = this.specModal.querySelector('[data-spec-material-characteristics]');
 
@@ -1106,7 +1159,7 @@ export default class ModelWorkspace {
             return;
         }
 
-        set('time', formatLeadTime(summary.minutes));
+        set('time', formatLeadTime(summary.minutes, isManualEstimate(preview.payload.estimate)));
         set('cost', this.showsPrice ? formatCurrency(summary.cost) : 'Login dulu');
     }
 
@@ -1224,7 +1277,7 @@ export default class ModelWorkspace {
                         ${this.showsPrice
                             ? `<span class="block font-display text-sm font-bold text-brand-700">${formatCurrency(summary.cost)}</span>`
                             : '<span class="block text-[0.65rem] font-semibold text-ink-400">Login untuk harga</span>'}
-                        <span class="block text-[0.6rem] text-ink-400">${formatLeadTime(summary.minutes ?? 0)}</span>
+                        <span class="block text-[0.6rem] text-ink-400">${formatLeadTime(summary.minutes ?? 0, isManualEstimate(record.payload.estimate))}</span>
                     </span>
                 </div>
 
@@ -1294,9 +1347,12 @@ export default class ModelWorkspace {
                 return {
                     weightG: carry.weightG + (record.summary.weightG ?? 0),
                     minutes: carry.minutes + (estimate.totalMinutes ?? 0),
+                    // Satu model berharga Rumus Harga Manual sudah menentukan
+                    // lead time seluruh penawaran.
+                    manualPricing: carry.manualPricing || isManualEstimate(estimate),
                 };
             },
-            { weightG: 0, minutes: 0 }
+            { weightG: 0, minutes: 0, manualPricing: false }
         );
 
         // Harga dijumlahkan terpisah: satu model yang harganya belum ditetapkan
@@ -1343,7 +1399,7 @@ export default class ModelWorkspace {
                             </p>
                         </td>
                         <td class="px-2 py-3 text-right text-ink-700">${formatCount(summary.quantity ?? 1)}</td>
-                        <td class="${this.showsPrice ? 'px-2' : 'pl-2'} py-3 text-right text-ink-700">${formatLeadTime(estimate.totalMinutes ?? 0)}</td>
+                        <td class="${this.showsPrice ? 'px-2' : 'pl-2'} py-3 text-right text-ink-700">${formatLeadTime(estimate.totalMinutes ?? 0, isManualEstimate(estimate))}</td>
                         ${this.showsPrice
                             ? `<td class="py-3 pl-2 text-right font-display font-bold text-brand-700">${formatCurrency(estimate.totalCost)}</td>`
                             : ''}
@@ -1360,7 +1416,7 @@ export default class ModelWorkspace {
         // penawaran — bukan object yang paling lama, dan bukan per object.
         // Aturannya ada di App\Support\LeadTime: sampai 20 jam Express,
         // lebihnya Standard.
-        this.setTotal('time', formatLeadTime(totals.minutes));
+        this.setTotal('time', formatLeadTime(totals.minutes, totals.manualPricing));
         this.setTotal('cost', this.showsPrice ? formatCurrency(totals.cost) : '-');
 
         hide(this.summaryPlaceholder);
