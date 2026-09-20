@@ -51,12 +51,24 @@ use Illuminate\Validation\Rule;
  */
 class RegisteredUserController extends Controller
 {
-    /** Pemilihan tipe akun: Personal atau Business. */
+    /**
+     * Pemilihan tipe akun.
+     *
+     * Hanya tipe yang sedang dibuka yang ditawarkan — lihat
+     * config/registration.php. Saat tinggal satu pilihan, pilihan itu langsung
+     * tercentang supaya pendaftar tidak dihadapkan pada satu kartu yang harus
+     * diklik lebih dulu tanpa alternatif apa pun.
+     */
     public function create(): View
     {
+        $types = CustomerType::available();
+        $selected = $this->state()['customer_type'] ?? null;
+
         return view('auth.register', [
-            'types' => CustomerType::all(),
-            'selected' => $this->state()['customer_type'] ?? null,
+            'types' => $types,
+            'selected' => CustomerType::isAvailable($selected)
+                ? $selected
+                : (count($types) === 1 ? array_key_first($types) : null),
         ]);
     }
 
@@ -68,8 +80,10 @@ class RegisteredUserController extends Controller
      */
     public function type(Request $request): RedirectResponse
     {
+        // `availableKeys()`, bukan `keys()`: tipe yang pendaftarannya sedang
+        // ditutup tidak boleh lolos walau nilainya dikirim langsung.
         $validated = $request->validate(
-            ['customer_type' => ['required', Rule::in(CustomerType::keys())]],
+            ['customer_type' => ['required', Rule::in(CustomerType::availableKeys())]],
             ['customer_type.required' => 'Silakan pilih tipe akun terlebih dahulu.'],
         );
 
@@ -385,7 +399,10 @@ class RegisteredUserController extends Controller
         $state = $this->state();
         $type = $state['customer_type'] ?? null;
 
-        if (! CustomerType::exists($type)) {
+        // Pendaftaran yang terlanjur berjalan dengan tipe yang kemudian
+        // ditutup dikembalikan ke pemilihan tipe, bukan dibiarkan menyelesaikan
+        // alur yang sudah tidak ditawarkan lagi.
+        if (! CustomerType::isAvailable($type)) {
             return redirect()->route('register');
         }
 

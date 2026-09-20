@@ -148,6 +148,12 @@
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <meta name="robots" content="noindex, nofollow">
 
+    {{-- Lalu lintas pengelola tidak ikut dihitung: admin dan superadmin bukan
+         calon pelanggan, dan menghitungnya hanya mengaburkan data konversi. --}}
+    @unless ($isAdmin)
+        @include('partials.google-tag')
+    @endunless
+
     <title>@yield('title', 'Dashboard') &middot; {{ $isSuperAdmin ? 'Superadmin' : ($isAdmin ? 'Admin' : 'Akun') }} {{ $company->name }}</title>
 
     <link rel="icon" type="image/svg+xml" href="{{ asset('images/favicon.svg') }}">

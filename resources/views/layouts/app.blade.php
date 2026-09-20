@@ -7,6 +7,8 @@
 
     @include('partials.seo')
 
+    @include('partials.google-tag')
+
     <link rel="icon" type="image/svg+xml" href="{{ asset('images/favicon.svg') }}">
     <link rel="apple-touch-icon" href="{{ asset('images/favicon.svg') }}">
 

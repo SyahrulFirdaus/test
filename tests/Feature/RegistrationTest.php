@@ -38,6 +38,19 @@ class RegistrationTest extends TestCase
         Artisan::call('wilayah:import', ['file' => base_path('tests/fixtures/wilayah-test.csv')]);
     }
 
+    /**
+     * Buka kembali pendaftaran akun Business.
+     *
+     * Pintunya sedang ditutup (config/registration.php), tetapi seluruh alurnya
+     * tetap harus terjaga — pengujian di bawah inilah yang memastikan alur itu
+     * masih utuh saat nanti dibuka lagi. Penutupannya sendiri diuji terpisah
+     * pada blok "pendaftaran business ditutup".
+     */
+    private function enableBusinessAccounts(): void
+    {
+        config(['registration.business_accounts' => true]);
+    }
+
     /** @return array<string, string> */
     private function accountPayload(array $overrides = []): array
     {
@@ -244,6 +257,8 @@ class RegistrationTest extends TestCase
     /** Menyelesaikan langkah Data Kontak dan Data Perusahaan. */
     private function startAsBusiness(array $company = []): void
     {
+        $this->enableBusinessAccounts();
+
         $this->post(route('register.type'), ['customer_type' => CustomerType::BUSINESS])
             ->assertRedirect(route('register.step', 'account'));
 
@@ -258,6 +273,8 @@ class RegistrationTest extends TestCase
 
     public function test_alur_business_empat_langkah_dengan_data_perusahaan(): void
     {
+        $this->enableBusinessAccounts();
+
         $this->post(route('register.type'), ['customer_type' => CustomerType::BUSINESS]);
 
         $this->get(route('register.step', 'account'))
@@ -297,7 +314,7 @@ class RegistrationTest extends TestCase
             'Kebutuhan Produksi',
             'Teknologi &amp; Material',
             'Kebutuhan Finishing',
-            'Timeline & Budget',
+            'Timeline &amp; Budget',
             'Kebutuhan Bisnis &amp; Procurement',
         ] as $section) {
             $response->assertSee($section, false);
@@ -378,6 +395,8 @@ class RegistrationTest extends TestCase
 
     public function test_relasi_wilayah_perusahaan_diperiksa_di_server(): void
     {
+        $this->enableBusinessAccounts();
+
         $this->post(route('register.type'), ['customer_type' => CustomerType::BUSINESS]);
         $this->post(route('register.step.store', 'account'), $this->accountPayload([
             'city' => null, 'postal_code' => null, 'address' => null,
@@ -462,6 +481,8 @@ class RegistrationTest extends TestCase
 
     public function test_mengganti_tipe_akun_membuang_jawaban_sebelumnya(): void
     {
+        $this->enableBusinessAccounts();
+
         $this->startAs(CustomerType::PERSONAL);
 
         $this->answerPersonalSteps([
@@ -480,10 +501,91 @@ class RegistrationTest extends TestCase
             ->assertRedirect(route('register.step', 'account'));
     }
 
+    /* ------------------------------------ pendaftaran business ditutup --- */
+
+    /**
+     * Bawaannya hanya Personal yang ditawarkan.
+     *
+     * Yang ditutup HANYA pintu pendaftarannya. Akun Business yang sudah ada
+     * tetap berjalan, tetap terbaca sebagai "Business", dan seluruh pertanyaan
+     * miliknya tetap tersimpan — lihat pengujian di blok tampilan dan admin.
+     */
+    public function test_halaman_pilih_tipe_hanya_menawarkan_personal(): void
+    {
+        $response = $this->get(route('register'))->assertOk();
+
+        $response->assertSee('Personal')
+            ->assertDontSee('Untuk kebutuhan perusahaan, engineering, produksi, prototype industri, procurement, dan kebutuhan bisnis.');
+
+        // Radio Business tidak ikut tergambar sama sekali.
+        $this->assertStringNotContainsString(
+            'value="'.CustomerType::BUSINESS.'"',
+            $response->getContent(),
+        );
+    }
+
+    /** Satu-satunya pilihan langsung tercentang, bukan dibiarkan kosong. */
+    public function test_pilihan_personal_sudah_tercentang_saat_menjadi_satu_satunya(): void
+    {
+        $html = $this->get(route('register'))->assertOk()->getContent();
+
+        $this->assertMatchesRegularExpression(
+            '/<input[^>]*value="'.CustomerType::PERSONAL.'"[^>]*\bchecked\b/',
+            $html,
+        );
+    }
+
+    /** Mengirim `business` langsung ke server pun ditolak, bukan hanya disembunyikan. */
+    public function test_tipe_business_ditolak_server_selama_ditutup(): void
+    {
+        $this->post(route('register.type'), ['customer_type' => CustomerType::BUSINESS])
+            ->assertSessionHasErrors('customer_type');
+
+        $this->get(route('register.step', 'account'))->assertRedirect(route('register'));
+    }
+
+    /**
+     * Pendaftaran business yang terlanjur berjalan dikembalikan ke awal.
+     *
+     * Bisa terjadi pada pendaftar yang membuka formulirnya tepat sebelum
+     * pintunya ditutup; alurnya tidak boleh diteruskan diam-diam.
+     */
+    public function test_pendaftaran_business_yang_sedang_berjalan_dihentikan(): void
+    {
+        $this->startAsBusiness();
+
+        // Pintunya ditutup di tengah jalan.
+        config(['registration.business_accounts' => false]);
+
+        $this->get(route('register.step', '1'))->assertRedirect(route('register'));
+        $this->post(route('register'))->assertRedirect(route('register'));
+
+        $this->assertSame(0, User::where('customer_type', CustomerType::BUSINESS)->count());
+    }
+
+    /** Akun Business yang sudah ada tidak tersentuh sama sekali. */
+    public function test_akun_business_lama_tetap_berjalan(): void
+    {
+        $user = User::factory()->create(['customer_type' => CustomerType::BUSINESS]);
+
+        $this->assertTrue($user->isBusiness());
+        $this->assertSame('Business', CustomerType::label($user->customer_type));
+
+        // Penyaringan di dashboard Superadmin tetap mengenal kedua tipe.
+        $this->assertSame(
+            ['personal' => 'Personal', 'business' => 'Business'],
+            CustomerType::options(),
+        );
+
+        $this->actingAs($user)->get(route('dashboard'))->assertOk()->assertSee('Business Account');
+    }
+
     /* --------------------------------------------------------- tampilan --- */
 
     public function test_halaman_pilih_tipe_menampilkan_kedua_kartu_tanpa_istilah_b2c_b2b(): void
     {
+        $this->enableBusinessAccounts();
+
         $response = $this->get(route('register'))->assertOk();
 
         $response->assertSee('Pilih tipe akun Anda')

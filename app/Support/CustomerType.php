@@ -17,7 +17,15 @@ class CustomerType
     /** Kebutuhan perusahaan: engineering, produksi, procurement. */
     public const BUSINESS = 'business';
 
-    /** @return array<int, string> */
+    /**
+     * Seluruh tipe yang dikenal sistem.
+     *
+     * Termasuk tipe yang pendaftarannya sedang ditutup: akun lama harus tetap
+     * terbaca dan tetap dapat disaring di dashboard. Untuk pendaftaran baru,
+     * pakai `availableKeys()`.
+     *
+     * @return array<int, string>
+     */
     public static function keys(): array
     {
         return [self::PERSONAL, self::BUSINESS];
@@ -26,6 +34,38 @@ class CustomerType
     public static function exists(?string $type): bool
     {
         return $type !== null && in_array($type, self::keys(), true);
+    }
+
+    /**
+     * Tipe yang saat ini dibuka untuk PENDAFTARAN BARU.
+     *
+     * Akun Business sementara ditutup lewat config/registration.php. Yang
+     * berubah hanya pintu pendaftarannya — akun Business yang sudah ada tidak
+     * tersentuh sama sekali.
+     *
+     * @return array<int, string>
+     */
+    public static function availableKeys(): array
+    {
+        return array_values(array_filter(
+            self::keys(),
+            fn (string $key) => $key !== self::BUSINESS || config('registration.business_accounts', false),
+        ));
+    }
+
+    public static function isAvailable(?string $type): bool
+    {
+        return $type !== null && in_array($type, self::availableKeys(), true);
+    }
+
+    /**
+     * Katalog tipe yang dibuka untuk pendaftaran baru, beserta keterangannya.
+     *
+     * @return array<string, array<string, string>>
+     */
+    public static function available(): array
+    {
+        return array_intersect_key(self::all(), array_flip(self::availableKeys()));
     }
 
     public static function default(): string

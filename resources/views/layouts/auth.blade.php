@@ -8,6 +8,8 @@
 
     <title>@yield('title') &middot; {{ $company->name }}</title>
 
+    @include('partials.google-tag')
+
     <link rel="icon" type="image/svg+xml" href="{{ asset('images/favicon.svg') }}">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>

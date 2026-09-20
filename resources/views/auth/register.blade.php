@@ -5,24 +5,33 @@
     B2C maupun B2B sengaja tidak pernah muncul. Nilai yang tersimpan di basis
     data tetap `personal` dan `business`.
 
-    Kedua kartu adalah label untuk radio yang disembunyikan, jadi pemilihannya
+    Kartunya adalah label untuk radio yang disembunyikan, jadi pemilihannya
     berjalan tanpa JavaScript sama sekali.
+
+    Yang ditawarkan hanya tipe yang sedang dibuka (lihat config/registration.php);
+    saat tinggal satu, kartunya sudah tercentang sejak halaman dimuat dan grid
+    dua kolomnya menyusut menjadi satu.
 --}}
 @extends('layouts.auth')
 
 @section('title', 'Daftar')
 @section('panelWidth', 'max-w-2xl')
 @section('heading', 'Buat akun baru')
-@section('subheading', 'Pilih tipe akun Anda terlebih dahulu agar kami dapat menyesuaikan pertanyaan dengan kebutuhan Anda.')
+@section('subheading', count($types) > 1
+    ? 'Pilih tipe akun Anda terlebih dahulu agar kami dapat menyesuaikan pertanyaan dengan kebutuhan Anda.'
+    : 'Lengkapi beberapa langkah singkat agar kami dapat menyesuaikan layanan dengan kebutuhan Anda.')
 
 @section('form')
     <form method="POST" action="{{ route('register.type') }}" class="mt-7">
         @csrf
 
         <fieldset>
-            <legend class="field-label">Pilih tipe akun Anda <span class="text-brand-600">*</span></legend>
+            <legend class="field-label">
+                {{ count($types) > 1 ? 'Pilih tipe akun Anda' : 'Tipe akun Anda' }}
+                <span class="text-brand-600">*</span>
+            </legend>
 
-            <div class="mt-4 grid gap-4 sm:grid-cols-2">
+            <div class="mt-4 grid gap-4 {{ count($types) > 1 ? 'sm:grid-cols-2' : '' }}">
                 @foreach ($types as $key => $type)
                     <div>
                         <input type="radio" id="type-{{ $key }}" name="customer_type" value="{{ $key }}"
