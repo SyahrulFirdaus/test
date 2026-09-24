@@ -34,7 +34,13 @@ class ColorCrudTest extends TestCase
 
     /* ============================================================ menu === */
 
-    public function test_sidebar_memuat_kelompok_color(): void
+    /**
+     * Warna kini dikelola sebagai bagian dari Material (Nama Color dan Hexa
+     * Color pada form Tambah/Ubah Material), jadi menu Color tidak lagi berdiri
+     * sendiri di sidebar. Halamannya sendiri sengaja dipertahankan — palet
+     * warna yang dipilih pelanggan masih dibaca dari sana.
+     */
+    public function test_sidebar_tidak_lagi_memuat_kelompok_color(): void
     {
         foreach (['superadmin' => 'superadmin.dashboard', 'admin' => 'admin.dashboard'] as $role => $route) {
             $user = $role === 'superadmin'
@@ -43,8 +49,8 @@ class ColorCrudTest extends TestCase
 
             $this->actingAs($user)->get(route($route))
                 ->assertOk()
-                ->assertSee('title="Color"', false)
-                ->assertSee('title="Color › Color"', false);
+                ->assertDontSee('title="Color"', false)
+                ->assertDontSee('title="Color › Color"', false);
         }
     }
 
@@ -151,8 +157,13 @@ class ColorCrudTest extends TestCase
         $this->assertSame('Merah Bata', $color->label);
         $this->assertSame('#A33A28', $color->hex);
 
-        MaterialColor::forget();
-        $this->assertSame('Merah Bata', MaterialColor::label('merah'));
+        /*
+         * Yang TIDAK lagi diuji di sini: nama yang tampil untuk kunci "merah".
+         * Warna kini dimiliki tiap material (App\Models\PrintMaterialColor) dan
+         * daftar itulah yang menentukan tampilannya; palet ini hanya lapisan
+         * dasar bagi kunci yang tidak dimiliki material mana pun. Urutan
+         * keduanya diuji di Tests\Feature\MaterialColorListTest.
+         */
     }
 
     /* ========================================================== hapus === */

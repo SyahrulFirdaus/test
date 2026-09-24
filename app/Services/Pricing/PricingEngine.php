@@ -42,7 +42,7 @@ class PricingEngine
      * Versi rumus engine. Naikkan bila cara perhitungan berubah, supaya
      * penawaran lama tetap dapat ditelusuri dihitung dengan aturan yang mana.
      */
-    public const VERSION = '2026.09.17';
+    public const VERSION = '2026.09.22';
 
     public const AUTOMATIC = PrintMaterial::PRICING_AUTOMATIC;
 
@@ -156,6 +156,12 @@ class PricingEngine
             'total_weight_g' => $estimate['total_weight_g'],
             'minutes' => $estimate['total_minutes'],
             'dimensions' => $input->scaledDimensionsMm(),
+
+            // Finishing dan kecepatan produksi menambah komponen harganya
+            // sendiri di atas harga printing — lihat SellingPriceEstimator.
+            'finishing' => $input->finishing,
+            'production_speed' => $input->productionSpeed,
+
             'force_automatic' => true,
         ]);
     }

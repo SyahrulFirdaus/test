@@ -26,6 +26,42 @@
     $isAutomatic = $pricingMethod === \App\Models\PrintMaterial::PRICING_AUTOMATIC;
     $isManual = $pricingMethod === \App\Models\PrintMaterial::PRICING_MANUAL;
     $percent = fn ($value) => rtrim(rtrim(number_format((float) $value, 2, ',', '.'), '0'), ',');
+
+    /*
+     * Baris daftar warna: kiriman yang ditolak validasi lebih dulu (supaya yang
+     * sudah diketik tidak hilang), baru warna yang tersimpan. Material baru
+     * dibukakan satu baris kosong agar tidak perlu menekan Tambah Color dulu.
+     */
+    $colorRows = collect(old('colors', $material->exists
+        ? $material->colors->map(fn ($color) => ['key' => $color->key, 'name' => $color->name, 'hex' => $color->hex])->all()
+        : []))
+        ->filter(fn ($row) => is_array($row))
+        ->map(fn ($row) => [
+            // Kunci warna yang sudah ada ikut dikirim kembali supaya mengganti
+            // namanya TIDAK membuat penawaran lama kehilangan warnanya.
+            'key' => (string) ($row['key'] ?? ''),
+            'name' => (string) ($row['name'] ?? ''),
+            'hex' => (string) ($row['hex'] ?? ''),
+        ])
+        ->values()
+        ->all();
+
+    if ($colorRows === [] && ! $material->exists) {
+        $colorRows = [['key' => '', 'name' => '', 'hex' => '#FFFFFF']];
+    }
+
+    /*
+     * Kelebihan, kekurangan, dan daftar finishing tinggal di `technical_spec` —
+     * tempat yang sejak awal dibaca halaman spesifikasi, jadi tidak ada kolom
+     * kedua untuk data yang sama. Keduanya disunting sebagai teks bertingkat,
+     * satu baris satu butir.
+     */
+    $spec = (array) ($material->technical_spec ?? []);
+    $advantages = old('advantages', implode("\n", (array) ($spec['pros'] ?? [])));
+    $disadvantages = old('disadvantages', implode("\n", (array) ($spec['cons'] ?? [])));
+
+    $finishingOptions = \App\Support\Finishing::all();
+    $selectedFinishings = (array) old('finishings', (array) ($spec['finishings'] ?? []));
 @endphp
 
 @section('title', $isEdit ? 'Ubah Material' : 'Tambah Material')
@@ -72,6 +108,127 @@
                        placeholder="mis. ESUN">
                 <p class="mt-1.5 text-xs text-ink-400">Keterangan internal; tidak ditampilkan kepada pelanggan.</p>
                 @error('brand') <p class="field-error">{{ $message }}</p> @enderror
+            </div>
+
+            {{-- ===== Color ===== --}}
+            <fieldset class="sm:col-span-2 rounded-xl border border-ink-100 p-4 sm:p-5">
+                <legend class="px-1 font-display text-sm font-bold text-ink-900">Color</legend>
+                <p class="text-xs text-ink-400">
+                    Warna yang ditawarkan material ini. Tiap material punya daftarnya sendiri &mdash; inilah yang dilihat
+                    pelanggan setelah memilih {{ $technologyLabel }} &rarr; material ini pada Edit Specification.
+                </p>
+
+                @error('colors') <p class="field-error">{{ $message }}</p> @enderror
+
+                <div class="mt-3 space-y-2.5" data-color-list>
+                    @foreach ($colorRows as $i => $row)
+                        <div class="flex items-start gap-2" data-color-row>
+                            <input type="hidden" name="colors[{{ $i }}][key]" value="{{ $row['key'] }}">
+
+                            <input type="color" aria-label="Pilih warna" data-color-picker
+                                   value="{{ $row['hex'] ?: '#FFFFFF' }}"
+                                   class="h-[42px] w-12 shrink-0 cursor-pointer rounded-xl border border-ink-200 bg-white p-1">
+
+                            <div class="min-w-0 flex-1">
+                                <input type="text" name="colors[{{ $i }}][name]" maxlength="60" data-color-name
+                                       value="{{ $row['name'] }}" class="field-input" placeholder="Nama Color, mis. Putih">
+                                @error('colors.'.$i.'.name') <p class="field-error">{{ $message }}</p> @enderror
+                            </div>
+
+                            <div class="w-36 shrink-0">
+                                <input type="text" name="colors[{{ $i }}][hex]" maxlength="7" data-color-hex
+                                       value="{{ $row['hex'] }}" class="field-input font-mono uppercase" placeholder="#FFFFFF">
+                                @error('colors.'.$i.'.hex') <p class="field-error">{{ $message }}</p> @enderror
+                            </div>
+
+                            <button type="button" data-color-remove
+                                    class="mt-1 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-ink-200 text-ink-400 transition-colors hover:border-brand-300 hover:bg-brand-50 hover:text-brand-600"
+                                    aria-label="Hapus warna ini">&times;</button>
+                        </div>
+                    @endforeach
+                </div>
+
+                <button type="button" data-color-add class="btn-outline mt-3 px-4 py-2 text-xs">+ Tambah Color</button>
+
+                <p class="mt-2.5 text-xs text-ink-400" data-color-empty-note @unless ($colorRows === []) hidden @endunless>
+                    Belum ada warna. Material tanpa warna menerima seluruh warna yang dikenal sistem.
+                </p>
+            </fieldset>
+
+            {{-- Baris kosong untuk tombol Tambah Color. `__INDEX__` diganti
+                 nomor urut baru saat barisnya disalin. --}}
+            <template data-color-template>
+                <div class="flex items-start gap-2" data-color-row>
+                    <input type="color" aria-label="Pilih warna" data-color-picker value="#FFFFFF"
+                           class="h-[42px] w-12 shrink-0 cursor-pointer rounded-xl border border-ink-200 bg-white p-1">
+
+                    <div class="min-w-0 flex-1">
+                        <input type="text" name="colors[__INDEX__][name]" maxlength="60" data-color-name
+                               class="field-input" placeholder="Nama Color, mis. Putih">
+                    </div>
+
+                    <div class="w-36 shrink-0">
+                        <input type="text" name="colors[__INDEX__][hex]" maxlength="7" data-color-hex
+                               value="#FFFFFF" class="field-input font-mono uppercase" placeholder="#FFFFFF">
+                    </div>
+
+                    <button type="button" data-color-remove
+                            class="mt-1 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-ink-200 text-ink-400 transition-colors hover:border-brand-300 hover:bg-brand-50 hover:text-brand-600"
+                            aria-label="Hapus warna ini">&times;</button>
+                </div>
+            </template>
+
+            {{-- ===== Finishing ===== --}}
+            <fieldset class="sm:col-span-2 rounded-xl border border-ink-100 p-4 sm:p-5">
+                <legend class="px-1 font-display text-sm font-bold text-ink-900">Finishing</legend>
+                <p class="text-xs text-ink-400">
+                    Finishing yang ditawarkan material ini. Biarkan kosong bila seluruhnya boleh dipilih.
+                    Harganya dihitung Rumus Harga Otomatis, bukan diatur per material.
+                </p>
+
+                <div class="mt-3 space-y-2">
+                    @foreach ($finishingOptions as $key => $option)
+                        <label class="flex cursor-pointer items-start gap-3 rounded-xl border border-ink-200 bg-white p-3 transition-colors has-[:checked]:border-brand-500 has-[:checked]:bg-brand-50">
+                            <input type="checkbox" name="finishings[]" value="{{ $key }}"
+                                   class="mt-0.5 h-4 w-4 shrink-0 rounded border-ink-300 text-brand-600 focus:ring-brand-600"
+                                   @checked(in_array($key, $selectedFinishings, true))>
+                            <span>
+                                <span class="block text-sm font-semibold text-ink-900">
+                                    {{ $option['label'] }}
+                                    @if (! empty($option['manual']))
+                                        <span class="ml-1 rounded-full bg-ink-100 px-2 py-0.5 text-[0.65rem] font-bold text-ink-600">Kuotasi manual</span>
+                                    @elseif (($option['percent'] ?? 0) > 0)
+                                        <span class="ml-1 text-[0.7rem] font-normal text-ink-400">
+                                            MAX({{ (int) $option['percent'] }}% × Harga Printing, Rp{{ number_format((float) ($option['min_price'] ?? 0), 0, ',', '.') }})
+                                        </span>
+                                    @else
+                                        <span class="ml-1 text-[0.7rem] font-normal text-ink-400">Rp0</span>
+                                    @endif
+                                </span>
+                                <span class="mt-0.5 block text-[0.7rem] leading-relaxed text-ink-500">{{ $option['description'] ?? '' }}</span>
+                            </span>
+                        </label>
+                    @endforeach
+                </div>
+                @error('finishings') <p class="field-error">{{ $message }}</p> @enderror
+                @error('finishings.*') <p class="field-error">{{ $message }}</p> @enderror
+            </fieldset>
+
+            {{-- ===== Kelebihan & Kekurangan ===== --}}
+            <div>
+                <label for="advantages" class="field-label">Kelebihan <span class="text-ink-300">(satu per baris)</span></label>
+                <textarea id="advantages" name="advantages" rows="5" class="field-input"
+                          placeholder="Mudah dicetak&#10;Hasil permukaan cukup baik&#10;Cocok untuk prototype">{{ $advantages }}</textarea>
+                <p class="mt-1.5 text-xs text-ink-400">Tampil pada Edit Specification saat pelanggan memilih material ini.</p>
+                @error('advantages') <p class="field-error">{{ $message }}</p> @enderror
+            </div>
+
+            <div>
+                <label for="disadvantages" class="field-label">Kekurangan <span class="text-ink-300">(satu per baris)</span></label>
+                <textarea id="disadvantages" name="disadvantages" rows="5" class="field-input"
+                          placeholder="Ketahanan terhadap panas terbatas&#10;Tidak cocok untuk temperatur tinggi">{{ $disadvantages }}</textarea>
+                <p class="mt-1.5 text-xs text-ink-400">Ditulis apa adanya; pelanggan membacanya sebagai pertimbangan.</p>
+                @error('disadvantages') <p class="field-error">{{ $message }}</p> @enderror
             </div>
 
             {{-- Pilihan mesin datang dari Price List → Machine Cost, bukan
@@ -170,7 +327,7 @@
                         <div class="rounded-xl border border-ink-100 bg-ink-50/70 p-4">
                             <p class="text-xs font-semibold text-ink-700">Preview Rumus: Kalkulator Manual</p>
                             <p class="mt-1 text-xs leading-relaxed text-ink-500">
-                                Harga tidak dihitung dari berat model. Pelanggan melihat &ldquo;Harga sedang dihitung oleh tim kami&rdquo;, lalu
+                                Harga tidak dihitung dari berat model. Pelanggan melihat &ldquo;Harga Perlu Dicek Terlebih Dahulu&rdquo;, lalu
                                 harganya ditetapkan tim per model lewat
                                 <span class="font-semibold text-ink-700">Form Perhitungan Kalkulator Manual</span> pada Detail Penawaran.
                             </p>
@@ -261,6 +418,69 @@
         </div>
     </form>
 @endsection
+
+@push('scripts')
+    <script>
+        // Daftar warna material: tambah, hapus, dan pemilih warna tiap baris.
+        (() => {
+            const list = document.querySelector('[data-color-list]');
+            const template = document.querySelector('[data-color-template]');
+            const addButton = document.querySelector('[data-color-add]');
+            const emptyNote = document.querySelector('[data-color-empty-note]');
+
+            if (!list || !template || !addButton) return;
+
+            // Nomor baris baru tidak pernah dipakai ulang. Server menerima
+            // indeks apa pun — daftarnya dirapikan ulang saat disimpan — jadi
+            // baris yang dihapus tidak perlu membuat sisanya dinomori ulang.
+            let nextIndex = list.querySelectorAll('[data-color-row]').length;
+
+            const syncEmptyNote = () => {
+                if (emptyNote) {
+                    emptyNote.hidden = list.querySelector('[data-color-row]') !== null;
+                }
+            };
+
+            addButton.addEventListener('click', () => {
+                const row = template.content.firstElementChild.cloneNode(true);
+
+                row.querySelectorAll('[name]').forEach((field) => {
+                    field.name = field.name.replace('__INDEX__', String(nextIndex));
+                });
+
+                nextIndex += 1;
+                list.append(row);
+                syncEmptyNote();
+                row.querySelector('[data-color-name]')?.focus();
+            });
+
+            list.addEventListener('click', (event) => {
+                if (!event.target.closest('[data-color-remove]')) return;
+
+                event.target.closest('[data-color-row]')?.remove();
+                syncEmptyNote();
+            });
+
+            // Didengarkan di tingkat daftar supaya baris yang baru ditambahkan
+            // ikut berlaku tanpa dipasangi penangan sendiri.
+            list.addEventListener('input', (event) => {
+                const row = event.target.closest('[data-color-row]');
+                const picker = row?.querySelector('[data-color-picker]');
+                const hex = row?.querySelector('[data-color-hex]');
+
+                if (!picker || !hex) return;
+
+                if (event.target === picker) {
+                    hex.value = picker.value.toUpperCase();
+                } else if (event.target === hex && /^#[0-9A-Fa-f]{6}$/.test(hex.value.trim())) {
+                    picker.value = hex.value.trim();
+                }
+            });
+
+            syncEmptyNote();
+        })();
+    </script>
+@endpush
 
 @if ($showsMaterialPrice)
     @push('scripts')

@@ -131,17 +131,25 @@ export function colorOptions(config, technology, material) {
     return keys.map((key) => ({ key, ...all[key] }));
 }
 
-/** Pilihan finishing beserta keterangannya. */
-export function finishingOptions(config) {
-    return Object.entries(config.finishing?.options ?? {}).map(([key, option]) => ({ key, ...option }));
+/**
+ * Pilihan finishing untuk satu material.
+ *
+ * Daftarnya milik material — diisi Superadmin pada form Tambah/Ubah Material —
+ * sehingga resin bening boleh tidak menawarkan painting sama sekali. Material
+ * yang daftarnya masih kosong menerima seluruh pilihan.
+ */
+export function finishingOptions(config, technology, material) {
+    const all = config.finishing?.options ?? {};
+    const entry = (config.technologies?.[technology]?.materials ?? []).find((item) => item.name === material);
+    const allowed = (entry?.finishings ?? []).filter((key) => key in all);
+    const keys = allowed.length ? allowed : Object.keys(all);
+
+    return keys.map((key) => ({ key, ...all[key] }));
 }
 
-/** Kunci finishing yang hanya boleh dipasangkan dengan warna tertentu. */
-export const PAINTING_KEY = 'painting';
-
-/** Painting hanya masuk akal di atas dasar putih, jadi warna lain menutup pilihan ini. */
-export function paintingAllowedForColor(color) {
-    return color === 'putih';
+/** Finishing yang menuntut pelanggan memilih warna cat. */
+export function finishingNeedsColor(config, finishing) {
+    return Boolean(config.finishing?.options?.[finishing]?.needsColor);
 }
 
 /**
@@ -193,21 +201,15 @@ export function specificationOf(record) {
     };
 }
 
-/** Apakah teknologi ini menyediakan Hollow Model (saat ini hanya SLA). */
-export function allowsHollow(config, technology) {
-    return Boolean(config.technologies?.[technology]?.allowsHollow);
-}
-
-/** Apakah teknologi ini benar-benar membutuhkan support (MJF tidak). */
+/**
+ * Apakah teknologi ini benar-benar membutuhkan support (MJF tidak).
+ *
+ * Sejak pilihannya dihapus dari Edit Specification, inilah yang menentukan
+ * support menyala atau tidak — bukan lagi pelanggan. Aturan yang sama
+ * diberlakukan server di App\Services\PrintEstimator::estimate().
+ */
 export function allowsSupport(config, technology) {
     return Number(config.technologies?.[technology]?.supportFactor ?? 0) > 0;
-}
-
-/** Alasan support tidak tersedia, mis. part MJF tertopang serbuk. */
-export function supportNoteFor(config, technology) {
-    return allowsSupport(config, technology)
-        ? null
-        : (config.technologies?.[technology]?.supportNote ?? null);
 }
 
 /**
@@ -241,12 +243,12 @@ export function applySpecification(record, config, spec) {
     const colors = colorOptions(config, spec.technology, spec.material).map((color) => color.key);
     const color = colors.includes(spec.color) ? spec.color : (colors[0] ?? spec.color);
 
-    let finishing = config.finishing?.options?.[spec.finishing] ? spec.finishing : (config.finishing?.default ?? 'none');
-
-    // Painting hanya berlaku untuk warna Putih; kombinasi lain jatuh ke default.
-    if (finishing === PAINTING_KEY && !paintingAllowedForColor(color)) {
-        finishing = config.finishing?.default ?? 'none';
-    }
+    // Finishing disesuaikan dengan materialnya: yang dipilih harus benar-benar
+    // ditawarkan material itu, kalau tidak jatuh ke pilihan pertama yang ada.
+    const finishings = finishingOptions(config, spec.technology, spec.material).map((option) => option.key);
+    const finishing = finishings.includes(spec.finishing)
+        ? spec.finishing
+        : (finishings.includes(config.finishing?.default) ? config.finishing.default : (finishings[0] ?? 'none'));
 
     const scale = Number(settings.scale ?? 1) || 1;
     const geometryVolumeCm3 = inputs.geometryVolumeCm3;
@@ -259,13 +261,16 @@ export function applySpecification(record, config, spec) {
         ? settings.infillDensity
         : Number(technology.defaultInfill ?? 1);
 
-    // Support hanya berlaku pada teknologi yang memang membutuhkannya, dan
-    // Hollow Model hanya pada teknologi yang mengizinkannya (SLA).
-    const supportEnabled = Boolean(spec.support) && allowsSupport(config, spec.technology);
+    // Support tidak lagi dipilih pelanggan: teknologinya yang menentukan, dan
+    // MJF tetap tanpa support karena part-nya tertopang serbuk. Hollow Model
+    // sudah tidak ditawarkan sama sekali, jadi part selalu dihitung padat.
+    // Keduanya ditetapkan sama persis di App\Services\Pricing\PricingInput,
+    // yang menghitung ulang harga saat penawarannya disimpan.
+    const supportEnabled = allowsSupport(config, spec.technology);
     const hollow = {
         ...(settings.hollow ?? {}),
         ...(spec.hollow ?? {}),
-        enabled: Boolean(spec.hollow?.enabled) && allowsHollow(config, spec.technology),
+        enabled: false,
     };
 
     // Berat support ikut berubah bila materialnya berganti — volumenya tetap,
@@ -302,6 +307,14 @@ export function applySpecification(record, config, spec) {
             printerKey: record.state?.printer ?? null,
             finishing,
             finishings: config.finishing?.options,
+
+            // Kecepatan pengerjaan milik PESANAN, bukan satu model, jadi
+            // dititipkan pada config yang dipakai bersama seluruh model —
+            // mengubahnya lalu menghitung ulang membuat tambahan Express
+            // masuk ke setiap model sekaligus, sama seperti di server.
+            productionSpeed: config.productionSpeed ?? 'standard',
+            leadTime: config.leadTime,
+
             cost: config.cost,
             pricing: config.pricing,
         }

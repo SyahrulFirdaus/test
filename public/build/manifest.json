@@ -27,7 +27,7 @@
     "name": "three.module"
   },
   "resources/css/app.css": {
-    "file": "assets/app-BwFUjYAb.css",
+    "file": "assets/app-BiWn7gMK.css",
     "src": "resources/css/app.css",
     "isEntry": true
   },
@@ -83,7 +83,7 @@
     ]
   },
   "resources/js/model-viewer.js": {
-    "file": "assets/model-viewer-BX_ce_8U.js",
+    "file": "assets/model-viewer-b6Um3L1E.js",
     "name": "model-viewer",
     "src": "resources/js/model-viewer.js",
     "isEntry": true,

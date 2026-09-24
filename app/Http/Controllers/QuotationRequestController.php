@@ -12,6 +12,7 @@ use App\Services\MeshInspector;
 use App\Services\PrintEstimator;
 use App\Services\SellingPriceEstimator;
 use App\Support\ActivityAction;
+use App\Support\LeadTime;
 use App\Support\MaterialColor;
 use App\Support\ModelFormat;
 use App\Support\Printer;
@@ -60,6 +61,34 @@ class QuotationRequestController extends Controller
                 $item['build_volume'] ?? $request->input('build_volume'),
             ));
 
+        /*
+         * Kecepatan pengerjaan ditetapkan SETELAH seluruh model diestimasi.
+         *
+         * Syarat Express — satu part dan total waktu mesin di bawah 18 jam —
+         * berlaku atas keseluruhan pesanan, jadi waktunya baru diketahui begitu
+         * tiap model selesai dihitung. Express yang diminta tanpa memenuhi
+         * syaratnya diturunkan menjadi Standard di sini, bukan dipercaya dari
+         * kiriman browser.
+         *
+         * Express hanya menaikkan harga printing, jadi rinciannya cukup
+         * ditempeli pengalinya — tidak ada yang perlu diestimasi ulang.
+         */
+        $speed = LeadTime::resolve(
+            $request->input('production_speed'),
+            $items->count(),
+            (float) $items->sum(fn (array $item) => (float) ($item['estimated_minutes'] ?? 0)),
+            $items->contains(fn (array $item) => (bool) ($item['cost_breakdown']['manual_pricing'] ?? false)),
+        );
+
+        if ($speed === LeadTime::EXPRESS) {
+            $items = $items->map(function (array $item) use ($speed) {
+                $item['cost_breakdown'] = $this->sellingPrice->withProductionSpeed($item['cost_breakdown'], $speed);
+                $item['estimated_cost'] = $item['cost_breakdown']['selling_price'];
+
+                return $item;
+            });
+        }
+
         // Alamat pengiriman disalin isinya, bukan sekadar ditunjuk: pelanggan
         // boleh menyunting atau menghapus alamatnya kapan saja, sedangkan
         // tujuan pengiriman penawaran yang sudah terkirim tidak boleh ikut
@@ -74,7 +103,7 @@ class QuotationRequestController extends Controller
             )
             ->first();
 
-        $quotation = DB::transaction(function () use ($request, $items, $address) {
+        $quotation = DB::transaction(function () use ($request, $items, $address, $speed) {
             $quotation = QuotationRequest::create([
                 // Penawaran selalu melekat pada akun pembuatnya sehingga muncul
                 // di "Penawaran Saya" dan dapat disunting selama masih ditunggu
@@ -107,6 +136,7 @@ class QuotationRequestController extends Controller
                 // seluruh model.
                 ...QuotationRequest::summaryFrom($items),
 
+                'production_speed' => $speed,
                 'status' => QuotationStatus::first(),
             ]);
 

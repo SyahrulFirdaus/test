@@ -116,7 +116,12 @@ trait HasMaterialPricing
             'density' => $spec['density'] ?? 1.0,
             // Harga Calculator mengikuti harga jual (bermarjin), bukan harga modal.
             'price_per_gram' => $this->rounded_price,
-            'colors' => $spec['colors'] ?? [],
+            // Warna milik material ini sendiri, bukan satu daftar bersama.
+            // `technical_spec.colors` peninggalan palet lama sengaja tidak
+            // dibaca lagi supaya tidak ada dua sumber daftar warna.
+            'colors' => $this->colors->pluck('key')->all(),
+            // Finishing yang ditawarkan material ini; kosong berarti semuanya.
+            'finishings' => array_values((array) ($spec['finishings'] ?? [])),
             'description' => $spec['description'] ?? null,
             'characteristics' => $spec['characteristics'] ?? [],
             'pros' => $spec['pros'] ?? [],

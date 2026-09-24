@@ -122,8 +122,6 @@ class QuotationController extends Controller
             'infillPatterns' => InfillPattern::all(),
             'materialColors' => MaterialColor::all(),
             'finishings' => Finishing::all(),
-            'hollowTechnologies' => PrintTechnology::hollowCodes(),
-            'drainPositions' => config('printing.hollow.drain_hole.positions', []),
             'maxModels' => UploadLimit::maxFiles(),
             'maxFileMb' => UploadLimit::maxMegabytes(),
         ]);

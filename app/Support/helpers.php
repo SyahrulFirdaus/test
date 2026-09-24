@@ -61,7 +61,7 @@ if (! function_exists('harga_penawaran')) {
      * tracking, dokumen PDF, dan daftar admin — supaya keterangannya persis
      * sama di mana pun, bukan versi yang perlahan berbeda karena disalin.
      */
-    function harga_penawaran(mixed $value, string $pending = 'Harga sedang dihitung oleh tim kami'): string
+    function harga_penawaran(mixed $value, string $pending = 'Harga Perlu Dicek Terlebih Dahulu'): string
     {
         if ($value === null) {
             return $pending;

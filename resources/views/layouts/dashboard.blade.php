@@ -82,9 +82,6 @@
         ['group' => 'Pembayaran', 'label' => 'Verifikasi Pembayaran', 'route' => $area.'payments.index', 'icon' => 'check', 'active' => $area.'payments.*', 'permission' => \App\Support\AdminPermission::PAYMENT_VIEW],
         ['group' => 'Pembayaran', 'label' => 'Payment Term', 'route' => $area.'payment-terms.index', 'icon' => 'clock', 'active' => $area.'payment-terms.*', 'permission' => \App\Support\AdminPermission::PAYMENT_TERM_VIEW],
 
-        // Warna material yang tersedia pada Edit Specification.
-        ['group' => 'Color', 'label' => 'Color', 'route' => $area.'colors.index', 'icon' => 'brush', 'active' => $area.'colors.*', 'permission' => \App\Support\AdminPermission::COLOR_VIEW],
-
         // Price List tampil sebagai empat grup accordion — lihat $priceListGroups.
         ['type' => 'price-list', 'superadmin' => true],
 

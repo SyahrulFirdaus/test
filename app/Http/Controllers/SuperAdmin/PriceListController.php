@@ -63,7 +63,7 @@ class PriceListController extends Controller
 
         $materials = $technology->materials()
             ->search($search)
-            ->with('machine.technology')
+            ->with(['machine.technology', 'colors'])
             ->orderedByMachine()
             ->paginate(self::PER_PAGE, ['*'], $tab.'_page')
             ->withQueryString();

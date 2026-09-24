@@ -3,6 +3,7 @@
 namespace App\Support;
 
 use App\Models\PrintColor;
+use App\Models\PrintMaterialColor;
 use App\Services\PrintEstimator;
 use Throwable;
 
@@ -13,10 +14,12 @@ use Throwable;
  * preferensi pelanggan pada permintaan penawaran — berkas model yang diunggah
  * sama sekali tidak diubah.
  *
- * Daftarnya dikelola pengelola lewat menu Color (tabel `print_colors`). Isi
- * `printing.material_colors.options` tetap ada sebagai cadangan: dipakai bila
- * tabelnya belum sempat dibuat — saat migrasi berjalan, misalnya — sehingga
- * halaman tidak pernah kehabisan warna sama sekali.
+ * Daftarnya dimiliki TIAP MATERIAL (tabel `print_material_colors`), diisi
+ * Superadmin pada form Tambah/Ubah Material, sehingga PLA Plus dan PETG dapat
+ * menawarkan warna yang berbeda. Palet lama (`print_colors`) tinggal sebagai
+ * lapisan dasar agar kunci warna pada penawaran lama tetap dikenali, dan isi
+ * `printing.material_colors.options` tetap ada sebagai cadangan terakhir bila
+ * tabelnya belum sempat dibuat — saat migrasi berjalan, misalnya.
  */
 class MaterialColor
 {
@@ -39,12 +42,29 @@ class MaterialColor
         }
 
         try {
-            $colors = PrintColor::ordered()
+            /*
+             * Palet lama menjadi lapisan DASAR, bukan sumber pilihan.
+             *
+             * Warna kini dimiliki tiap material, tetapi penawaran lama
+             * menyimpan kunci yang dahulu berasal dari palet bersama. Menaruh
+             * palet di bawah membuat kunci semacam itu tetap menemukan nama dan
+             * hexanya walau tidak satu material pun menawarkannya lagi.
+             */
+            $legacy = PrintColor::ordered()
                 ->get()
                 ->mapWithKeys(fn (PrintColor $color) => [
                     $color->key => ['label' => $color->label, 'hex' => $color->hex],
                 ])
                 ->all();
+
+            $owned = PrintMaterialColor::ordered()
+                ->get()
+                ->mapWithKeys(fn (PrintMaterialColor $color) => [
+                    $color->key => ['label' => $color->name, 'hex' => $color->hex],
+                ])
+                ->all();
+
+            $colors = array_merge($legacy, $owned);
         } catch (Throwable) {
             // Tabelnya belum ada (mis. saat migrasi pertama dijalankan).
             $colors = [];
@@ -106,9 +126,10 @@ class MaterialColor
     /**
      * Warna yang benar-benar tersedia untuk satu material.
      *
-     * Material menyebutkan pilihannya lewat kunci `colors` di
-     * config/printing.php — resin bening hanya tersedia bening, part logam
-     * hanya warna aslinya. Material tanpa kunci itu menerima seluruh warna.
+     * Daftarnya milik material itu sendiri — diisi Superadmin pada form
+     * Tambah/Ubah Material — sehingga PLA Plus dan PETG dapat menawarkan warna
+     * yang berbeda. Material yang daftarnya masih kosong menerima seluruh warna
+     * yang dikenal sistem, supaya pilihan warnanya tidak pernah habis.
      *
      * @return array<string, array<string, string>>
      */
@@ -120,7 +141,13 @@ class MaterialColor
             return self::all();
         }
 
-        return array_intersect_key(self::all(), array_flip($allowed));
+        $all = self::all();
+
+        // Urutannya mengikuti daftar warna material, bukan urutan tabelnya.
+        return collect($allowed)
+            ->filter(fn (string $key) => isset($all[$key]))
+            ->mapWithKeys(fn (string $key) => [$key => $all[$key]])
+            ->all();
     }
 
     /** @return array<int, string> */

@@ -6,6 +6,7 @@
  * dihitung ulang dan disimpan server saat permintaan penawaran dikirim.
  *
  *   Material                = Jumlah Material x Harga Material
+ *                             (berat dibulatkan ke atas kelipatan 10 gram)
  *   Harga Operasional Mesin = Machine Time x Machine Cost
  *   HPP                     = Material + Operasional Mesin
  *   Risk Cost               = HPP x Risk %
@@ -67,7 +68,14 @@ export function sellingPrice(input) {
     const machineCost = machine ? Number(machine.cost) || 0 : Number(formula.machineCost) || 0;
 
     // Berat model + support berlaku per unit, jadi dikalikan jumlah unit.
-    const materialQty = (Number(input.totalWeightG) || 0) * quantity;
+    //
+    // Material ditagih per kelipatan 10 gram: beratnya dibulatkan ke ATAS ke
+    // kelipatan 10 sebelum dikalikan harga, sekali pada berat total pesanan.
+    // Pembulatan enam desimal pada hasil baginya menahan sisa galat pecahan
+    // biner supaya 20 g tidak terbaca 20,0000000001 lalu ditagih 30 g.
+    // Sama persis dengan App\Services\SellingPriceEstimator::calculate().
+    const totalWeightG = round2((Number(input.totalWeightG) || 0) * quantity);
+    const materialQty = Math.ceil(Math.round((totalWeightG / 10) * 1e6) / 1e6) * 10;
     const materialPrice = Number(input.materialPricePerGram) || Number(formula.materialPricePerG) || 0;
 
     // Satu unit dikemas dalam satu kardus, jadi biayanya ikut jumlah unit.
@@ -88,6 +96,33 @@ export function sellingPrice(input) {
     const subtotal = hpp + riskCost + packaging + overtime;
     const profit = subtotal * (profitPercent / 100);
 
+    // Harga printing: harga mencetak partnya saja. Biaya finishing dan tambahan
+    // Express keduanya diturunkan dari angka ini, bukan dari total akhir, jadi
+    // keduanya tidak pernah saling melipatgandakan.
+    const printingPrice = round2(subtotal + profit + basic.fee);
+
+    // Custom Finishing tidak dapat dihitung otomatis — harganya ditetapkan tim
+    // lewat kuotasi project, jadi browser TIDAK boleh menebak angkanya.
+    if (input.finishingOption?.manual) {
+        return {
+            technology,
+            quantity,
+            printing_price: printingPrice,
+            finishing: input.finishing ?? null,
+            finishing_price: null,
+            manual_pricing: true,
+            selling_price: null,
+            total: null,
+        };
+    }
+
+    const finishingPrice = finishingPriceFor(input.finishingOption, printingPrice);
+    const expressPercent = input.productionSpeed === 'express'
+        ? Math.max(0, Number(input.leadTime?.express?.surchargePercent ?? 0) || 0)
+        : 0;
+    const expressFee = round2(printingPrice * (expressPercent / 100));
+    const sellingPrice = round2(printingPrice + expressFee + finishingPrice);
+
     return {
         technology,
 
@@ -96,6 +131,7 @@ export function sellingPrice(input) {
         machine_source: machine ? machine.name : null,
 
         material_qty_g: round2(materialQty),
+        material_qty_g_actual: round2(totalWeightG),
         material_price_per_g: round2(materialPrice),
 
         risk_percent: riskPercent,
@@ -116,9 +152,41 @@ export function sellingPrice(input) {
         subtotal: round2(subtotal),
         profit: round2(profit),
         basic_fee: round2(basic.fee),
-        selling_price: round2(subtotal + profit + basic.fee),
-        total: round2(subtotal + profit + basic.fee),
+        printing_price: printingPrice,
+
+        production_speed: input.productionSpeed ?? 'standard',
+        express_percent: expressPercent,
+        express_fee: expressFee,
+
+        finishing: input.finishing ?? null,
+        finishing_price: finishingPrice,
+
+        selling_price: sellingPrice,
+        total: sellingPrice,
     };
+}
+
+/**
+ * Biaya finishing sebuah harga printing.
+ *
+ *   MAX(Harga Printing x persen, harga minimum)
+ *
+ * Sama persis dengan App\Support\Finishing::priceFor(): Raw berharga nol, dan
+ * minimumnya menutup pekerjaan persiapan pada part kecil.
+ */
+function finishingPriceFor(option, printingPrice) {
+    if (!option) {
+        return 0;
+    }
+
+    const percent = Math.max(0, Number(option.percent ?? 0) || 0);
+    const minimum = Math.max(0, Number(option.minPrice ?? 0) || 0);
+
+    if (percent <= 0 && minimum <= 0) {
+        return 0;
+    }
+
+    return round2(Math.max(Math.max(0, printingPrice) * (percent / 100), minimum));
 }
 
 /**

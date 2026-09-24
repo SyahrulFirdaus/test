@@ -11,28 +11,28 @@ import {
     tessellateStep,
 } from './model-formats';
 import {
-    allowsHollow,
-    allowsSupport,
     applySpecification,
     colorOptions,
     finishingOptions,
     materialCatalog,
     materialInfo,
     materialLabel,
-    PAINTING_KEY,
-    paintingAllowedForColor,
     specificationOf,
-    supportNoteFor,
     technologyOptions,
     validateModelSize,
 } from './model-spec';
 import {
     configureLeadTime,
+    EXPRESS_SPEED,
+    expressAvailable,
+    expressUnavailableReason,
     formatCount,
     formatCurrency,
     formatLeadTime,
     isManualEstimate,
     formatNumber,
+    PENDING_PRICE_NOTE,
+    STANDARD_SPEED,
     sumPrices,
 } from './print-estimator';
 
@@ -99,6 +99,8 @@ export default class ModelWorkspace {
         this.summaryPanel = root.querySelector('[data-quote-summary]');
         this.summaryRows = root.querySelector('[data-quote-rows]');
         this.summaryPlaceholder = root.querySelector('[data-quote-summary-placeholder]');
+        this.productionOptions = root.querySelector('[data-production-options]');
+        this.productionNote = root.querySelector('[data-production-note]');
         this.quotationButton = root.querySelector('[data-open-quotation]');
 
         this.config = this.readConfig();
@@ -133,9 +135,13 @@ export default class ModelWorkspace {
         try {
             const config = JSON.parse(el?.textContent ?? '{}');
 
-            // Tingkatan lead time dipasang sekali di sini agar seluruh modul
-            // yang menampilkan estimasi memakai rentang hari yang sama.
+            // Aturan lead time dipasang sekali di sini agar seluruh modul yang
+            // menampilkan estimasi memakai rentang hari yang sama.
             configureLeadTime(config.leadTime);
+
+            // Kecepatan pengerjaan pesanan. Dititipkan pada config karena
+            // dipakai bersama seluruh model — lihat setProductionSpeed().
+            config.productionSpeed = STANDARD_SPEED;
 
             return config;
         } catch {
@@ -587,13 +593,6 @@ export default class ModelWorkspace {
         this.specFinishing = this.specModal.querySelector('[data-spec-finishing]');
         this.specFinishingNote = this.specModal.querySelector('[data-spec-finishing-note]');
         this.specQuantity = this.specModal.querySelector('[data-spec-quantity]');
-        this.specSupport = this.specModal.querySelector('[data-spec-support]');
-        this.specSupportField = this.specModal.querySelector('[data-spec-support-field]');
-        this.specSupportNote = this.specModal.querySelector('[data-spec-support-note]');
-        this.specHollow = this.specModal.querySelector('[data-spec-hollow]');
-        this.specHollowField = this.specModal.querySelector('[data-spec-hollow-field]');
-        this.specHollowSettings = this.specModal.querySelector('[data-spec-hollow-settings]');
-        this.specHollowWall = this.specModal.querySelector('[data-spec-hollow-wall]');
 
         // Panel kiri: pratinjau model beserta keterangan material terpilih.
         this.specThumbnail = this.specModal.querySelector('[data-spec-thumbnail]');
@@ -618,33 +617,23 @@ export default class ModelWorkspace {
             }
 
             this.draft.technology = option.dataset.specTechnologyOption;
-            // Material, warna, support, dan hollow mengikuti teknologi barunya.
+            // Material dan warna mengikuti teknologi barunya.
             this.draft.material = materialCatalog(this.config, this.draft.technology)[0]?.name ?? this.draft.material;
             this.renderSpecTechnologies();
             this.renderSpecMaterials();
             this.renderSpecColors();
-            this.renderSpecExtras();
             this.renderSpecInfo();
             this.previewSpec();
         });
 
-        this.specSupport?.addEventListener('change', () => {
-            this.draft.support = this.specSupport.checked;
-            this.previewSpec();
-        });
+        // Pilihan Production digambar ulang setiap ringkasan diperbarui, jadi
+        // penangannya dipasang di tingkat wadahnya.
+        this.productionOptions?.addEventListener('change', (event) => {
+            const option = event.target.closest('[data-production-option]');
 
-        this.specHollow?.addEventListener('change', () => {
-            this.draft.hollow = { ...this.draft.hollow, enabled: this.specHollow.checked };
-            this.renderSpecExtras();
-            this.previewSpec();
-        });
-
-        this.specHollowWall?.addEventListener('input', () => {
-            this.draft.hollow = {
-                ...this.draft.hollow,
-                wallThicknessMm: Number(this.specHollowWall.value) || this.draft.hollow.wallThicknessMm,
-            };
-            this.previewSpec();
+            if (option) {
+                this.setProductionSpeed(option.value);
+            }
         });
 
         this.specMaterial.addEventListener('click', (event) => {
@@ -765,7 +754,6 @@ export default class ModelWorkspace {
         this.renderSpecTechnologies();
         this.renderSpecMaterials();
         this.renderSpecColors();
-        this.renderSpecExtras();
         this.renderSpecInfo();
         this.previewSpec();
 
@@ -841,30 +829,30 @@ export default class ModelWorkspace {
     }
 
     /**
-     * Surface finish; daftar beserta keterangannya dibaca dari konfigurasi.
+     * Surface finish; daftarnya milik material yang sedang dipilih.
      *
-     * Painting hanya masuk akal di atas dasar putih, jadi pilihan ini
-     * dinonaktifkan untuk warna lain — dan dibatalkan otomatis bila warnanya
-     * baru saja diganti dari Putih.
+     * Finishing yang tidak lagi ditawarkan material itu dibatalkan otomatis.
+     * Custom Finishing tidak berharga otomatis — keterangannya ikut ditulis
+     * supaya pelanggan tahu harganya menunggu kuotasi.
      */
     renderSpecFinishings() {
-        const paintingAllowed = paintingAllowedForColor(this.draft.color);
+        const options = finishingOptions(this.config, this.draft.technology, this.draft.material);
+        const keys = options.map((option) => option.key);
 
-        if (this.draft.finishing === PAINTING_KEY && !paintingAllowed) {
-            this.draft.finishing = this.config.finishing?.default ?? 'none';
+        if (!keys.includes(this.draft.finishing)) {
+            this.draft.finishing = keys.includes(this.config.finishing?.default)
+                ? this.config.finishing.default
+                : (keys[0] ?? 'none');
         }
 
-        this.specFinishing.innerHTML = finishingOptions(this.config)
+        this.specFinishing.innerHTML = options
             .map((option) => {
-                const disabled = option.key === PAINTING_KEY && !paintingAllowed;
-
                 return `
                     <button type="button"
                             class="spec-option"
                             data-spec-finishing-option="${escapeAttribute(option.key)}"
                             aria-pressed="${option.key === this.draft.finishing}"
-                            aria-disabled="${disabled}"
-                            ${disabled ? 'disabled title="Painting hanya tersedia untuk warna Putih"' : ''}>
+                            ${option.note ? `title="${escapeAttribute(option.note)}"` : ''}>
                         <span class="spec-option-title">${escapeHtml(option.label)}</span>
                     </button>
                 `;
@@ -970,18 +958,26 @@ export default class ModelWorkspace {
                 .join('');
         }
 
-        const list = (selector, items, prefix) => {
-            const el = this.specModal.querySelector(selector);
+        const list = (attribute, items, prefix) => {
+            const el = this.specModal.querySelector(`[${attribute}]`);
+            const block = this.specModal.querySelector(`[${attribute}-block]`);
+            const rows = (items ?? []).filter((item) => String(item ?? '').trim() !== '');
 
             if (el) {
-                el.innerHTML = (items ?? [])
+                el.innerHTML = rows
                     .map((item) => `<li class="text-xs leading-relaxed text-ink-600">${prefix} ${escapeHtml(item)}</li>`)
                     .join('');
             }
+
+            // Material yang belum diberi keterangan tidak menampilkan judulnya
+            // sama sekali, bukan judul di atas daftar kosong.
+            if (block) {
+                block.style.display = rows.length ? 'block' : 'none';
+            }
         };
 
-        list('[data-spec-material-pros]', material?.pros, '+');
-        list('[data-spec-material-cons]', material?.cons, '−');
+        list('data-spec-material-pros', material?.pros, '+');
+        list('data-spec-material-cons', material?.cons, '−');
 
         // "Learn More" menuju bagian material tersebut di halaman panduan.
         if (this.specLearnMore && this.config.guideUrl) {
@@ -1095,46 +1091,6 @@ export default class ModelWorkspace {
      * Keduanya bergantung teknologi: MJF tidak memerlukan support karena part
      * tertopang serbuk, dan Hollow Model hanya tersedia untuk resin (SLA).
      */
-    renderSpecExtras() {
-        const technology = this.draft.technology;
-
-        if (this.specSupport) {
-            const available = allowsSupport(this.config, technology);
-
-            if (!available) {
-                this.draft.support = false;
-            }
-
-            this.specSupport.disabled = !available;
-            this.specSupport.checked = Boolean(this.draft.support);
-            this.specSupportField?.classList.toggle('opacity-50', !available);
-
-            if (this.specSupportNote) {
-                const note = supportNoteFor(this.config, technology);
-                this.specSupportNote.textContent = note ?? '';
-                this.specSupportNote.style.display = note ? 'block' : 'none';
-            }
-        }
-
-        if (this.specHollow) {
-            const available = allowsHollow(this.config, technology);
-
-            if (!available) {
-                this.draft.hollow = { ...this.draft.hollow, enabled: false };
-            }
-
-            this.specHollowField.style.display = available ? 'block' : 'none';
-            this.specHollow.checked = Boolean(this.draft.hollow.enabled);
-
-            if (this.specHollowSettings) {
-                this.specHollowSettings.style.display = this.draft.hollow.enabled ? 'block' : 'none';
-            }
-
-            if (this.specHollowWall) {
-                this.specHollowWall.value = String(this.draft.hollow.wallThicknessMm);
-            }
-        }
-    }
 
     /** Angka pratinjau di dalam modal, dihitung sebelum perubahan disimpan. */
     previewSpec() {
@@ -1153,14 +1109,29 @@ export default class ModelWorkspace {
             }
         };
 
+        const pendingNote = this.specModal.querySelector('[data-spec-pending-note]');
+
+        const showPendingNote = (pending) => {
+            if (pendingNote) {
+                pendingNote.textContent = pending ? PENDING_PRICE_NOTE : '';
+                pendingNote.style.display = pending ? 'block' : 'none';
+            }
+        };
+
         if (!summary) {
             ['time', 'cost'].forEach((key) => set(key, '-'));
+            showPendingNote(false);
 
             return;
         }
 
-        set('time', formatLeadTime(summary.minutes, isManualEstimate(preview.payload.estimate)));
+        set('time', formatLeadTime(this.config.productionSpeed, isManualEstimate(preview.payload.estimate)));
         set('cost', this.showsPrice ? formatCurrency(summary.cost) : 'Login dulu');
+
+        // Harga yang belum dapat ditentukan sendiri oleh sistem — material
+        // Kalkulator Manual atau Custom Finishing — dijelaskan, bukan sekadar
+        // ditulis sebagai judul tanpa keterangan.
+        showPendingNote(this.showsPrice && !Number.isFinite(Number(summary.cost)));
     }
 
     renderList() {
@@ -1277,7 +1248,7 @@ export default class ModelWorkspace {
                         ${this.showsPrice
                             ? `<span class="block font-display text-sm font-bold text-brand-700">${formatCurrency(summary.cost)}</span>`
                             : '<span class="block text-[0.65rem] font-semibold text-ink-400">Login untuk harga</span>'}
-                        <span class="block text-[0.6rem] text-ink-400">${formatLeadTime(summary.minutes ?? 0, isManualEstimate(record.payload.estimate))}</span>
+                        <span class="block text-[0.6rem] text-ink-400">${formatLeadTime(this.config.productionSpeed, isManualEstimate(record.payload.estimate))}</span>
                     </span>
                 </div>
 
@@ -1399,7 +1370,7 @@ export default class ModelWorkspace {
                             </p>
                         </td>
                         <td class="px-2 py-3 text-right text-ink-700">${formatCount(summary.quantity ?? 1)}</td>
-                        <td class="${this.showsPrice ? 'px-2' : 'pl-2'} py-3 text-right text-ink-700">${formatLeadTime(estimate.totalMinutes ?? 0, isManualEstimate(estimate))}</td>
+                        <td class="${this.showsPrice ? 'px-2' : 'pl-2'} py-3 text-right text-ink-700">${formatLeadTime(this.config.productionSpeed, isManualEstimate(estimate))}</td>
                         ${this.showsPrice
                             ? `<td class="py-3 pl-2 text-right font-display font-bold text-brand-700">${formatCurrency(estimate.totalCost)}</td>`
                             : ''}
@@ -1408,20 +1379,116 @@ export default class ModelWorkspace {
             })
             .join('');
 
+        // Express yang syaratnya sudah gugur diturunkan lebih dulu, supaya
+        // angka di bawah adalah angka yang benar-benar berlaku.
+        this.enforceProductionAvailability();
+
         const totals = this.totals();
 
         this.setTotal('models', `${formatCount(ready.length)} model`);
 
-        // Lead time ditentukan TOTAL waktu proses seluruh object dalam satu
-        // penawaran — bukan object yang paling lama, dan bukan per object.
-        // Aturannya ada di App\Support\LeadTime: sampai 20 jam Express,
-        // lebihnya Standard.
-        this.setTotal('time', formatLeadTime(totals.minutes, totals.manualPricing));
+        // Lead time mengikuti KECEPATAN yang dipilih pelanggan, bukan lagi
+        // disimpulkan dari jam mesin — lihat App\Support\LeadTime.
+        this.setTotal('time', formatLeadTime(this.config.productionSpeed, totals.manualPricing));
         this.setTotal('cost', this.showsPrice ? formatCurrency(totals.cost) : '-');
+
+        this.renderProductionChoice();
 
         hide(this.summaryPlaceholder);
         show(this.summaryPanel, 'block');
         this.updateQuotationButton();
+    }
+
+    /**
+     * Kecepatan pengerjaan pesanan: Standard atau Express.
+     *
+     * Pilihannya milik pesanan, bukan satu model, jadi disimpan pada config yang
+     * dipakai bersama lalu SELURUH model dihitung ulang — dengan begitu tambahan
+     * Express masuk ke setiap model, sama seperti yang dilakukan
+     * App\Services\SellingPriceEstimator saat penawarannya disimpan.
+     */
+    async setProductionSpeed(speed) {
+        if (speed === this.config.productionSpeed) {
+            return;
+        }
+
+        this.config.productionSpeed = speed;
+        this.reestimateAll();
+
+        this.renderList();
+        this.renderSummary();
+
+        try {
+            await Promise.all(this.records.map((record) => modelStore.put(record)));
+        } catch (error) {
+            console.error(error);
+        }
+    }
+
+    /** Hitung ulang seluruh model dengan config yang berlaku sekarang. */
+    reestimateAll() {
+        this.records = this.records.map(
+            (record) => applySpecification(record, this.config, specificationOf(record)) ?? record
+        );
+    }
+
+    /**
+     * Express yang tidak lagi memenuhi syarat diturunkan ke Standard.
+     *
+     * Pelanggan dapat memilih Express lalu menambah part atau memperbesar
+     * modelnya; begitu salah satu syaratnya gugur, pesanannya tidak boleh tetap
+     * berharga Express. Dipanggil sebelum ringkasan digambar, jadi angka yang
+     * tampil selalu angka yang benar-benar berlaku.
+     */
+    enforceProductionAvailability() {
+        if (this.config.productionSpeed !== EXPRESS_SPEED) {
+            return;
+        }
+
+        const totals = this.totals();
+
+        if (!expressAvailable(this.readyRecords().length, totals.minutes, totals.manualPricing)) {
+            this.config.productionSpeed = STANDARD_SPEED;
+            this.reestimateAll();
+        }
+    }
+
+    /** Pilihan Production beserta keterangannya bila Express tidak tersedia. */
+    renderProductionChoice() {
+        if (!this.productionOptions) {
+            return;
+        }
+
+        const totals = this.totals();
+        const available = expressAvailable(this.readyRecords().length, totals.minutes, totals.manualPricing);
+        const selected = this.config.productionSpeed ?? STANDARD_SPEED;
+
+        const choices = available ? [STANDARD_SPEED, EXPRESS_SPEED] : [STANDARD_SPEED];
+
+        this.productionOptions.innerHTML = choices
+            .map((key) => {
+                const isExpress = key === EXPRESS_SPEED;
+
+                return `
+                    <label class="flex cursor-pointer items-center gap-3 rounded-xl border p-3 transition-colors ${
+                        key === selected ? 'border-brand-500 bg-brand-50' : 'border-ink-200 hover:bg-ink-50'
+                    }">
+                        <input type="radio" name="production_speed" value="${key}" class="h-4 w-4 accent-brand-600"
+                               ${key === selected ? 'checked' : ''} data-production-option>
+                        <span class="text-sm font-bold text-ink-900">${formatLeadTime(key, totals.manualPricing)}${isExpress ? ' ⚡' : ''}</span>
+                    </label>
+                `;
+            })
+            .join('');
+
+        if (this.productionNote) {
+            const reason = available
+                ? ''
+                : expressUnavailableReason(this.readyRecords().length, totals.minutes, totals.manualPricing);
+
+            this.productionNote.textContent = reason;
+            this.productionNote.style.display = reason ? 'block' : 'none';
+        }
     }
 
     setTotal(name, value) {
@@ -1465,6 +1532,10 @@ export default class ModelWorkspace {
                 }),
             })),
             totals: this.totals(),
+
+            // Kecepatan pengerjaan berlaku untuk seluruh pesanan; server
+            // memeriksa ulang syaratnya sebelum harga ditetapkan.
+            productionSpeed: this.config.productionSpeed ?? STANDARD_SPEED,
         };
     }
 

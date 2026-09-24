@@ -12,6 +12,7 @@ import {
     formatLeadTime,
     formatNumber,
     formatPercent,
+    STANDARD_SPEED,
 } from './print-estimator';
 import { materialLabel } from './model-spec';
 import { extensionOf, FORMAT_NAMES } from './model-formats';
@@ -1738,7 +1739,9 @@ export default class PrinterCard {
         // Berat tidak pernah ditulis ke DOM halaman pelanggan. Angkanya tetap
         // ada di `result` karena menjadi dasar perhitungan harga dan tetap
         // dikirim ke server saat penawaran dibuat.
-        this.setEstimate('time', formatLeadTime(result.totalMinutes, result.manualPricing));
+        // Kartu ini hanya memperagakan SATU model dan tidak mengetahui pilihan
+        // Production pesanan, jadi rentang yang ditampilkan selalu Standard.
+        this.setEstimate('time', formatLeadTime(STANDARD_SPEED, result.manualPricing));
         this.setEstimate('cost', formatCurrency(result.totalCost));
         this.setEstimate('quantity', `${this.settings.quantity} pcs`);
         this.setEstimate('support', this.supportEnabled() ? 'Ya' : 'Tidak');
@@ -1761,7 +1764,7 @@ export default class PrinterCard {
 
         this.setText('[data-scale-result="dimensions"]', `${formatNumber(x, 1)} × ${formatNumber(z, 1)} × ${formatNumber(y, 1)} mm`);
         this.setText('[data-scale-result="volume"]', `${formatNumber(this.estimate.modelVolumeCm3, 2)} cm³`);
-        this.setText('[data-scale-result="time"]', formatLeadTime(this.estimate.totalMinutes, this.estimate.manualPricing));
+        this.setText('[data-scale-result="time"]', formatLeadTime(STANDARD_SPEED, this.estimate.manualPricing));
     }
 
     /* ------------------------------------------------------------- utils */

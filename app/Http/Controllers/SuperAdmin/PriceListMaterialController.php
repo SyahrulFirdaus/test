@@ -7,15 +7,18 @@ use App\Http\Requests\StorePrintMaterialRequest;
 use App\Models\MachineCost;
 use App\Models\PricingFormula;
 use App\Models\PrintMaterial;
+use App\Models\PrintMaterialColor;
 use App\Models\PrintTechnology;
 use App\Services\ActivityLogger;
 use App\Support\ActivityAction;
 use App\Support\ActivityModule;
+use App\Support\MaterialColor;
 use App\Support\PriceListPage;
 use App\Support\PricingMethod;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -33,6 +36,14 @@ use Illuminate\Support\Facades\DB;
  */
 class PriceListMaterialController extends Controller
 {
+    /**
+     * Kolom formulir yang TIDAK langsung menjadi kolom tabel.
+     *
+     * Warna tinggal di tabelnya sendiri, sedangkan kelebihan, kekurangan, dan
+     * daftar finishing digabungkan ke `technical_spec` — lihat specFrom().
+     */
+    private const SPEC_FIELDS = ['colors', 'advantages', 'disadvantages', 'finishings'];
+
     public function __construct(private readonly ActivityLogger $activity) {}
 
     public function create(PrintTechnology $technology): View
@@ -42,7 +53,18 @@ class PriceListMaterialController extends Controller
 
     public function store(StorePrintMaterialRequest $request, PrintTechnology $technology): RedirectResponse
     {
-        $material = $technology->materials()->create($request->validated());
+        $data = $request->validated();
+
+        $material = DB::transaction(function () use ($technology, $data) {
+            $material = $technology->materials()->create([
+                ...Arr::except($data, self::SPEC_FIELDS),
+                'technical_spec' => $this->specFrom(new PrintMaterial, $data),
+            ]);
+
+            $this->syncColors($material, $data['colors'] ?? []);
+
+            return $material;
+        });
 
         $this->activity->log(
             action: ActivityAction::PRICE_LIST_UPDATE,
@@ -87,8 +109,16 @@ class PriceListMaterialController extends Controller
     {
         $material = $this->guard($technology, $material);
         $before = $this->snapshot($material);
+        $data = $request->validated();
 
-        $material->update($request->validated());
+        DB::transaction(function () use ($material, $data) {
+            $material->update([
+                ...Arr::except($data, self::SPEC_FIELDS),
+                'technical_spec' => $this->specFrom($material, $data),
+            ]);
+
+            $this->syncColors($material, $data['colors'] ?? []);
+        });
 
         $this->activity->logChanges(
             action: ActivityAction::PRICE_LIST_UPDATE,
@@ -201,6 +231,85 @@ class PriceListMaterialController extends Controller
         return $this->back($technology, $materials->count().' material '.$this->label($technology).' berhasil dihapus.');
     }
 
+    /**
+     * Ganti seluruh daftar warna material dengan kiriman formulir.
+     *
+     * Barisnya diganti utuh, tetapi KUNCINYA tidak. Baris yang sudah ada
+     * mengirimkan kembali kuncinya lewat formulir dan kunci itu dipakai ulang,
+     * sehingga mengganti nama sebuah warna — "Merah" menjadi "Merah Bata" —
+     * tidak membuat penawaran yang menyimpan kunci lamanya kehilangan warnanya.
+     * Baris yang benar-benar baru mendapat kunci dari namanya.
+     *
+     * @param  array<int, array{key?: string, name: string, hex: string}>  $colors
+     */
+    private function syncColors(PrintMaterial $material, array $colors): void
+    {
+        $existing = $material->colors()->pluck('key')->all();
+
+        $material->colors()->delete();
+
+        $used = [];
+
+        foreach (array_values($colors) as $position => $color) {
+            $claimed = (string) ($color['key'] ?? '');
+
+            $key = $claimed !== '' && in_array($claimed, $existing, true) && ! in_array($claimed, $used, true)
+                ? $claimed
+                : PrintMaterialColor::makeKey($color['name'], $color['hex'], $used);
+
+            $used[] = $key;
+
+            $material->colors()->create([
+                'key' => $key,
+                'name' => $color['name'],
+                'hex' => $color['hex'],
+                'position' => $position + 1,
+            ]);
+        }
+
+        $material->unsetRelation('colors');
+
+        MaterialColor::forget();
+    }
+
+    /**
+     * Gabungkan kolom deskriptif formulir ke `technical_spec`.
+     *
+     * Kelebihan, kekurangan, dan daftar finishing tinggal DI DALAM
+     * `technical_spec` — tempat yang sejak awal dibaca halaman spesifikasi dan
+     * estimator lewat toEstimatorArray() — sehingga tidak ada sumber kedua bagi
+     * data yang sama. Isi lain `technical_spec`, seperti densitas dan batas
+     * ukuran, dibiarkan apa adanya.
+     *
+     * @param  array<string, mixed>  $data
+     * @return array<string, mixed>
+     */
+    private function specFrom(PrintMaterial $material, array $data): array
+    {
+        return [
+            ...(array) ($material->technical_spec ?? []),
+            'pros' => self::lines($data['advantages'] ?? null),
+            'cons' => self::lines($data['disadvantages'] ?? null),
+
+            // Kosong berarti seluruh finishing ditawarkan — sama seperti warna.
+            'finishings' => array_values((array) ($data['finishings'] ?? [])),
+        ];
+    }
+
+    /**
+     * Teks bertingkat menjadi daftar, satu baris satu butir.
+     *
+     * @return array<int, string>
+     */
+    private static function lines(?string $text): array
+    {
+        return collect(preg_split('/\r\n|\r|\n/', (string) $text) ?: [])
+            ->map(fn (string $line) => trim($line))
+            ->filter()
+            ->values()
+            ->all();
+    }
+
     /** Nama teknologi pada pesan: kodenya, kecuali SLA ("SLAI" hanya kode teknis). */
     private function label(PrintTechnology $technology): string
     {
@@ -229,6 +338,7 @@ class PriceListMaterialController extends Controller
             'material' => $material->material,
             'mesin' => $material->machine?->mesin,
             'brand' => $material->brand,
+            'colors' => $material->colors->map(fn (PrintMaterialColor $color) => $color->name.' ('.$color->hex.')')->all(),
             'purchase_price' => (float) $material->purchase_price,
             'sale_price' => (float) $material->sale_price,
             'remark' => $material->remark,

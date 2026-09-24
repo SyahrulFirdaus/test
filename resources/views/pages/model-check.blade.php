@@ -211,6 +211,19 @@
                                 @endforeach
                             </dl>
 
+                            {{-- Pilihan Production milik PESANAN, bukan satu model:
+                                 satu penawaran dikerjakan dengan satu kecepatan.
+                                 Express hanya tampil bila syaratnya terpenuhi —
+                                 lihat App\Support\LeadTime. --}}
+                            <div class="mt-5 rounded-2xl border border-ink-100 p-4" data-production-field>
+                                <p class="text-[0.6rem] font-semibold uppercase tracking-[0.14em] text-ink-400">Production</p>
+
+                                <div class="mt-3 space-y-2" data-production-options></div>
+
+                                <p class="mt-3 rounded-xl bg-amber-50 p-3 text-[0.7rem] font-semibold leading-relaxed text-amber-800"
+                                   style="display: none" data-production-note></p>
+                            </div>
+
                             <p class="mt-4 rounded-xl bg-ink-50 p-4 text-xs leading-relaxed text-ink-500">
                                 Lead time dihitung sejak penawaran disetujui dan pembayaran diterima, sudah termasuk
                                 antrean produksi, post-processing, dan quality control. Tanggal pastinya dikonfirmasi
@@ -349,12 +362,15 @@
 
                                     <dl class="mt-4 space-y-1" data-spec-material-characteristics></dl>
 
-                                    <div class="mt-4">
+                                    {{-- Judulnya ikut disembunyikan saat materialnya belum
+                                         punya keterangan, supaya tidak tampak seperti daftar
+                                         yang gagal dimuat. --}}
+                                    <div class="mt-4" style="display: none" data-spec-material-pros-block>
                                         <p class="text-[0.6rem] font-bold uppercase tracking-[0.14em] text-emerald-700">Kelebihan</p>
                                         <ul class="mt-1.5 space-y-1" data-spec-material-pros></ul>
                                     </div>
 
-                                    <div class="mt-3">
+                                    <div class="mt-3" style="display: none" data-spec-material-cons-block>
                                         <p class="text-[0.6rem] font-bold uppercase tracking-[0.14em] text-brand-700">Kekurangan</p>
                                         <ul class="mt-1.5 space-y-1" data-spec-material-cons></ul>
                                     </div>
@@ -439,52 +455,9 @@
                                         </div>
                                     </div>
 
-                                    {{-- Support structure & hollow model ikut diatur di sini sejak
-                                         halaman viewer 3D hanya berfungsi sebagai alat analisis. --}}
-                                    <div class="rounded-xl border border-ink-200 bg-ink-50/60 p-4" data-spec-support-field>
-                                        <label class="flex cursor-pointer items-start gap-3">
-                                            <input type="checkbox"
-                                                   class="mt-0.5 h-4.5 w-4.5 shrink-0 rounded border-ink-300 text-brand-600 focus:ring-brand-600 disabled:cursor-not-allowed"
-                                                   data-spec-support>
-                                            <span>
-                                                <span class="block text-sm font-bold text-ink-900">Tambahkan Support Structure</span>
-                                                <span class="mt-1 block text-[0.7rem] leading-relaxed text-ink-500">
-                                                    Material penopang untuk bagian yang menggantung. Dilepas setelah dicetak, dan
-                                                    menambah pemakaian material, waktu, serta biaya.
-                                                </span>
-                                            </span>
-                                        </label>
-
-                                        <p class="mt-2 pl-7 text-[0.7rem] font-semibold leading-relaxed text-amber-700"
-                                           style="display: none"
-                                           data-spec-support-note></p>
-                                    </div>
-
-                                    <div class="rounded-xl border border-ink-200 bg-ink-50/60 p-4" style="display: none" data-spec-hollow-field>
-                                        <label class="flex cursor-pointer items-start gap-3">
-                                            <input type="checkbox"
-                                                   class="mt-0.5 h-4.5 w-4.5 shrink-0 rounded border-ink-300 text-brand-600 focus:ring-brand-600"
-                                                   data-spec-hollow>
-                                            <span>
-                                                <span class="block text-sm font-bold text-ink-900">Hollow Model</span>
-                                                <span class="mt-1 block text-[0.7rem] leading-relaxed text-ink-500">
-                                                    Mengosongkan bagian dalam part resin sehingga jauh lebih hemat material.
-                                                </span>
-                                            </span>
-                                        </label>
-
-                                        <div class="mt-3 pl-7" style="display: none" data-spec-hollow-settings>
-                                            <label for="spec-hollow-wall" class="field-label">Tebal Dinding (mm)</label>
-                                            <input type="number"
-                                                   id="spec-hollow-wall"
-                                                   class="field-input"
-                                                   min="{{ $hollow['wall_thickness_mm']['min'] }}"
-                                                   max="{{ $hollow['wall_thickness_mm']['max'] }}"
-                                                   step="{{ $hollow['wall_thickness_mm']['step'] }}"
-                                                   value="{{ $hollow['wall_thickness_mm']['default'] }}"
-                                                   data-spec-hollow-wall>
-                                        </div>
-                                    </div>
+                                    {{-- Support tidak lagi dipilih pelanggan: teknologinya yang
+                                         menentukan, dan Hollow Model sudah tidak ditawarkan.
+                                         Lihat App\Services\Pricing\PricingInput. --}}
 
                                     {{-- Pratinjau angka sebelum disimpan; harga hanya untuk yang sudah masuk. --}}
                                     <dl class="grid gap-4 rounded-2xl border border-ink-100 bg-ink-50/70 p-5 sm:grid-cols-2">
@@ -498,6 +471,11 @@
                                             </div>
                                         @endforeach
                                     </dl>
+
+                                    {{-- Penjelasan saat harganya belum dapat ditentukan sendiri
+                                         oleh sistem; isinya dipasang model-workspace.js. --}}
+                                    <p class="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-xs leading-relaxed text-amber-800"
+                                       style="display: none" data-spec-pending-note></p>
 
                                     <div class="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
                                         <button type="button" class="btn-outline w-full sm:w-auto" data-spec-close>Batal</button>

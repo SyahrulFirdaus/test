@@ -162,7 +162,27 @@
       "Bash(perl -0pi -e 's/'\\\\''company'\\\\'' => \\\\$state\\\\['\\\\''company'\\\\''\\\\] \\\\?\\\\? \\\\[\\\\],/'\\\\''companyData'\\\\'' => \\\\$state['\\\\''company'\\\\''] ?? [],/' app/Http/Controllers/Auth/RegisteredUserController.php)",
       "Bash(perl -0pi -e 's/'\\\\''company'\\\\'' => \\\\$this->companySummary/'\\\\''companyData'\\\\'' => \\\\$this->companySummary/' app/Http/Controllers/Auth/RegisteredUserController.php)",
       "Bash(perl -0pi -e 's/\\\\$company\\\\[/\\\\$companyData\\\\[/g; s/\\\\$company !== \\\\[\\\\]/\\\\$companyData !== []/g; s/\\\\@foreach \\\\\\(\\\\$company as \\\\$label/\\\\@foreach \\(\\\\$companyData as \\\\$label/g' resources/views/auth/register-company.blade.php resources/views/auth/register-review.blade.php)",
-      "Bash(grep -n 'companyData\\\\|\\\\$company\\\\b' resources/views/auth/register-company.blade.php resources/views/auth/register-review.blade.php)"
+      "Bash(grep -n 'companyData\\\\|\\\\$company\\\\b' resources/views/auth/register-company.blade.php resources/views/auth/register-review.blade.php)",
+      "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\Inixindo\\\\Documents\\\\nusama-web\" -Directory)",
+      "Bash(Select-Object -First 20)",
+      "Bash(node -e ' *)",
+      "Bash(git stash *)",
+      "Bash(grep -vE \"^\\\\s*$\")",
+      "Bash(awk '/Daftar warna material: tambah, hapus/,/^ \\\\\\)\\\\\\(\\\\\\);$/' resources/views/superadmin/price-list/material/form.blade.php)",
+      "Bash(node --check /tmp/repeater.js)",
+      "Bash(xargs echo \"baris:\")",
+      "Bash(awk '/Daftar warna material: tambah, hapus/,/<\\\\/script>/' resources/views/superadmin/price-list/material/form.blade.php)",
+      "Bash(sed '/<\\\\/script>/d')",
+      "Bash(grep -rn '\\\\$hollow' resources/views/)",
+      "Bash(python3 -)",
+      "Bash(grep -i \"leadtime\\\\|support\\\\\\\\\\\\\\\\\")",
+      "Bash(grep -n \"^use App\\\\\\\\\\\\\\\\Support\" app/Http/Requests/StoreQuotationRequest.php)",
+      "Bash(perl -0pi -e 's/assertSee\\\\\\('\\\\''Harga sedang dihitung oleh tim kami'\\\\''\\\\\\)/assertSee\\('\\\\''Harga Perlu Dicek Terlebih Dahulu'\\\\''\\)/g' '$f')",
+      "Bash(echo \"exit=$?\")",
+      "Bash(sed 's/\\\\x1b\\\\[[0-9;]*m//g' /tmp/suite.txt)",
+      "Bash(grep -n 'protected $fillable' -A 18 app/Models/User.php)",
+      "Bash(php -r 'echo extension_loaded\\(\"zip\"\\) ? \"zip AKTIF\" : \"zip TIDAK AKTIF\"; echo PHP_EOL; echo \"php.ini: \".php_ini_loaded_file\\(\\).PHP_EOL;')",
+      "Bash(sed 's/\\\\x1b\\\\[[0-9;]*m//g' /tmp/suite2.txt)"
     ]
   }
 }

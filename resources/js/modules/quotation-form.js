@@ -133,9 +133,9 @@ export default function initQuotationForm(viewer, root) {
 
             <dl class="mt-3 grid gap-3 border-t border-ink-100 pt-3 sm:grid-cols-2">
                 ${[
-                    // Model dicetak paralel, jadi lead time mengikuti mesin terlama.
-                    // Total waktu proses seluruh object, bukan object terlama.
-                    ['Estimasi Lead Time', formatLeadTime(payload.totals.minutes ?? 0, payload.totals.manualPricing)],
+                    // Lead time mengikuti kecepatan yang dipilih pelanggan
+                    // (Standard atau Express), bukan lagi total jam mesin.
+                    ['Estimasi Lead Time', formatLeadTime(payload.productionSpeed, payload.totals.manualPricing)],
                     ['Total Biaya', formatCurrency(payload.totals.cost)],
                 ]
                     .map(
@@ -335,6 +335,11 @@ export default function initQuotationForm(viewer, root) {
         }
 
         const body = new FormData(form);
+
+        // Kecepatan pengerjaan berlaku untuk seluruh pesanan. Server memeriksa
+        // ulang syarat Express sebelum harga ditetapkan, jadi nilai ini adalah
+        // permintaan — bukan keputusan.
+        body.append('production_speed', payload.productionSpeed ?? 'standard');
 
         payload.items.forEach((item, index) => {
             const field = (name) => `items[${index}][${name}]`;

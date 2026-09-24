@@ -109,7 +109,88 @@ class QuotationSellingPriceTest extends TestCase
         return app(SellingPriceEstimator::class);
     }
 
+    /**
+     * Berat yang ditagih material: berat total pesanan dibulatkan ke ATAS ke
+     * kelipatan 10 gram. Ditulis ulang di sini — bukan dipanggil dari
+     * App\Services\SellingPriceEstimator — supaya pengujian paritas benar-benar
+     * membandingkan dua perhitungan yang berdiri sendiri, seperti halnya rumus
+     * browser di resources/js/modules/selling-price.js.
+     */
+    private function billedWeightG(float $totalWeightG): float
+    {
+        return ceil(round(round($totalWeightG, 2) / 10, 6)) * 10;
+    }
+
     /* ------------------------------------------------------ perhitungan --- */
+
+    /**
+     * Material ditagih per kelipatan 10 gram.
+     *
+     * Berat berapa pun dibulatkan ke ATAS ke kelipatan 10 sebelum dikalikan
+     * harga: 1 g maupun 10 g sama-sama ditagih 10 g, 11 g menjadi 20 g, dan
+     * 21 g menjadi 30 g. Berat aslinya tetap dilaporkan apa adanya.
+     */
+    public function test_berat_material_ditagih_per_kelipatan_sepuluh_gram(): void
+    {
+        $ditagih = [
+            1 => 10, 5 => 10, 7 => 10, 10 => 10,
+            11 => 20, 12 => 20, 18 => 20, 19 => 20, 20 => 20,
+            21 => 30, 25 => 30,
+        ];
+
+        foreach ($ditagih as $berat => $harapan) {
+            $hasil = $this->hitung((float) $berat);
+
+            $this->assertSame((float) $harapan, (float) $hasil['material_qty_g'], "Berat {$berat} g seharusnya ditagih {$harapan} g.");
+            $this->assertSame((float) $berat, (float) $hasil['material_qty_g_actual'], 'Berat asli harus tetap dilaporkan apa adanya.');
+            $this->assertEqualsWithDelta(
+                $harapan * (float) $hasil['material_price_per_g'],
+                (float) $hasil['material_cost'],
+                0.01,
+                "Biaya material {$berat} g harus dihitung dari {$harapan} g.",
+            );
+        }
+    }
+
+    /** Model tanpa berat tidak ditagih 10 gram minimum — tidak ada material terpakai. */
+    public function test_berat_nol_tidak_ditagih_material(): void
+    {
+        $this->assertSame(0.0, (float) $this->hitung(0)['material_qty_g']);
+        $this->assertSame(0.0, (float) $this->hitung(0)['material_cost']);
+    }
+
+    /**
+     * Sisa galat pecahan biner tidak boleh menaikkan tagihan satu kelipatan.
+     *
+     * Berat hasil geometri kerap tersimpan sebagai 20,0000000001; tanpa
+     * penjagaan, berat itu dibulatkan menjadi 30 g dan pelanggan ditagih 50%
+     * lebih mahal. Sebaliknya 20,01 g memang sudah melewati 20 g.
+     */
+    public function test_berat_tepat_kelipatan_sepuluh_tidak_naik_karena_galat_pecahan(): void
+    {
+        $this->assertSame(20.0, (float) $this->hitung(20.0000000001)['material_qty_g']);
+        $this->assertSame(30.0, (float) $this->hitung(20.01)['material_qty_g']);
+    }
+
+    /** Pembulatan dikenakan sekali pada berat total pesanan, bukan per unit. */
+    public function test_pembulatan_dikenakan_pada_berat_total_bukan_per_unit(): void
+    {
+        // 3 unit x 12 g = 36 g total, ditagih 40 g — bukan 3 x 20 g = 60 g.
+        $this->assertSame(40.0, (float) $this->hitung(12, quantity: 3)['material_qty_g']);
+    }
+
+    /** @return array<string, mixed> */
+    private function hitung(float $beratG, int $quantity = 1): array
+    {
+        return $this->estimator()->calculate([
+            'technology' => 'FDM',
+            'material' => 'PLA Plus Standart ESUN',
+            'quantity' => $quantity,
+            'total_weight_g' => $beratG,
+            'minutes' => 0,
+            'dimensions' => null,
+        ]);
+    }
 
     public function test_harga_jual_dihitung_dari_parameter_price_list(): void
     {
@@ -214,7 +295,7 @@ class QuotationSellingPriceTest extends TestCase
             ?? $payload['formula']['packagingCost'];
 
         $browser = ($item->estimated_minutes / 60) * $payload['machines']['ender3']['cost']
-            + $item->total_weight_g * $publicMaterial['pricePerGram']
+            + $this->billedWeightG((float) $item->total_weight_g) * $publicMaterial['pricePerGram']
             + $boxPrice
             + $payload['formula']['overtimeCost']
             + $breakdown['basic_fee'];
@@ -572,7 +653,7 @@ class QuotationSellingPriceTest extends TestCase
         ]);
 
         $browser = (150 / 60) * $payload['machines']['ender3']['cost']
-            + 37.5 * 2 * $publicMaterial['pricePerGram']
+            + $this->billedWeightG(37.5 * 2) * $publicMaterial['pricePerGram']
             + $payload['packaging'][0]['price'] * 2
             + $formula['overtimeCost']
             + $server['basic_fee'];

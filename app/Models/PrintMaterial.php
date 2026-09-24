@@ -6,6 +6,7 @@ use App\Models\Concerns\HasMaterialPricing;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 /**
  * Satu baris material pada Price List, milik satu teknologi.
@@ -95,6 +96,19 @@ class PrintMaterial extends Model
     public function technology(): BelongsTo
     {
         return $this->belongsTo(PrintTechnology::class, 'print_technology_id');
+    }
+
+    /**
+     * Warna yang ditawarkan material ini, urut tampil.
+     *
+     * Daftarnya milik material — bukan satu daftar bersama untuk semua —
+     * sehingga tiap material dapat menawarkan warnanya sendiri. Material yang
+     * daftarnya masih kosong menerima seluruh warna yang dikenal sistem, lihat
+     * App\Support\MaterialColor::forMaterial().
+     */
+    public function colors(): HasMany
+    {
+        return $this->hasMany(PrintMaterialColor::class, 'print_material_id')->ordered();
     }
 
     /**

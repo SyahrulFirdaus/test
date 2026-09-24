@@ -7,6 +7,7 @@ use App\Services\PrintEstimator;
 use App\Support\AnalysisStatus;
 use App\Support\Finishing;
 use App\Support\InfillPattern;
+use App\Support\LeadTime;
 use App\Support\MaterialColor;
 use App\Support\ModelFormat;
 use App\Support\Printer;
@@ -43,6 +44,12 @@ class StoreQuotationRequest extends FormRequest
             // penawaran berikutnya dan kiriman yang disusun sendiri tidak dapat
             // memalsukan identitas maupun mengaku mewakili perusahaan lain.
             'notes' => ['nullable', 'string', 'max:2000'],
+
+            // Kecepatan pengerjaan berlaku untuk seluruh pesanan. Syarat Express
+            // TIDAK diperiksa di sini melainkan di controller, karena bergantung
+            // pada jumlah part dan total waktu mesin hasil estimasi server —
+            // lihat App\Support\LeadTime::resolve().
+            'production_speed' => ['nullable', 'string', 'in:'.implode(',', [LeadTime::STANDARD, LeadTime::EXPRESS])],
 
             // Alamat pengiriman dipilih dari buku alamat pemilik akun. Boleh
             // kosong: pelanggan yang belum sempat mengisi alamat tetap dapat

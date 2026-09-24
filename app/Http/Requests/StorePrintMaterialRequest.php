@@ -4,8 +4,11 @@ namespace App\Http\Requests;
 
 use App\Models\PrintMaterial;
 use App\Models\PrintTechnology;
+use App\Support\Finishing;
 use App\Support\PricingMethod;
+use Closure;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 
 /**
@@ -61,6 +64,22 @@ class StorePrintMaterialRequest extends FormRequest
             ],
             'machine_cost_id' => ['nullable', 'integer', 'exists:machine_costs,id'],
             'brand' => ['required', 'string', 'max:60'],
+            // Daftar warna milik material ini. Baris yang sama sekali kosong
+            // sudah dibuang prepareForValidation(), jadi yang tersisa wajib
+            // lengkap — nama tanpa hex adalah kiriman setengah jadi.
+            'colors' => ['nullable', 'array', 'max:50', $this->noDuplicateColorNames()],
+            // Kelebihan dan kekurangan material, satu baris satu butir. Yang
+            // dilihat pelanggan pada Edit Specification adalah daftar ini.
+            'advantages' => ['nullable', 'string', 'max:2000'],
+            'disadvantages' => ['nullable', 'string', 'max:2000'],
+
+            // Finishing yang ditawarkan material ini; kosong berarti semuanya.
+            'finishings' => ['nullable', 'array'],
+            'finishings.*' => ['string', Rule::in(Finishing::keys())],
+
+            'colors.*.key' => ['nullable', 'string', 'max:80'],
+            'colors.*.name' => ['required', 'string', 'max:60'],
+            'colors.*.hex' => ['required', 'string', 'size:7', 'regex:/^#[0-9A-Fa-f]{6}$/'],
 
             // Harga material tidak berlaku bagi material dengan Kalkulator
             // Manual: harganya ditetapkan tim per penawaran, jadi tidak ada
@@ -90,6 +109,29 @@ class StorePrintMaterialRequest extends FormRequest
             $this->merge(['machine_cost_id' => null]);
         }
 
+        /*
+         * Daftar warna dirapikan sebelum divalidasi.
+         *
+         * Formulir selalu membawa satu baris kosong untuk material baru, dan
+         * baris yang dihapus meninggalkan lubang pada penomorannya. Keduanya
+         * dibereskan di sini: baris yang sama sekali kosong dibuang, sisanya
+         * dinomori ulang, dan kode hexanya disamakan menjadi huruf kapital.
+         */
+        if ($this->has('colors')) {
+            $this->merge([
+                'colors' => collect((array) $this->input('colors'))
+                    ->filter(fn ($row) => is_array($row))
+                    ->map(fn (array $row) => [
+                        'key' => trim((string) ($row['key'] ?? '')),
+                        'name' => trim((string) ($row['name'] ?? '')),
+                        'hex' => strtoupper(trim((string) ($row['hex'] ?? ''))),
+                    ])
+                    ->reject(fn (array $row) => $row['name'] === '' && $row['hex'] === '')
+                    ->values()
+                    ->all(),
+            ]);
+        }
+
         // Material dengan Kalkulator Manual tidak mewajibkan kolom harga,
         // jadi nilainya diisi nol di sini — bukan dibiarkan NULL, karena
         // kolomnya NOT NULL dan dibaca rumus material teknologi lain.
@@ -110,6 +152,27 @@ class StorePrintMaterialRequest extends FormRequest
         return ! $this->choosesPricing() || $this->input('pricing_method') === PrintMaterial::PRICING_AUTOMATIC;
     }
 
+    /**
+     * Dua warna dengan nama yang sama dalam satu material tidak diterima.
+     *
+     * Kuncinya dibuat dari namanya (lihat App\Models\PrintMaterialColor), jadi
+     * nama kembar akan bertabrakan pada indeks unik basis data. Ditolak di sini
+     * supaya yang terbaca pengelola adalah pesan validasi, bukan galat 500.
+     */
+    private function noDuplicateColorNames(): Closure
+    {
+        return function (string $attribute, mixed $value, Closure $fail): void {
+            $keys = collect((array) $value)
+                ->pluck('name')
+                ->filter()
+                ->map(fn ($name) => Str::slug((string) $name) ?: 'warna');
+
+            if ($keys->count() !== $keys->unique()->count()) {
+                $fail('Ada dua warna dengan nama yang sama. Tiap warna harus bernama berbeda.');
+            }
+        };
+    }
+
     private function choosesPricing(): bool
     {
         $technology = $this->route('technology');
@@ -125,6 +188,10 @@ class StorePrintMaterialRequest extends FormRequest
             'material.unique' => 'Mesin ini sudah punya material dengan nama tersebut.',
             'machine_cost_id.exists' => 'Mesin yang dipilih tidak ditemukan di Machine Cost.',
             'brand.required' => 'Brand wajib diisi.',
+            'colors.*.name.required' => 'Nama Color wajib diisi, atau hapus barisnya.',
+            'colors.*.hex.required' => 'Hexa Color wajib diisi, atau hapus barisnya.',
+            'colors.*.hex.size' => 'Kode hexa harus terdiri dari 7 karakter (#RRGGBB).',
+            'colors.*.hex.regex' => 'Format kode hexa tidak valid. Gunakan format #RRGGBB (contoh: #FFFFFF).',
             'purchase_price.required' => 'Harga Beli wajib diisi.',
             'sale_price.required' => 'Harga Jual wajib diisi.',
             'purchase_price.max' => 'Harga Beli terlalu besar, maksimal Rp9.999.999.999.',

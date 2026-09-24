@@ -62,7 +62,7 @@ trait DescribesPrintJob
     }
 
     /**
-     * Lead time pengerjaan, mis. "3–5 Hari Kerja".
+     * Lead time pengerjaan, mis. "Standard (5–7 Hari Kerja)".
      *
      * Inilah angka yang ditampilkan kepada pelanggan: bukan lama mesin
      * berputar, melainkan perkiraan kapan pesanannya selesai — sudah termasuk
@@ -70,15 +70,28 @@ trait DescribesPrintJob
      * sendiri tetap tersimpan dan dipakai halaman admin lewat
      * `estimated_duration`.
      *
-     * Pekerjaan berharga Rumus Harga Manual memakai rentangnya sendiri, lebih
-     * panjang karena partnya menunggu kuotasi vendor lebih dahulu — lihat
-     * App\Support\LeadTime::manualTier().
+     * Rentangnya kini mengikuti KECEPATAN yang dipilih pelanggan, bukan lagi
+     * disimpulkan dari jam mesin. Pekerjaan berharga Rumus Harga Manual memakai
+     * rentangnya sendiri, lebih panjang karena partnya menunggu kuotasi vendor
+     * lebih dahulu — lihat App\Support\LeadTime::manualTier().
      */
     public function getLeadTimeAttribute(): ?string
     {
         return blank($this->estimated_minutes)
             ? null
-            : LeadTime::label((float) $this->estimated_minutes, $this->usesManualPricing());
+            : LeadTime::label($this->productionSpeed(), $this->usesManualPricing());
+    }
+
+    /**
+     * Kecepatan pengerjaan yang berlaku bagi pekerjaan ini.
+     *
+     * Pilihannya milik PESANAN, bukan satu model: sebuah penawaran dikerjakan
+     * dengan satu kecepatan. Trait ini dipakai penawaran maupun modelnya, jadi
+     * model membacanya dari penawaran induknya.
+     */
+    protected function productionSpeed(): ?string
+    {
+        return $this->production_speed ?? $this->quotationRequest?->production_speed;
     }
 
     /**

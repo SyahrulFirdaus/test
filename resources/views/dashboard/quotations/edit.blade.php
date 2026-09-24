@@ -71,11 +71,6 @@
     {{-- ================= DAFTAR FILE ================= --}}
     <div class="mt-6 space-y-6">
         @foreach ($quotation->items as $item)
-            @php
-                // Hollow Model hanya berlaku pada teknologi tertentu (SLA).
-                $supportsHollow = in_array($item->technology, $hollowTechnologies, true);
-            @endphp
-
             <section class="overflow-hidden rounded-2xl border border-ink-100 bg-white shadow-card">
                 <header class="flex flex-wrap items-center justify-between gap-3 border-b border-ink-100 bg-ink-50/60 px-6 py-4">
                     <div class="flex min-w-0 items-center gap-3">
@@ -216,41 +211,9 @@
                             </select>
                         </div>
 
-                        <div class="flex items-end">
-                            <label class="flex w-full items-center gap-3 rounded-xl border border-ink-200 px-4 py-3 text-sm font-semibold text-ink-700">
-                                <input type="hidden" name="support_enabled" value="0">
-                                <input type="checkbox" name="support_enabled" value="1" @checked($item->support_enabled)
-                                       class="h-4 w-4 rounded border-ink-300 text-brand-600 focus:ring-brand-600">
-                                Support Structure
-                            </label>
-                        </div>
-
-                        @if ($supportsHollow)
-                            <div class="flex items-end">
-                                <label class="flex w-full items-center gap-3 rounded-xl border border-ink-200 px-4 py-3 text-sm font-semibold text-ink-700">
-                                    <input type="hidden" name="hollow_enabled" value="0">
-                                    <input type="checkbox" name="hollow_enabled" value="1" @checked($item->hollow_enabled)
-                                           class="h-4 w-4 rounded border-ink-300 text-brand-600 focus:ring-brand-600">
-                                    Hollow Model
-                                </label>
-                            </div>
-
-                            <div>
-                                <label for="wall-{{ $item->id }}" class="field-label">Tebal Dinding (mm)</label>
-                                <input type="number" id="wall-{{ $item->id }}" name="hollow_wall_thickness_mm" step="0.1" min="0.1" max="50"
-                                       value="{{ old('hollow_wall_thickness_mm', $item->hollow_wall_thickness_mm ?? config('printing.hollow.wall_thickness_mm.default')) }}"
-                                       class="field-input">
-                            </div>
-
-                            <div>
-                                <label for="drain-{{ $item->id }}" class="field-label">Posisi Lubang Buang</label>
-                                <select id="drain-{{ $item->id }}" name="hollow_drain_position" class="field-input">
-                                    @foreach ($drainPositions as $key => $position)
-                                        <option value="{{ $key }}" @selected($item->hollow_drain_position === $key)>{{ $position['label'] }}</option>
-                                    @endforeach
-                                </select>
-                            </div>
-                        @endif
+                        {{-- Support tidak lagi dipilih pelanggan: teknologinya yang
+                             menentukan, dan Hollow Model sudah tidak ditawarkan.
+                             Lihat App\Services\Pricing\PricingInput. --}}
                     </div>
 
                     <div class="mt-6 flex flex-wrap items-center justify-between gap-4 border-t border-ink-100 pt-5">

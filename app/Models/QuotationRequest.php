@@ -67,6 +67,7 @@ class QuotationRequest extends Model
         'production_photo',
         'result_photo',
         'status',
+        'production_speed',
         'admin_note',
 
         'payment_due_at',

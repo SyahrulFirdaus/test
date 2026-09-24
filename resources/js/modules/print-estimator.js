@@ -128,6 +128,13 @@ export function estimate(technology, material, geometryVolumeCm3, quantity = 1, 
         dimensions: options.dimensions ?? null,
         pricing: options.pricing ?? {},
         cost: options.cost ?? {},
+
+        // Finishing dan kecepatan produksi menambah komponen harganya sendiri
+        // di atas harga printing — lihat App\Services\SellingPriceEstimator.
+        finishing: options.finishing ?? null,
+        finishingOption: finishing,
+        productionSpeed: options.productionSpeed ?? null,
+        leadTime: options.leadTime ?? leadTimeConfig,
     });
 
     return {
@@ -233,7 +240,12 @@ function clamp(value, fallback, min, max) {
  * (SLA Industries). Sengaja BUKAN "Rp0": angka nol terbaca sebagai harga yang
  * sudah pasti, dan gratis.
  */
-export const PENDING_PRICE_LABEL = 'Harga sedang dihitung oleh tim kami';
+export const PENDING_PRICE_LABEL = 'Harga Perlu Dicek Terlebih Dahulu';
+
+/** Keterangan lengkapnya, untuk tempat yang cukup memuat satu kalimat penjelas. */
+export const PENDING_PRICE_NOTE =
+    'Desain Anda perlu diperiksa terlebih dahulu sebelum harga dapat ditentukan. '
+    + 'Tim NUSAMA3D akan memberikan penawaran harga setelah dilakukan pengecekan.';
 
 /**
  * Rupiah siap tampil.
@@ -289,51 +301,111 @@ export function formatPercent(value, digits = 0) {
 }
 
 /**
- * Lead time pengerjaan.
+ * Kecepatan pengerjaan beserta rentang hari kerjanya.
  *
- * Pelanggan membutuhkan tanggal selesai, bukan lama mesin berputar, jadi menit
- * mesin diterjemahkan menjadi rentang hari kerja. Tingkatannya dikirim server
- * lewat `printingConfig.leadTime` (App\Support\LeadTime) agar angka di browser
- * dan di server tidak pernah berbeda; nilai di bawah hanya cadangan bila
- * konfigurasinya belum sempat dimuat.
+ * Kecepatannya DIPILIH pelanggan, tidak lagi disimpulkan dari jam mesin.
+ * Aturannya dikirim server lewat `printingConfig.leadTime`
+ * (App\Support\LeadTime) agar pilihan yang tampil di browser tidak pernah
+ * berbeda dengan yang diperiksa ulang server; nilai di bawah hanya cadangan
+ * bila konfigurasinya belum sempat dimuat.
  */
 let leadTimeConfig = {
     unit: 'Hari Kerja',
-    tiers: [
-        // 20 jam = 1.200 menit.
-        { name: 'Express', maxMinutes: 1200, minDays: 1, maxDays: 1 },
-        { name: 'Standard', maxMinutes: null, minDays: 3, maxDays: 5 },
-    ],
+    default: 'standard',
+    standard: { key: 'standard', name: 'Standard', minDays: 5, maxDays: 7 },
+    express: {
+        key: 'express',
+        name: 'Express',
+        minDays: 1,
+        maxDays: 2,
+        maxParts: 1,
+        // 18 jam = 1.080 menit.
+        belowMinutes: 1080,
+        surchargePercent: 25,
+    },
     // Pekerjaan berharga Rumus Harga Manual menunggu kuotasi vendor lebih
-    // dahulu, jadi rentangnya tetap dan tidak mengikuti tingkat di atas.
-    manual: { name: 'Standard', maxMinutes: null, minDays: 5, maxDays: 7 },
+    // dahulu, jadi rentangnya tetap dan Express tidak berlaku.
+    manual: { name: 'Standard', minDays: 5, maxDays: 7 },
+    unavailableNote: 'Express is unavailable for this order. Please select Standard Production (5–7 working days).',
 };
 
+export const STANDARD_SPEED = 'standard';
+
+export const EXPRESS_SPEED = 'express';
+
 export function configureLeadTime(config) {
-    if (config?.tiers?.length) {
-        leadTimeConfig = {
-            unit: config.unit ?? leadTimeConfig.unit,
-            tiers: config.tiers,
-            manual: config.manual ?? leadTimeConfig.manual,
-        };
+    if (config?.standard && config?.express) {
+        leadTimeConfig = { ...leadTimeConfig, ...config };
     }
 }
 
 /**
- * Tingkat lead time untuk sekian menit mesin.
+ * Alasan Express tidak tersedia, dalam kalimat yang menjelaskan.
  *
- * Menit yang masuk adalah TOTAL seluruh object dalam satu penawaran, bukan
- * waktu satu object — lihat App\Support\LeadTime.
+ * Pelanggan perlu tahu MENGAPA pilihannya tinggal Standard, bukan sekadar
+ * diberi tahu bahwa Express tidak ada. Syaratnya dua dan keduanya bisa menjadi
+ * penyebabnya sekaligus, jadi alasannya disusun dari yang benar-benar berlaku.
  */
-function leadTimeTier(minutes, manualPricing = false) {
+export function expressUnavailableReason(partCount, minutes, manualPricing = false) {
+    const { standard, express, unit } = leadTimeConfig;
+    const rentang = `${standard.name} (${standard.minDays}–${standard.maxDays} ${unit})`;
+
+    if (manualPricing) {
+        return `Material yang Anda pilih perlu dicek tim kami lebih dahulu, jadi pengerjaannya mengikuti ${rentang}.`;
+    }
+
+    const maxParts = Number(express.maxParts ?? 1);
+    const batasMenit = Number(express.belowMinutes ?? 1080);
+    const alasan = [];
+
+    if (Number(partCount) > maxParts) {
+        alasan.push(`pesanan Anda berisi ${partCount} model sedangkan Express hanya untuk ${maxParts} model`);
+    }
+
+    if (Math.max(0, Number(minutes) || 0) >= batasMenit) {
+        alasan.push(
+            `perkiraan waktu mesinnya ${formatDuration(minutes)} sedangkan Express hanya untuk pengerjaan di bawah ${batasMenit / 60} jam`
+        );
+    }
+
+    return alasan.length ? `Pengerjaan mengikuti ${rentang} karena ${alasan.join(' dan ')}.` : '';
+}
+
+/**
+ * Express tersedia untuk pesanan ini.
+ *
+ * KEDUA syaratnya harus terpenuhi sekaligus: pesanannya berisi tidak lebih dari
+ * `maxParts` part DAN total waktu mesinnya DI BAWAH `belowMinutes` — 17 jam 59
+ * menit masih boleh, 18 jam tepat tidak. Sama persis dengan
+ * App\Support\LeadTime::expressAvailable().
+ */
+export function expressAvailable(partCount, minutes, manualPricing = false) {
+    if (manualPricing || Number(partCount) < 1) {
+        return false;
+    }
+
+    return Number(partCount) <= Number(leadTimeConfig.express.maxParts ?? 1)
+        && Math.max(0, Number(minutes) || 0) < Number(leadTimeConfig.express.belowMinutes ?? 1080);
+}
+
+/** Kecepatan yang benar-benar berlaku; Express yang tak memenuhi syarat turun ke Standard. */
+export function resolveSpeed(speed, partCount, minutes, manualPricing = false) {
+    return speed === EXPRESS_SPEED && expressAvailable(partCount, minutes, manualPricing)
+        ? EXPRESS_SPEED
+        : STANDARD_SPEED;
+}
+
+/** Tambahan harga printing Express, dalam persen. */
+export function expressSurchargePercent() {
+    return Math.max(0, Number(leadTimeConfig.express.surchargePercent ?? 0) || 0);
+}
+
+function leadTimeTier(speed, manualPricing = false) {
     if (manualPricing) {
         return leadTimeConfig.manual;
     }
 
-    const total = Math.max(0, Number(minutes) || 0);
-    const tiers = leadTimeConfig.tiers;
-
-    return tiers.find((entry) => entry.maxMinutes === null || total <= entry.maxMinutes) ?? tiers[tiers.length - 1];
+    return speed === EXPRESS_SPEED ? leadTimeConfig.express : leadTimeConfig.standard;
 }
 
 /**
@@ -347,24 +419,24 @@ export function isManualEstimate(estimate) {
     return estimate?.manualPricing === true || estimate?.breakdown?.manual_pricing === true;
 }
 
-/** @returns {{min:number, max:number}} rentang hari kerja untuk sekian menit mesin */
-export function leadTimeDays(minutes, manualPricing = false) {
-    const tier = leadTimeTier(minutes, manualPricing);
+/** @returns {{min:number, max:number}} rentang hari kerja sebuah kecepatan */
+export function leadTimeDays(speed, manualPricing = false) {
+    const tier = leadTimeTier(speed, manualPricing);
 
     return { min: tier.minDays, max: tier.maxDays };
 }
 
 /**
- * Label siap tampil, mis. "Express — 1 Hari Kerja".
+ * Label siap tampil, mis. "Express (1–2 Hari Kerja)".
  *
  * Jam mesin tetap dipakai sebagai data perhitungan, tetapi yang ditampilkan
- * kepada pelanggan hanya nama tingkat beserta rentang hari kerjanya.
+ * kepada pelanggan hanya nama kecepatan beserta rentang hari kerjanya.
  *
  * `manualPricing` menandai pekerjaan yang harganya dihitung dengan Rumus Harga
- * Manual; rentangnya tetap, berapa pun menit mesinnya.
+ * Manual; rentangnya tetap dan Express tidak berlaku.
  */
-export function formatLeadTime(minutes, manualPricing = false) {
-    const tier = leadTimeTier(minutes, manualPricing);
+export function formatLeadTime(speed, manualPricing = false) {
+    const tier = leadTimeTier(speed, manualPricing);
     const range = `${tier.minDays === tier.maxDays ? tier.minDays : `${tier.minDays}–${tier.maxDays}`} ${leadTimeConfig.unit}`;
 
     return tier.name ? `${tier.name} (${range})` : range;

@@ -3,36 +3,56 @@
 namespace App\Support;
 
 /**
- * Penerjemah jam mesin menjadi lead time pengerjaan.
+ * Pilihan kecepatan pengerjaan beserta rentang hari kerjanya.
  *
- * Estimasi tetap dihitung dalam menit mesin — angka itulah yang dipakai
- * perhitungan biaya dan perencanaan produksi. Yang berubah hanya cara
- * menyampaikannya kepada pelanggan: rentang hari kerja sampai pesanan selesai,
- * bukan lama satu file dicetak.
+ * Kecepatannya DIPILIH pelanggan, tidak lagi disimpulkan dari jam mesin:
+ * Standard selalu tersedia, Express hanya bila pesanannya berisi satu part DAN
+ * total waktu mesinnya di bawah 18 jam. Keduanya harus terpenuhi sekaligus —
+ * pesanan dua part berjumlah 9 jam tetap tidak mendapat Express.
  *
- * Tingkatannya diatur `lead_time` di config/printing.php, dan salinan yang sama
- * dikirim ke browser lewat `printingConfig` sehingga estimasi di halaman
- * 3D Models tidak pernah berbeda dengan yang dihitung ulang di server.
+ * Batas waktunya tegas DI BAWAH, bukan sampai dengan: 17 jam 59 menit masih
+ * Express, 18 jam tepat tidak lagi.
+ *
+ * Aturan dan angkanya diatur `lead_time` di config/printing.php, dan salinan
+ * yang sama dikirim ke browser lewat `printingConfig` sehingga pilihan yang
+ * tampil di halaman 3D Models tidak pernah berbeda dengan yang diperiksa ulang
+ * server saat penawarannya disimpan.
  */
 class LeadTime
 {
-    /** @return array<int, array<string, int|null>> */
-    public static function tiers(): array
-    {
-        return config('printing.lead_time.tiers', []);
-    }
+    public const STANDARD = 'standard';
+
+    public const EXPRESS = 'express';
 
     public static function unit(): string
     {
         return config('printing.lead_time.unit', 'Hari Kerja');
     }
 
+    /** @return array<string, mixed> */
+    public static function standard(): array
+    {
+        return config('printing.lead_time.standard', ['name' => 'Standard', 'min_days' => 5, 'max_days' => 7]);
+    }
+
+    /** @return array<string, mixed> */
+    public static function express(): array
+    {
+        return config('printing.lead_time.express', [
+            'name' => 'Express',
+            'min_days' => 1,
+            'max_days' => 2,
+            'max_parts' => 1,
+            'below_minutes' => 1080,
+            'surcharge_percent' => 25,
+        ]);
+    }
+
     /**
-     * Tingkat tetap bagi pekerjaan berharga Rumus Harga Manual.
+     * Rentang tetap bagi pekerjaan berharga Rumus Harga Manual.
      *
-     * Bukan bagian dari `tiers`: pekerjaan seperti ini menunggu kuotasi vendor
-     * lebih dahulu, jadi jam mesinnya tidak menentukan apa pun — lihat
-     * App\Support\PricingMethod.
+     * Partnya menunggu kuotasi vendor lebih dahulu, jadi jam mesinnya tidak
+     * menentukan apa pun — lihat App\Support\PricingMethod.
      *
      * @return array<string, mixed>
      */
@@ -41,68 +61,103 @@ class LeadTime
         return config('printing.lead_time.manual', ['name' => 'Standard', 'min_days' => 5, 'max_days' => 7]);
     }
 
-    /**
-     * Tingkat yang berlaku untuk sekian menit mesin.
-     *
-     * Menit yang masuk adalah TOTAL seluruh object dalam satu penawaran —
-     * penentunya keseluruhan pesanan, bukan object yang paling lama.
-     *
-     * `$manualPricing` menandai pekerjaan berharga Rumus Harga Manual, yang
-     * memakai rentang tetapnya sendiri berapa pun menit mesinnya.
-     *
-     * @return array<string, mixed>
-     */
-    public static function tierFor(?float $minutes, bool $manualPricing = false): array
+    public static function default(): string
     {
-        if ($manualPricing) {
-            return self::manualTier();
-        }
+        return self::STANDARD;
+    }
 
-        $minutes = max(0.0, (float) $minutes);
-        $tiers = self::tiers();
+    public static function exists(?string $speed): bool
+    {
+        return in_array($speed, [self::STANDARD, self::EXPRESS], true);
+    }
 
-        foreach ($tiers as $tier) {
-            if ($tier['max_minutes'] === null || $minutes <= $tier['max_minutes']) {
-                return $tier;
-            }
-        }
+    /** Banyaknya part maksimum yang masih boleh Express. */
+    public static function maxParts(): int
+    {
+        return max(1, (int) (self::express()['max_parts'] ?? 1));
+    }
 
-        $last = end($tiers);
+    /** Batas waktu mesin Express, dalam menit — harus DI BAWAH angka ini. */
+    public static function belowMinutes(): float
+    {
+        return max(0.0, (float) (self::express()['below_minutes'] ?? 1080));
+    }
 
-        return $last === false
-            ? ['name' => 'Standard', 'min_days' => 3, 'max_days' => 5]
-            : $last;
+    public static function surchargePercent(): float
+    {
+        return max(0.0, (float) (self::express()['surcharge_percent'] ?? 25));
     }
 
     /**
-     * Rentang hari kerja untuk sekian menit mesin.
+     * Express tersedia untuk pesanan ini.
+     *
+     * KEDUA syaratnya harus terpenuhi: jumlah partnya tidak melebihi batas DAN
+     * total waktu mesinnya di bawah batas. Pekerjaan berharga Rumus Harga
+     * Manual tidak pernah mendapat Express.
+     */
+    public static function expressAvailable(int $partCount, ?float $minutes, bool $manualPricing = false): bool
+    {
+        if ($manualPricing || $partCount < 1) {
+            return false;
+        }
+
+        return $partCount <= self::maxParts()
+            && max(0.0, (float) $minutes) < self::belowMinutes();
+    }
+
+    /**
+     * Kecepatan yang benar-benar berlaku bagi pesanan ini.
+     *
+     * Express yang diminta padahal syaratnya tidak terpenuhi diturunkan menjadi
+     * Standard. Dipakai server sebelum harga ditetapkan, sehingga kiriman yang
+     * menyebut Express tidak dapat memotong antrean maupun mengubah harganya
+     * tanpa memenuhi syaratnya.
+     */
+    public static function resolve(?string $speed, int $partCount, ?float $minutes, bool $manualPricing = false): string
+    {
+        return $speed === self::EXPRESS && self::expressAvailable($partCount, $minutes, $manualPricing)
+            ? self::EXPRESS
+            : self::STANDARD;
+    }
+
+    /** Pengali harga printing: 1,25 untuk Express, 1,0 untuk Standard. */
+    public static function surchargeFactor(?string $speed): float
+    {
+        return $speed === self::EXPRESS
+            ? 1 + (self::surchargePercent() / 100)
+            : 1.0;
+    }
+
+    public static function unavailableNote(): string
+    {
+        return (string) config(
+            'printing.lead_time.unavailable_note',
+            'Express is unavailable for this order. Please select Standard Production (5–7 working days).',
+        );
+    }
+
+    /**
+     * Rentang hari kerja sebuah kecepatan.
      *
      * @return array{min: int, max: int}
      */
-    public static function days(?float $minutes, bool $manualPricing = false): array
+    public static function days(?string $speed, bool $manualPricing = false): array
     {
-        $tier = self::tierFor($minutes, $manualPricing);
+        $tier = self::tier($speed, $manualPricing);
 
         return ['min' => (int) $tier['min_days'], 'max' => (int) $tier['max_days']];
     }
 
-    /** Nama tingkatnya, mis. "Express". */
-    public static function name(?float $minutes, bool $manualPricing = false): string
+    /** Nama kecepatannya, mis. "Express". */
+    public static function name(?string $speed, bool $manualPricing = false): string
     {
-        return (string) (self::tierFor($minutes, $manualPricing)['name'] ?? '');
+        return (string) (self::tier($speed, $manualPricing)['name'] ?? '');
     }
 
-    /**
-     * Label siap tampil, mis. "Express — 1 Hari Kerja".
-     *
-     * Yang sampai ke pelanggan hanya nama tingkat beserta rentang hari
-     * kerjanya. Jam dan menit mesin tetap dihitung dan tersimpan, tetapi
-     * dipakai sebagai data internal — di sini hanya menentukan tingkat mana
-     * yang berlaku.
-     */
-    public static function label(?float $minutes, bool $manualPricing = false): string
+    /** Label siap tampil, mis. "Express (1–2 Hari Kerja)". */
+    public static function label(?string $speed, bool $manualPricing = false): string
     {
-        $tier = self::tierFor($minutes, $manualPricing);
+        $tier = self::tier($speed, $manualPricing);
         $min = (int) $tier['min_days'];
         $max = (int) $tier['max_days'];
 
@@ -112,6 +167,16 @@ class LeadTime
         return $name === '' ? $range : $name.' ('.$range.')';
     }
 
+    /** @return array<string, mixed> */
+    private static function tier(?string $speed, bool $manualPricing): array
+    {
+        if ($manualPricing) {
+            return self::manualTier();
+        }
+
+        return $speed === self::EXPRESS ? self::express() : self::standard();
+    }
+
     /**
      * Salinan aturan untuk perhitungan yang sama di browser.
      *
@@ -119,22 +184,34 @@ class LeadTime
      */
     public static function browserPayload(): array
     {
+        $standard = self::standard();
+        $express = self::express();
         $manual = self::manualTier();
 
         return [
             'unit' => self::unit(),
-            'tiers' => array_map(fn (array $tier) => [
-                'name' => $tier['name'] ?? null,
-                'maxMinutes' => $tier['max_minutes'],
-                'minDays' => $tier['min_days'],
-                'maxDays' => $tier['max_days'],
-            ], self::tiers()),
-            'manual' => [
-                'name' => $manual['name'] ?? null,
-                'maxMinutes' => null,
-                'minDays' => $manual['min_days'],
-                'maxDays' => $manual['max_days'],
+            'default' => self::default(),
+            'standard' => [
+                'key' => self::STANDARD,
+                'name' => $standard['name'] ?? 'Standard',
+                'minDays' => (int) $standard['min_days'],
+                'maxDays' => (int) $standard['max_days'],
             ],
+            'express' => [
+                'key' => self::EXPRESS,
+                'name' => $express['name'] ?? 'Express',
+                'minDays' => (int) $express['min_days'],
+                'maxDays' => (int) $express['max_days'],
+                'maxParts' => self::maxParts(),
+                'belowMinutes' => self::belowMinutes(),
+                'surchargePercent' => self::surchargePercent(),
+            ],
+            'manual' => [
+                'name' => $manual['name'] ?? 'Standard',
+                'minDays' => (int) $manual['min_days'],
+                'maxDays' => (int) $manual['max_days'],
+            ],
+            'unavailableNote' => self::unavailableNote(),
         ];
     }
 }

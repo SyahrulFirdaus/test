@@ -161,7 +161,8 @@
                          Pelanggan diberi tahu apa adanya, bukan diberi angka
                          sementara yang nanti berubah. --}}
                     <p class="mt-5 rounded-xl bg-amber-50 p-4 text-xs leading-relaxed text-amber-900">
-                        Harga sedang dihitung oleh tim kami untuk model dengan material tertentu pada penawaran ini. Harga penawaran akan muncul di halaman ini begitu perhitungannya selesai.
+                        Desain Anda perlu diperiksa terlebih dahulu sebelum harga dapat ditentukan.
+                        Tim NUSAMA3D akan memberikan penawaran harga setelah dilakukan pengecekan.
                     </p>
                 @elseif ($quotation->estimated_price !== null)
                     <p class="mt-5 rounded-xl bg-brand-50 p-4 text-xs leading-relaxed text-brand-800">

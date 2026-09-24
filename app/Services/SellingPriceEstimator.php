@@ -8,6 +8,8 @@ use App\Models\PricingFormula;
 use App\Models\QuotationItem;
 use App\Models\QuotationRequest;
 use App\Support\BasicFee;
+use App\Support\Finishing;
+use App\Support\LeadTime;
 use App\Support\PricingMethod;
 use App\Support\Printer;
 use App\Support\SlaIndustries;
@@ -24,6 +26,7 @@ use Illuminate\Support\Collection;
  * angka yang ditulis tetap di sini.
  *
  *   Material                = Jumlah Material x Harga Material
+ *                             (berat dibulatkan ke atas kelipatan 10 gram)
  *   Harga Operasional Mesin = Machine Time x Machine Cost
  *   HPP                     = Material + Operasional Mesin
  *   Risk Cost               = HPP x Risiko Gagal Print (%)
@@ -65,7 +68,8 @@ class SellingPriceEstimator
     public const SUMMABLE = [
         'material_cost', 'machine_operational_cost', 'hpp', 'risk_cost',
         'subtotal_hpp_risk', 'packaging', 'overtime', 'subtotal', 'profit',
-        'basic_fee', 'selling_price', 'total',
+        'basic_fee', 'printing_price', 'express_fee', 'finishing_price',
+        'selling_price', 'total',
 
         'material', 'machine_time', 'support', 'finishing', 'quality_control',
     ];
@@ -227,7 +231,17 @@ class SellingPriceEstimator
             : (float) ($formula->machine_cost ?? 0);
 
         // Berat model + support berlaku per unit, jadi dikalikan jumlah unit.
-        $materialQty = ((float) ($context['total_weight_g'] ?? 0)) * $quantity;
+        //
+        // Material ditagih per kelipatan 10 gram, jadi beratnya dibulatkan ke
+        // ATAS ke kelipatan 10 sebelum dikalikan harga — 1 g maupun 10 g
+        // sama-sama 10 g, 11 g menjadi 20 g. Pembulatannya dikenakan sekali
+        // pada berat total pesanan, bukan per unit.
+        //
+        // Hasil baginya dibulatkan enam desimal lebih dulu supaya sisa galat
+        // pecahan biner pada berat hasil geometri — 20 g yang tersimpan sebagai
+        // 20,0000000001 — tidak menaikkannya satu kelipatan penuh.
+        $totalWeightG = round(((float) ($context['total_weight_g'] ?? 0)) * $quantity, 2);
+        $materialQty = ceil(round($totalWeightG / 10, 6)) * 10;
         $materialPrice = $this->materialPriceFor($technology, $material, $formula);
 
         // Satu unit dikemas dalam satu kardus, jadi biayanya ikut jumlah unit.
@@ -254,7 +268,63 @@ class SellingPriceEstimator
         $subtotalHppRisk = $hpp + $riskCost;
         $subtotal = $subtotalHppRisk + $packaging + $overtime;
         $profit = $subtotal * ($profitPercent / 100);
-        $sellingPrice = round($subtotal + $profit + $basicFee, 2);
+
+        /*
+         * Harga printing: harga mencetak partnya saja.
+         *
+         * Inilah dasar dua komponen di bawahnya — biaya finishing dan tambahan
+         * Express keduanya diturunkan dari angka ini, bukan dari HPP maupun dari
+         * total akhir, sehingga keduanya tidak pernah saling melipatgandakan.
+         */
+        $printingPrice = round($subtotal + $profit + $basicFee, 2);
+
+        $finishing = Finishing::exists($context['finishing'] ?? null)
+            ? (string) $context['finishing']
+            : Finishing::default();
+
+        /*
+         * Custom Finishing berhenti di sini.
+         *
+         * Multi-color, masking, airbrush, dan sejenisnya tidak dapat dihitung
+         * dari berat maupun harga printing — harganya ditetapkan tim lewat
+         * kuotasi project. Harga printingnya tetap dilaporkan supaya tim punya
+         * titik mulai, tetapi totalnya null: yang membaca angka ini harus
+         * menulis "Menunggu Perhitungan", bukan harga Rp0.
+         */
+        if (Finishing::isManual($finishing)) {
+            return [
+                'technology' => $technology,
+                'material_source' => $material,
+                'quantity' => $quantity,
+
+                'printing_price' => $printingPrice,
+                'finishing' => $finishing,
+                'finishing_label' => Finishing::label($finishing),
+                'finishing_price' => null,
+
+                'manual_pricing' => true,
+                'pricing_source' => 'custom_finishing',
+                'selling_price' => null,
+                'total' => null,
+            ];
+        }
+
+        $finishingPrice = (float) Finishing::priceFor($finishing, $printingPrice);
+
+        /*
+         * Express menaikkan harga PRINTING saja, bukan biaya finishing.
+         *
+         * Kecepatannya sudah ditetapkan pemanggil — yang memeriksa jumlah part
+         * dan total waktu mesin seluruh pesanan lewat App\Support\LeadTime —
+         * jadi di sini tinggal dipakai pengalinya.
+         */
+        $speed = LeadTime::exists($context['production_speed'] ?? null)
+            ? (string) $context['production_speed']
+            : LeadTime::default();
+
+        $expressFactor = LeadTime::surchargeFactor($speed);
+        $expressFee = round($printingPrice * ($expressFactor - 1), 2);
+        $sellingPrice = round($printingPrice + $expressFee + $finishingPrice, 2);
 
         return [
             'technology' => $technology,
@@ -265,6 +335,7 @@ class SellingPriceEstimator
             'machine_source' => $machine?->mesin,
 
             'material_qty_g' => round($materialQty, 2),
+            'material_qty_g_actual' => round($totalWeightG, 2),
             'material_price_per_g' => round($materialPrice, 2),
             'material_source' => $material,
 
@@ -286,10 +357,58 @@ class SellingPriceEstimator
             'subtotal' => round($subtotal, 2),
             'profit' => round($profit, 2),
             'basic_fee' => round($basicFee, 2),
+            'printing_price' => $printingPrice,
+
+            'production_speed' => $speed,
+            'express_percent' => $speed === LeadTime::EXPRESS ? LeadTime::surchargePercent() : 0.0,
+            'express_fee' => $expressFee,
+
+            'finishing' => $finishing,
+            'finishing_label' => Finishing::label($finishing),
+            'finishing_percent' => Finishing::percent($finishing),
+            'finishing_min_price' => Finishing::minPrice($finishing),
+            'finishing_price' => round($finishingPrice, 2),
+
             'selling_price' => $sellingPrice,
 
             // Nama lama untuk total, supaya apa pun yang membaca
             // `cost_breakdown['total']` tetap mendapat angka yang benar.
+            'total' => $sellingPrice,
+        ];
+    }
+
+    /**
+     * Terapkan kecepatan pengerjaan pada rincian yang SUDAH dihitung.
+     *
+     * Express menaikkan harga printing dan tidak menyentuh komponen lain — berat,
+     * waktu mesin, packaging, maupun biaya finishing tidak berubah — jadi
+     * rinciannya tidak perlu dihitung dari awal.
+     *
+     * Dipakai saat kecepatan pesanan baru diketahui SETELAH tiap model
+     * diestimasi: syarat Express bergantung pada jumlah part dan total waktu
+     * mesin SELURUH pesanan, sedangkan harga dihitung per model. Rincian yang
+     * menunggu perhitungan manual dibiarkan apa adanya.
+     *
+     * @param  array<string, mixed>  $calculation
+     * @return array<string, mixed>
+     */
+    public function withProductionSpeed(array $calculation, string $speed): array
+    {
+        if (($calculation['manual_pricing'] ?? false) || ! array_key_exists('printing_price', $calculation)) {
+            return $calculation;
+        }
+
+        $printingPrice = (float) $calculation['printing_price'];
+        $finishingPrice = (float) ($calculation['finishing_price'] ?? 0);
+        $expressFee = round($printingPrice * (LeadTime::surchargeFactor($speed) - 1), 2);
+        $sellingPrice = round($printingPrice + $expressFee + $finishingPrice, 2);
+
+        return [
+            ...$calculation,
+            'production_speed' => $speed,
+            'express_percent' => $speed === LeadTime::EXPRESS ? LeadTime::surchargePercent() : 0.0,
+            'express_fee' => $expressFee,
+            'selling_price' => $sellingPrice,
             'total' => $sellingPrice,
         ];
     }
@@ -430,14 +549,22 @@ class SellingPriceEstimator
             return [];
         }
 
-        $materialFormula = 'Berat × Harga Material';
+        $materialFormula = 'Berat (dibulatkan ke atas kelipatan 10 gr) × Harga Material';
         $machineFormula = 'Waktu Mesin × Machine Cost';
         $packagingFormula = 'Berdasarkan konfigurasi packaging';
         $overtimeFormula = 'Jika ada';
         $basicFeeFormula = 'Berdasarkan ukuran 3D Object';
 
+        $expressFormula = 'Berdasarkan pilihan Production';
+        $finishingFormula = 'Berdasarkan pilihan Finishing';
+
         if (! ($calculation['aggregated'] ?? false)) {
-            $materialFormula .= ' · '.$number((float) $calculation['material_qty_g'], 2).' gr × '.$rupiah((float) $calculation['material_price_per_g']).'/gr';
+            $actualWeight = (float) ($calculation['material_qty_g_actual'] ?? $calculation['material_qty_g']);
+            $billedWeight = (float) $calculation['material_qty_g'];
+            $weightInfo = $actualWeight !== $billedWeight
+                ? $number($actualWeight, 2).' gr → '.$number($billedWeight, 2).' gr'
+                : $number($billedWeight, 2).' gr';
+            $materialFormula .= ' · '.$weightInfo.' × '.$rupiah((float) $calculation['material_price_per_g']).'/gr';
             $machineFormula .= ' · '.$this->duration((float) $calculation['machine_time_hours']).' × '.$rupiah((float) $calculation['machine_cost']).'/jam';
 
             if (filled($calculation['packaging_source'] ?? null)) {
@@ -445,6 +572,18 @@ class SellingPriceEstimator
             }
 
             $basicFeeFormula .= ' · '.$number((float) $calculation['largest_dimension_mm'], 1).' mm · '.$calculation['basic_fee_label'];
+
+            $expressPercent = (float) ($calculation['express_percent'] ?? 0);
+            $expressFormula = $expressPercent > 0
+                ? 'Harga Printing × '.$number($expressPercent, 0).'% (Express)'
+                : 'Standard — tanpa tambahan';
+
+            $finishingLabel = (string) ($calculation['finishing_label'] ?? Finishing::label(Finishing::NONE));
+            $finishingPercent = (float) ($calculation['finishing_percent'] ?? 0);
+            $finishingMinimum = (float) ($calculation['finishing_min_price'] ?? 0);
+            $finishingFormula = $finishingPercent > 0 || $finishingMinimum > 0
+                ? $finishingLabel.' · MAX(Harga Printing × '.$number($finishingPercent, 0).'%, '.$rupiah($finishingMinimum).')'
+                : $finishingLabel;
         }
 
         return [
@@ -457,7 +596,10 @@ class SellingPriceEstimator
             ['label' => 'Subtotal', 'formula' => 'HPP + Risk Cost + Packaging + Overtime', 'value' => (float) $calculation['subtotal']],
             ['label' => 'Profit', 'formula' => 'Subtotal × Profit '.$number((float) $calculation['profit_percent'], 0).'%', 'value' => (float) $calculation['profit']],
             ['label' => 'Basic Fee', 'formula' => $basicFeeFormula, 'value' => (float) $calculation['basic_fee']],
-            ['label' => 'Harga Jual', 'formula' => 'Subtotal + Profit + Basic Fee', 'value' => (float) $calculation['selling_price'], 'highlight' => true],
+            ['label' => 'Harga Printing', 'formula' => 'Subtotal + Profit + Basic Fee', 'value' => (float) ($calculation['printing_price'] ?? $calculation['selling_price'])],
+            ['label' => 'Express', 'formula' => $expressFormula, 'value' => (float) ($calculation['express_fee'] ?? 0)],
+            ['label' => 'Finishing', 'formula' => $finishingFormula, 'value' => (float) ($calculation['finishing_price'] ?? 0)],
+            ['label' => 'Harga Jual', 'formula' => 'Harga Printing + Express + Finishing', 'value' => (float) $calculation['selling_price'], 'highlight' => true],
         ];
     }
 
@@ -480,11 +622,18 @@ class SellingPriceEstimator
             return [];
         }
 
+        $actualWeight = (float) ($calculation['material_qty_g_actual'] ?? $calculation['material_qty_g']);
+        $billedWeight = (float) $calculation['material_qty_g'];
+        $weightDisplay = $actualWeight !== $billedWeight
+            ? $number($actualWeight, 2).' gr, ditagih '.$number($billedWeight, 2).' gr'
+            : $number($billedWeight, 2).' gr';
+
         return [
             'Material' => (string) ($calculation['material_source'] ?? '-'),
-            'Berat Material' => $number((float) $calculation['material_qty_g'], 2).' gr'
+            'Berat Material' => $weightDisplay
                 .' ('.$calculation['quantity'].' unit)',
-            'Harga Material' => $rupiah((float) $calculation['material_price_per_g']).' / gram',
+            'Harga Material' => $rupiah((float) $calculation['material_price_per_g']).' / gram'
+                .' · ditagih per 10 gram',
             'Machine Time' => $this->duration((float) $calculation['machine_time_hours']),
             'Machine Cost' => $rupiah((float) $calculation['machine_cost']).' / jam'
                 .' ('.($calculation['machine_source'] ?? 'Rumus Harga Otomatis').')',
@@ -494,6 +643,8 @@ class SellingPriceEstimator
             'Profit' => $number((float) $calculation['profit_percent'], 0).'%',
             'Dimensi Terbesar' => $number((float) $calculation['largest_dimension_mm'], 1).' mm',
             'Kategori Basic Fee' => (string) ($calculation['basic_fee_label'] ?? '-'),
+            'Production' => LeadTime::label($calculation['production_speed'] ?? null),
+            'Finishing' => (string) ($calculation['finishing_label'] ?? Finishing::label(Finishing::NONE)),
         ];
     }
 
@@ -653,6 +804,7 @@ class SellingPriceEstimator
             'machine_cost' => 0.0,
             'machine_source' => null,
             'material_qty_g' => $sum('material_qty_g'),
+            'material_qty_g_actual' => $sum('material_qty_g_actual'),
             'material_price_per_g' => 0.0,
             'material_source' => null,
             'packaging_source' => null,
@@ -676,6 +828,9 @@ class SellingPriceEstimator
             'subtotal' => $subtotal,
             'profit' => $profit,
             'basic_fee' => $sum('basic_fee'),
+            'printing_price' => $sum('printing_price'),
+            'express_fee' => $sum('express_fee'),
+            'finishing_price' => $sum('finishing_price'),
             'selling_price' => $sum('selling_price'),
             'total' => $sum('selling_price'),
 

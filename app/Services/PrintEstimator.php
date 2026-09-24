@@ -65,7 +65,7 @@ class PrintEstimator
     {
         return $this->technologies ??= PrintTechnology::query()
             ->active()
-            ->with('materials')
+            ->with('materials.colors')
             ->ordered()
             ->get()
             ->keyBy('code')
@@ -149,6 +149,9 @@ class PrintEstimator
                         // Warna yang tersedia untuk material ini; kosong berarti
                         // seluruh warna boleh dipakai.
                         'colors' => array_values((array) ($material['colors'] ?? [])),
+                        // Finishing yang ditawarkan material ini; kosong berarti
+                        // seluruh pilihan boleh dipakai.
+                        'finishings' => array_values((array) ($material['finishings'] ?? [])),
 
                         // Keterangan dan batas ukuran yang ditampilkan panduan
                         // maupun panel kiri Edit Specification. Keduanya membaca
@@ -235,7 +238,15 @@ class PrintEstimator
             ? (string) $options['infill_pattern']
             : InfillPattern::default();
 
-        $hollow = $this->hollow($technology, $options['hollow'] ?? null, $solidVolume, $surfaceArea);
+        /*
+         * Hollow Model tidak lagi ditawarkan, jadi part SELALU dihitung padat.
+         *
+         * Pengaturan hollow pada `$options` sengaja tidak dibaca — termasuk
+         * yang tersimpan pada penawaran lama — supaya tidak ada satu jalur pun
+         * yang masih menghitung part berongga. Perhitungannya sendiri
+         * dibiarkan utuh di hollow(), yang kini selalu menjawab "tidak".
+         */
+        $hollow = $this->hollow($technology, null, $solidVolume, $surfaceArea);
 
         if ($hollow['enabled']) {
             // Part yang dikosongkan hanya menyisakan cangkang, jadi infill tidak
@@ -250,8 +261,12 @@ class PrintEstimator
         $weight = $materialVolume * $mat['density'];
 
         // --- 3. support -----------------------------------------------------
+        // Support tidak lagi dipilih pelanggan: teknologinya yang menentukan.
+        // Ditetapkan di sini supaya SELURUH jalur perhitungan — Calculator,
+        // pengiriman penawaran, dan Edit Model di dashboard — memakai aturan
+        // yang sama tanpa masing-masing perlu mengingatnya.
         $support = $this->support->estimate($technology, (float) $mat['density'], $solidVolume, [
-            'enabled' => (bool) ($options['support'] ?? false),
+            'enabled' => $this->support->isRequiredFor($technology),
             'type' => $options['support_type'] ?? null,
             'dimensions' => $options['dimensions'] ?? null,
             'measured_volume_cm3' => $options['support_volume_cm3'] ?? null,

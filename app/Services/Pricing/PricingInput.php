@@ -3,7 +3,9 @@
 namespace App\Services\Pricing;
 
 use App\Models\QuotationItem;
+use App\Services\SupportEstimator;
 use App\Support\Finishing;
+use App\Support\LeadTime;
 use App\Support\InfillPattern;
 use App\Support\Printer;
 use App\Support\PrintResolution;
@@ -56,6 +58,15 @@ final class PricingInput
         public readonly ?float $infillDensity,
         public readonly string $infillPattern,
         public readonly string $finishing,
+        /**
+         * Kecepatan pengerjaan yang diminta: `standard` atau `express`.
+         *
+         * Yang tersimpan di sini baru PERMINTAANNYA. Syarat Express — satu part
+         * dan waktu mesin di bawah 18 jam — diperiksa atas seluruh pesanan,
+         * bukan atas satu model, jadi penurunannya menjadi Standard dilakukan
+         * pemanggil lewat App\Support\LeadTime::resolve().
+         */
+        public readonly string $productionSpeed,
         public readonly bool $supportEnabled,
         public readonly ?float $measuredSupportVolumeCm3,
         public readonly array $hollow,
@@ -90,8 +101,10 @@ final class PricingInput
             'drain_hole_position' => $data['hollow_drain_position'] ?? null,
         ];
 
+        $technology = strtoupper(trim((string) ($data['technology'] ?? '')));
+
         return new self(
-            technology: strtoupper(trim((string) ($data['technology'] ?? ''))),
+            technology: $technology,
             material: trim((string) ($data['material'] ?? '')),
             quantity: max(1, (int) ($data['quantity'] ?? 1)),
             printer: $printer,
@@ -103,12 +116,25 @@ final class PricingInput
             infillDensity: is_numeric($data['infill_density'] ?? null) ? round(min(1.0, max(0.0, (float) $data['infill_density'])), 4) : null,
             infillPattern: InfillPattern::exists($data['infill_pattern'] ?? null) ? (string) $data['infill_pattern'] : InfillPattern::default(),
             finishing: Finishing::exists($data['finishing'] ?? null) ? (string) $data['finishing'] : Finishing::default(),
-            supportEnabled: filter_var($data['support_enabled'] ?? false, FILTER_VALIDATE_BOOLEAN),
+            productionSpeed: LeadTime::exists($data['production_speed'] ?? null)
+                ? (string) $data['production_speed']
+                : LeadTime::default(),
+            /*
+             * Support tidak lagi dipilih pelanggan: teknologinya yang
+             * menentukan. Dinyalakan bagi teknologi yang memang membutuhkannya
+             * dan tetap mati bagi MJF, yang part-nya tertopang serbuk.
+             *
+             * Ditetapkan DI SINI, bukan sekadar di browser, supaya kiriman yang
+             * menyebut sebaliknya tidak dapat menghapus biaya support dari
+             * sebuah penawaran.
+             */
+            supportEnabled: app(SupportEstimator::class)->isRequiredFor($technology),
             measuredSupportVolumeCm3: is_numeric($data['support_volume_cm3'] ?? null)
                 ? round(max(0.0, (float) $data['support_volume_cm3']), self::VOLUME_DECIMALS)
                 : null,
             hollow: [
-                'enabled' => filter_var($hollow['enabled'] ?? false, FILTER_VALIDATE_BOOLEAN),
+                // Hollow Model tidak lagi ditawarkan: part selalu dihitung padat.
+                'enabled' => false,
                 'wall_thickness_mm' => is_numeric($hollow['wall_thickness_mm'] ?? null) ? round((float) $hollow['wall_thickness_mm'], 2) : null,
                 'drain_hole_diameter_mm' => is_numeric($hollow['drain_hole_diameter_mm'] ?? null) ? round((float) $hollow['drain_hole_diameter_mm'], 2) : null,
                 'drain_hole_position' => filled($hollow['drain_hole_position'] ?? null) ? (string) $hollow['drain_hole_position'] : null,
@@ -142,6 +168,7 @@ final class PricingInput
             'infill_density' => $item->infill_density,
             'infill_pattern' => $item->infill_pattern,
             'finishing' => $item->finishing,
+            'production_speed' => $item->quotationRequest?->production_speed,
             'support_enabled' => $item->support_enabled,
             'support_volume_cm3' => self::storedMeasuredSupport($item),
             'hollow_enabled' => $item->hollow_enabled,
@@ -205,6 +232,7 @@ final class PricingInput
             'infill_density' => $this->infillDensity,
             'infill_pattern' => $this->infillPattern,
             'finishing' => $this->finishing,
+            'production_speed' => $this->productionSpeed,
             'support_enabled' => $this->supportEnabled,
             'support_volume_cm3' => $this->measuredSupportVolumeCm3,
             'hollow' => $this->hollow,

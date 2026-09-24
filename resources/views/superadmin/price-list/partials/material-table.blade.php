@@ -39,7 +39,7 @@
 
     // Banyaknya kolom tabel, dipakai colspan judul kelompok & baris kosong.
     // +1 untuk kolom Status (switch aktif/nonaktif).
-    $columns = ($showsPrice ? 11 : 6) + ($showsPricingMethod ? 1 : 0) + ($showsPricingPrice ? 1 : 0) + 1;
+    $columns = ($showsPrice ? 12 : 7) + ($showsPricingMethod ? 1 : 0) + ($showsPricingPrice ? 1 : 0) + 1;
 @endphp
 
 <div class="flex flex-wrap items-end justify-between gap-4">
@@ -137,6 +137,7 @@
                     <th scope="col" class="px-4 py-4 font-bold">No</th>
                     <th scope="col" class="px-4 py-4 font-bold">Material</th>
                     <th scope="col" class="px-4 py-4 font-bold">Brand</th>
+                    <th scope="col" class="px-4 py-4 font-bold">Color</th>
                     @if ($showsPrice)
                         <th scope="col" class="px-4 py-4 text-right font-bold">Harga Beli</th>
                         <th scope="col" class="px-4 py-4 text-right font-bold">Harga/gram</th>
@@ -187,6 +188,20 @@
                         <td class="px-4 py-3 text-ink-500">{{ $numbers[$material->id] ?? $loop->iteration }}</td>
                         <td class="px-4 py-3 font-semibold text-ink-900">{{ $material->material }}</td>
                         <td class="px-4 py-3 text-ink-600">{{ $material->brand }}</td>
+                        <td class="px-4 py-3 text-ink-600">
+                            @if ($material->colors->isNotEmpty())
+                                <span class="inline-flex flex-wrap items-center gap-1">
+                                    @foreach ($material->colors as $color)
+                                        <span class="h-4 w-4 shrink-0 rounded-full border border-ink-200"
+                                              style="background-color: {{ $color->hex }}"
+                                              title="{{ $color->name }} {{ $color->hex }}"></span>
+                                    @endforeach
+                                    <span class="ml-1 whitespace-nowrap text-xs text-ink-400">{{ $material->colors->count() }} warna</span>
+                                </span>
+                            @else
+                                <span class="text-ink-300">&mdash;</span>
+                            @endif
+                        </td>
                         @if ($showsPrice)
                             <td class="px-4 py-3 text-right text-ink-700">{{ $rupiah($material->purchase_price) }}</td>
                             <td class="px-4 py-3 text-right text-ink-700">{{ $rupiah($material->price_per_gram) }}</td>

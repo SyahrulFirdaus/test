@@ -81,9 +81,6 @@ class ModelCheckController extends Controller
             'previewMaxFileSizeMb' => 60,
             'maxModels' => $maxModels,
 
-            // Batas tebal dinding pada Hollow Model, dipakai modal Edit Specification.
-            'hollow' => config('printing.hollow'),
-
             // Seluruh pratinjau dan simulasi tetap terbuka untuk pengunjung
             // tanpa akun; yang menuntut login hanya pengiriman penawaran.
             // Data akun dipakai mengisi formulirnya di muka.

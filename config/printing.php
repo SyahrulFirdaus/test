@@ -185,37 +185,59 @@ return [
     |----------------------------------------------------------------------
     | Finishing
     |----------------------------------------------------------------------
-    | Pekerjaan tambahan setelah part selesai dicetak. Komponen biaya
-    | "Finishing" pada rincian penawaran sudah ada sejak awal dan mewakili
-    | pembersihan dasar setiap part — itulah pilihan `none`, dengan pengali
-    | 1,0 sehingga harga part yang tidak meminta finishing tambahan sama
-    | persis seperti sebelum fitur ini ada.
+    | Pekerjaan tambahan setelah part selesai dicetak.
     |
-    | Pilihan lain menaikkan biaya finishing sebesar `cost_multiplier` dan
-    | menambah waktu pengerjaan sebanyak `hours_per_unit` untuk setiap unit.
-    | Angkanya simulasi dan mudah dikalibrasi.
+    | Harganya diturunkan dari Harga Jual part itu sendiri — bukan angka tetap —
+    | supaya part besar yang perlu diamplas lebih lama ikut terbayar:
+    |
+    |   Finishing = MAX(Harga Jual part x `percent`%, `min_price`)
+    |
+    | `min_price` adalah dasar yang menutup pekerjaan minimum: part kecil tetap
+    | menuntut waktu persiapan yang sama. `none` berharga nol karena memang
+    | tidak ada pekerjaan tambahan.
+    |
+    | `manual` menandai pekerjaan yang TIDAK dapat dihitung otomatis —
+    | multi-color, masking, airbrush, gradasi, metallic, weathering. Harganya
+    | ditetapkan tim lewat kuotasi, sama seperti material Kalkulator Manual.
+    |
+    | `needs_color` menandai finishing yang menuntut pelanggan memilih warna
+    | cat; daftar warnanya milik material yang dipilih (print_material_colors).
+    |
+    | `hours_per_unit` menambah waktu pengerjaan tiap unit, dipakai estimasi
+    | lead time — bukan harga.
     */
     'finishing' => [
         'default' => 'none',
 
         'options' => [
             'none' => [
-                'label' => 'Tanpa Finishing',
-                'description' => 'Part diserahkan apa adanya setelah dibersihkan dari sisa support dan serbuk.',
-                'cost_multiplier' => 1.0,
+                'label' => 'Raw / No Finishing',
+                'description' => '3D print tanpa proses finishing.',
+                'percent' => 0,
+                'min_price' => 0,
                 'hours_per_unit' => 0.0,
             ],
             'sanding' => [
                 'label' => 'Sanding',
-                'description' => 'Permukaan diamplas bertingkat sehingga garis lapisan jauh berkurang.',
-                'cost_multiplier' => 1.8,
+                'description' => 'Permukaan dihaluskan untuk mengurangi layer line dan merapikan hasil 3D printing. Tidak termasuk painting.',
+                'percent' => 30,
+                'min_price' => 30000,
                 'hours_per_unit' => 0.25,
             ],
             'painting' => [
-                'label' => 'Painting',
-                'description' => 'Diamplas, diprimer, lalu dicat sesuai warna yang dipilih. Hanya tersedia untuk warna Putih.',
-                'cost_multiplier' => 3.4,
+                'label' => 'Sanding + Painting',
+                'description' => 'Permukaan dihaluskan dan dipersiapkan sebelum dilakukan painting untuk mendapatkan hasil akhir yang lebih rapi.',
+                'percent' => 70,
+                'min_price' => 75000,
                 'hours_per_unit' => 0.75,
+                'needs_color' => true,
+            ],
+            'custom' => [
+                'label' => 'Custom Finishing',
+                'description' => 'Multi-color, masking, airbrush, gradasi warna, metallic, weathering, detail karakter, dan finishing premium. Harganya ditetapkan per project.',
+                'note' => 'Custom Finishing – Based on Project Quotation',
+                'manual' => true,
+                'hours_per_unit' => 0.0,
             ],
         ],
     ],
@@ -708,31 +730,49 @@ return [
     | ditampilkan apa adanya, melainkan diterjemahkan menjadi rentang hari
     | kerja yang sudah memperhitungkan antrean, post-processing, dan QC.
     |
-    | Tiap tingkat berlaku selama total menit mesin masih di bawah atau sama
-    | dengan `max_minutes`; tingkat terakhir (`max_minutes` null) menjadi
-    | penampung untuk pekerjaan yang lebih besar dari itu.
+    | Pelanggan MEMILIH kecepatan pengerjaannya, bukan disimpulkan dari jam
+    | mesin: Standard selalu tersedia, sedangkan Express hanya bila kedua
+    | syaratnya terpenuhi SEKALIGUS —
     |
-    | Yang dibandingkan adalah TOTAL waktu proses seluruh 3D object dalam satu
-    | penawaran, bukan waktu satu object. Penawaran berisi tiga object 8 + 6 + 5
-    | jam berjumlah 19 jam sehingga masih Express, sedangkan 10 + 7 + 5 jam
-    | berjumlah 22 jam dan menjadi Standard.
+    |   1. pesanannya berisi tepat `max_parts` part, dan
+    |   2. total waktu mesinnya DI BAWAH `below_minutes`.
+    |
+    | Batas waktunya tegas di bawah, bukan sampai dengan: 17 jam 59 menit masih
+    | Express, 18 jam tepat tidak lagi. Jumlah part diperiksa tersendiri, jadi
+    | pesanan dua part berjumlah 9 jam pun tetap tidak mendapat Express.
+    |
+    | Express menaikkan harga printing sebesar `surcharge_percent`; biaya
+    | finishing tidak ikut dikalikan.
     */
     'lead_time' => [
         'unit' => 'Hari Kerja',
 
-        'tiers' => [
-            // 20 jam = 1.200 menit.
-            ['name' => 'Express', 'max_minutes' => 1200, 'min_days' => 1, 'max_days' => 1],
-            ['name' => 'Standard', 'max_minutes' => null, 'min_days' => 3, 'max_days' => 5],
+        'standard' => ['name' => 'Standard', 'min_days' => 5, 'max_days' => 7],
+
+        'express' => [
+            'name' => 'Express',
+            'min_days' => 1,
+            'max_days' => 2,
+            'max_parts' => 1,
+            // 18 jam = 1.080 menit.
+            'below_minutes' => 1080,
+            'surcharge_percent' => 25,
         ],
 
         /*
+        | Keterangan cadangan saat alasan yang lebih tepat belum dapat disusun.
+        | Yang biasanya dibaca pelanggan adalah kalimat dinamis dari
+        | expressUnavailableReason() di resources/js/modules/print-estimator.js,
+        | yang menyebut penyebabnya: jumlah model atau lama waktu mesinnya.
+        */
+        'unavailable_note' => 'Pengerjaan mengikuti Standard (5–7 Hari Kerja) karena pesanan ini belum memenuhi syarat Express: satu model dan waktu mesin di bawah 18 jam.',
+
+        /*
         | Teknologi yang harganya dihitung dengan Rumus Harga Manual
-        | (Kalkulator Manual — lihat App\Support\PricingMethod) tidak
-        | mengikuti tingkat di atas sama sekali. Partnya menunggu kuotasi
+        | (Kalkulator Manual — lihat App\Support\PricingMethod) menunggu kuotasi
         | vendor lebih dahulu, jadi jam mesin hasil estimasi tidak menentukan
-        | kapan pesanannya selesai; rentangnya tetap, lebih panjang daripada
-        | pekerjaan yang dikerjakan sendiri.
+        | kapan pesanannya selesai. Express tidak berlaku bagi pekerjaan
+        | seperti itu.
         */
         'manual' => ['name' => 'Standard', 'min_days' => 5, 'max_days' => 7],
     ],

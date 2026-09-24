@@ -203,7 +203,12 @@ class QuotationRequestTest extends TestCase
     {
         $this->postJson(route('quotations.store'), $this->payload())->assertCreated();
 
-        $expected = app(PrintEstimator::class)->estimate('FDM', 'PLA Plus Standart ESUN', 120.5, 3);
+        // Dimensinya ikut disertakan: support kini selalu menyala pada FDM, dan
+        // volumenya diperkirakan dari ukuran model — tanpa dimensi yang sama,
+        // berat dan waktu yang diharapkan tidak akan cocok.
+        $expected = app(PrintEstimator::class)->estimate('FDM', 'PLA Plus Standart ESUN', 120.5, 3, [
+            'dimensions' => ['x' => 50, 'y' => 40, 'z' => 30],
+        ]);
         $quotation = QuotationRequest::sole();
 
         $this->assertEqualsWithDelta($expected['weight_g'], (float) $quotation->estimated_weight_g, 0.01);
@@ -244,41 +249,33 @@ class QuotationRequestTest extends TestCase
         $this->assertEqualsWithDelta((float) $quotation->estimated_cost, $quotation->payment_amount, 0.01);
     }
 
-    public function test_tanpa_support_berat_support_nol(): void
+    /**
+     * Support tidak lagi dipilih pelanggan: teknologinya yang menentukan.
+     *
+     * Kiriman yang menyebut support mati diabaikan — FDM memang membutuhkan
+     * support, jadi biayanya tidak dapat dihapus dari penawaran dengan
+     * mengirim nilai lain.
+     */
+    public function test_support_tidak_dapat_dimatikan_lewat_kiriman(): void
     {
         $this->postJson(route('quotations.store'), $this->payload(['support_enabled' => '0']))->assertCreated();
 
         $quotation = QuotationRequest::sole();
 
-        $this->assertFalse($quotation->support_enabled);
-        $this->assertSame(0.0, (float) $quotation->support_weight_g);
-        $this->assertSame((float) $quotation->estimated_weight_g, $quotation->total_weight_g);
+        $this->assertTrue($quotation->support_enabled);
+        $this->assertGreaterThan(0, (float) $quotation->support_weight_g);
     }
 
-    public function test_support_menambah_berat_waktu_dan_biaya(): void
+    /** Support dicatat terpisah lalu dijumlahkan ke berat total. */
+    public function test_support_menambah_berat_total(): void
     {
-        $this->postJson(route('quotations.store'), $this->payload(['support_enabled' => '0']))->assertCreated();
-        $tanpaSupport = QuotationRequest::sole();
+        $this->postJson(route('quotations.store'), $this->payload())->assertCreated();
 
-        $baseWeight = (float) $tanpaSupport->estimated_weight_g;
-        $baseMinutes = $tanpaSupport->estimated_minutes;
-        $baseCost = (float) $tanpaSupport->estimated_cost;
+        $quotation = QuotationRequest::sole();
 
-        $tanpaSupport->forceDelete();
-
-        $this->postJson(route('quotations.store'), $this->payload(['support_enabled' => '1']))->assertCreated();
-        $denganSupport = QuotationRequest::sole();
-
-        $this->assertTrue($denganSupport->support_enabled);
-        $this->assertGreaterThan(0, (float) $denganSupport->support_weight_g);
-
-        // Berat model tidak berubah — support dicatat terpisah lalu dijumlahkan.
-        $this->assertEqualsWithDelta($baseWeight, (float) $denganSupport->estimated_weight_g, 0.01);
-        $this->assertGreaterThan($baseWeight, $denganSupport->total_weight_g);
-
-        // Support ikut tercetak, jadi waktu dan biaya harus naik.
-        $this->assertGreaterThan($baseMinutes, $denganSupport->estimated_minutes);
-        $this->assertGreaterThan($baseCost, (float) $denganSupport->estimated_cost);
+        $this->assertTrue($quotation->support_enabled);
+        $this->assertGreaterThan(0, (float) $quotation->support_weight_g);
+        $this->assertGreaterThan((float) $quotation->estimated_weight_g, $quotation->total_weight_g);
     }
 
     public function test_mjf_tidak_memakai_support_walau_diminta(): void
@@ -383,14 +380,22 @@ class QuotationRequestTest extends TestCase
         $this->assertSame('Sangat Tinggi', $ultra['quality']);
     }
 
+    /**
+     * Diuji pada MJF, teknologi yang TIDAK memakai support.
+     *
+     * Support kini selalu menyala pada FDM, dan volumenya ikut waktu cetak
+     * tanpa ikut pengali material — hubungan kedua pengali karena itu tidak lagi
+     * terbaca murni di sana. MJF tertopang serbuk sehingga waktunya benar-benar
+     * hanya ditentukan volume material dan kedua pengali resolusinya.
+     */
     public function test_pengali_waktu_resolusi_sesuai_config(): void
     {
         $estimator = app(PrintEstimator::class);
 
-        $normal = $estimator->estimate('FDM', 'PLA Plus Standart ESUN', 200, 1, ['resolution' => '0.25']);
-        $ultra = $estimator->estimate('FDM', 'PLA Plus Standart ESUN', 200, 1, ['resolution' => '0.05']);
+        $normal = $estimator->estimate('MJF', 'PA12', 200, 1, ['resolution' => '0.25']);
+        $ultra = $estimator->estimate('MJF', 'PA12', 200, 1, ['resolution' => '0.05']);
 
-        $setupMinutes = config('printing.technologies.FDM.setup_hours') * 60;
+        $setupMinutes = config('printing.technologies.MJF.setup_hours') * 60;
 
         // Waktu cetak murni (di luar setup) dipengaruhi dua pengali sekaligus:
         // pengali waktu (2,0) dan pengali material (1,04) pada 0,05 mm.
@@ -559,9 +564,12 @@ class QuotationRequestTest extends TestCase
             $this->item('cover.obj', ['model_volume_cm3' => 80, 'quantity' => 1]),
         ]))->assertCreated();
 
+        // Dimensinya ikut disertakan: support selalu menyala pada FDM dan
+        // volumenya diperkirakan dari ukuran model.
         $estimator = app(PrintEstimator::class);
-        $gear = $estimator->estimate('FDM', 'PLA Plus Standart ESUN', 120, 2);
-        $cover = $estimator->estimate('FDM', 'PLA Plus Standart ESUN', 80, 1);
+        $dimensions = ['dimensions' => ['x' => 50, 'y' => 40, 'z' => 30]];
+        $gear = $estimator->estimate('FDM', 'PLA Plus Standart ESUN', 120, 2, $dimensions);
+        $cover = $estimator->estimate('FDM', 'PLA Plus Standart ESUN', 80, 1, $dimensions);
 
         // Harganya sendiri ditetapkan rumus Harga Jual Price List dari berat dan
         // waktu hasil estimasi di atas.
@@ -859,28 +867,32 @@ class QuotationRequestTest extends TestCase
         $this->assertEqualsWithDelta($penuh['material_volume_cm3'], $ringan['material_volume_cm3'], 0.001);
     }
 
-    public function test_hollow_model_memangkas_resin_pada_sla(): void
+    /**
+     * Hollow Model sudah tidak ditawarkan: part SELALU dihitung padat.
+     *
+     * Pengaturan hollow pada kiriman diabaikan — termasuk pada SLA, satu-satunya
+     * teknologi yang dahulu mengizinkannya — sehingga tidak ada jalur yang masih
+     * menghasilkan part berongga beserta harganya yang lebih murah.
+     */
+    public function test_hollow_tidak_lagi_ditawarkan(): void
     {
         $estimator = app(PrintEstimator::class);
 
         $padat = $estimator->estimate('SLAI', 'Standard Resin Plus Sunlu', 500, 1, ['surface_area_cm2' => 300]);
-        $kosong = $estimator->estimate('SLAI', 'Standard Resin Plus Sunlu', 500, 1, [
+        $diminta = $estimator->estimate('SLAI', 'Standard Resin Plus Sunlu', 500, 1, [
             'surface_area_cm2' => 300,
             'hollow' => ['enabled' => true, 'wall_thickness_mm' => 2.0],
         ]);
 
         $this->assertFalse($padat['hollow_enabled']);
-        $this->assertTrue($kosong['hollow_enabled']);
+        $this->assertFalse($diminta['hollow_enabled'], 'Permintaan hollow harus diabaikan.');
 
-        // Cangkang 300 cm2 x 2 mm = 60 cm3, dikurangi dua lubang pembuangan.
-        $this->assertLessThan(60, $kosong['material_volume_cm3']);
-        $this->assertGreaterThan(55, $kosong['material_volume_cm3']);
-
-        $this->assertLessThan($padat['weight_g'], $kosong['weight_g']);
-        $this->assertLessThan($padat['total_minutes'], $kosong['total_minutes']);
-        $this->assertLessThan(
+        // Hasilnya sama persis dengan part padat: berat, waktu, dan harganya.
+        $this->assertSame($padat['weight_g'], $diminta['weight_g']);
+        $this->assertSame($padat['total_minutes'], $diminta['total_minutes']);
+        $this->assertSame(
             $this->sellingPrice($padat, 'SLAI', 'Standard Resin Plus Sunlu'),
-            $this->sellingPrice($kosong, 'SLAI', 'Standard Resin Plus Sunlu'),
+            $this->sellingPrice($diminta, 'SLAI', 'Standard Resin Plus Sunlu'),
         );
     }
 
@@ -906,7 +918,8 @@ class QuotationRequestTest extends TestCase
         $this->assertLessThanOrEqual(5.0, $estimate['material_volume_cm3']);
     }
 
-    public function test_pengaturan_hollow_tersimpan_pada_item(): void
+    /** Hollow yang diminta lewat kiriman tidak tersimpan pada modelnya. */
+    public function test_pengaturan_hollow_pada_kiriman_diabaikan(): void
     {
         $this->postJson(route('quotations.store'), $this->multiPayload([
             $this->item('cover.obj', [
@@ -914,8 +927,6 @@ class QuotationRequestTest extends TestCase
                 'material' => 'Standard Resin Plus Sunlu',
                 'hollow_enabled' => '1',
                 'hollow_wall_thickness_mm' => '1.6',
-                'hollow_drain_diameter_mm' => '4.0',
-                'hollow_drain_position' => 'side',
                 'model_stats' => json_encode([
                     'dimensions' => ['x' => 50, 'y' => 40, 'z' => 30],
                     'surface_area_cm2' => 120,
@@ -925,11 +936,7 @@ class QuotationRequestTest extends TestCase
 
         $item = QuotationRequest::sole()->items->first();
 
-        $this->assertTrue($item->hollow_enabled);
-        $this->assertEqualsWithDelta(1.6, (float) $item->hollow_wall_thickness_mm, 0.001);
-        $this->assertEqualsWithDelta(4.0, (float) $item->hollow_drain_diameter_mm, 0.001);
-        $this->assertSame('side', $item->hollow_drain_position);
-        $this->assertStringContainsString('Sisi Samping', $item->hollow_label);
+        $this->assertFalse((bool) $item->hollow_enabled);
     }
 
     /**
@@ -954,13 +961,26 @@ class QuotationRequestTest extends TestCase
         $this->assertGreaterThan(0, $estimate['total_minutes']);
     }
 
-    public function test_tanpa_support_beratnya_tidak_bertambah(): void
+    /**
+     * Support mengikuti teknologinya, bukan pilihan pada kiriman.
+     *
+     * FDM membutuhkan support sehingga selalu menyala; MJF tidak, karena
+     * partnya tertopang serbuk sepanjang proses cetak.
+     */
+    public function test_support_mengikuti_teknologinya(): void
     {
-        $estimate = app(PrintEstimator::class)->estimate('FDM', 'PLA Plus Standart ESUN', 120, 1, ['surface_area_cm2' => 180]);
+        $estimator = app(PrintEstimator::class);
 
-        $this->assertFalse($estimate['support_enabled']);
-        $this->assertSame(0.0, $estimate['support_weight_g']);
-        $this->assertSame($estimate['weight_g'], $estimate['total_weight_g']);
+        $fdm = $estimator->estimate('FDM', 'PLA Plus Standart ESUN', 120, 1, ['surface_area_cm2' => 180]);
+        $mjf = $estimator->estimate('MJF', 'PA12', 120, 1, ['surface_area_cm2' => 180]);
+
+        $this->assertTrue($fdm['support_enabled']);
+        $this->assertGreaterThan(0, $fdm['support_weight_g']);
+        $this->assertGreaterThan($fdm['weight_g'], $fdm['total_weight_g']);
+
+        $this->assertFalse($mjf['support_enabled']);
+        $this->assertSame(0.0, $mjf['support_weight_g']);
+        $this->assertSame($mjf['weight_g'], $mjf['total_weight_g']);
     }
 
     public function test_rincian_biaya_penawaran_menjumlahkan_seluruh_model(): void
@@ -1071,7 +1091,7 @@ class QuotationRequestTest extends TestCase
 
         // Model lain memakai pilihan bawaan, tidak ikut berubah.
         $this->assertSame('none', $cover->finishing);
-        $this->assertStringContainsString('Tanpa Finishing', $cover->specification_summary);
+        $this->assertStringContainsString('Raw / No Finishing', $cover->specification_summary);
     }
 
     public function test_finishing_tidak_dikenal_ditolak(): void

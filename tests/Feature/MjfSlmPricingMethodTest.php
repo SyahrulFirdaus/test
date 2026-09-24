@@ -219,7 +219,7 @@ class MjfSlmPricingMethodTest extends TestCase
 
         $this->get(route('tracking.show', $quotation->tracking_number))
             ->assertOk()
-            ->assertSee('Harga sedang dihitung oleh tim kami')
+            ->assertSee('Harga Perlu Dicek Terlebih Dahulu')
             ->assertDontSee('Rp0');
 
         // Form Perhitungan Kalkulator Manual yang sama dengan SLA.
