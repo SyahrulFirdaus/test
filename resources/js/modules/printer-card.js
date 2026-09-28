@@ -1830,12 +1830,15 @@ export default class PrinterCard {
 
             analysis_status: this.analysis?.status ?? 'warning',
             analysis: this.analysis?.checks ?? [],
+            // Estimasi bisa belum ada — mis. Price List belum memiliki
+            // teknologi/material aktif. Geometrinya tetap sah, jadi model
+            // tetap tersimpan dan angkanya menyusul saat estimasi tersedia.
             estimate: {
-                totalWeightG: this.estimate.totalWeightG,
-                totalMinutes: this.estimate.totalMinutes,
-                totalCost: this.estimate.totalCost,
-                manualPricing: this.estimate.manualPricing,
-                breakdown: this.estimate.breakdown,
+                totalWeightG: this.estimate?.totalWeightG ?? 0,
+                totalMinutes: this.estimate?.totalMinutes ?? 0,
+                totalCost: this.estimate?.totalCost ?? null,
+                manualPricing: this.estimate?.manualPricing === true,
+                breakdown: this.estimate?.breakdown ?? null,
             },
             model_stats: {
                 vertices: this.metrics.vertices,
@@ -1844,7 +1847,7 @@ export default class PrinterCard {
                 bounding_box: this.boundingBox,
                 volume_cm3: this.metrics.volumeMm3 / 1000,
                 surface_area_cm2: this.metrics.surfaceAreaMm2 / 100,
-                scaled_volume_cm3: this.estimate.modelVolumeCm3,
+                scaled_volume_cm3: this.estimate?.modelVolumeCm3 ?? 0,
                 watertight: this.metrics.isWatertight,
                 holes: this.metrics.holeCount,
                 non_manifold_edges: this.metrics.nonManifoldEdges,
