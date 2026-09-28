@@ -88,7 +88,7 @@
 
         <div class="mt-7 flex flex-wrap items-center justify-between gap-3">
             <a href="{{ route($passwordRoute) }}" class="text-sm font-semibold text-brand-600 transition-colors hover:text-brand-700">
-                Ganti Password &rarr;
+                Ganti Password
             </a>
             <button type="submit" class="btn-primary">Simpan Perubahan</button>
         </div>

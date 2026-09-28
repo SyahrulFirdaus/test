@@ -35,7 +35,7 @@
     @endphp
 
     <a href="{{ route('dashboard.addresses.index') }}" class="inline-flex items-center gap-2 text-sm font-semibold text-ink-500 transition-colors hover:text-brand-600">
-        &larr; Kembali ke daftar alamat
+        Kembali ke daftar alamat
     </a>
 
     <div class="mt-5 max-w-3xl">

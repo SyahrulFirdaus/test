@@ -21,7 +21,7 @@
         <header class="flex shrink-0 items-center gap-3 border-b border-ink-100 bg-white px-3 py-2.5 sm:gap-4 sm:px-5">
             <a href="{{ route('models') }}"
                class="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-ink-200 px-3 py-1.5 text-xs font-semibold text-ink-700 transition-colors hover:border-brand-300 hover:text-brand-600 sm:px-4 sm:text-sm">
-                &larr; <span class="hidden sm:inline">Kembali ke 3D Models</span><span class="sm:hidden">Kembali</span>
+                <span class="hidden sm:inline">Kembali ke 3D Models</span><span class="sm:hidden">Kembali</span>
             </a>
 
             <div class="min-w-0 flex-1">

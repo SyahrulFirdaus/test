@@ -44,12 +44,13 @@
         </form>
 
         <div class="overflow-x-auto">
-            <table class="w-full min-w-[620px] text-left text-sm">
+            <table class="w-full min-w-[760px] text-left text-sm">
                 <thead>
                     <tr class="border-b border-ink-100 text-[0.6rem] uppercase tracking-[0.14em] text-ink-400">
                         <th scope="col" class="px-6 py-4 font-bold">Nama</th>
                         <th scope="col" class="px-6 py-4 font-bold">Email</th>
                         <th scope="col" class="px-6 py-4 font-bold">Status</th>
+                        <th scope="col" class="px-6 py-4 font-bold">Status Login</th>
                         <th scope="col" class="px-6 py-4 text-right font-bold">Aksi</th>
                     </tr>
                 </thead>
@@ -66,6 +67,24 @@
                                     'bg-ink-100 text-ink-500' => ! $admin->isActive(),
                                 ])>
                                     {{ $admin->isActive() ? 'Aktif' : 'Nonaktif' }}
+                                </span>
+                            </td>
+                            <td class="px-6 py-4">
+                                {{-- Sedang login atau tidak, dari sistem autentikasi yang
+                                     sudah ada — lihat App\Support\AdminPresence. Berbeda
+                                     dengan kolom Status di sebelahnya, yang menyatakan akunnya
+                                     diizinkan masuk atau tidak. --}}
+                                @php $online = \App\Support\AdminPresence::isOnline($admin); @endphp
+                                <span class="inline-flex items-center gap-2 text-xs font-semibold {{ $online ? 'text-emerald-700' : 'text-ink-400' }}"
+                                      title="{{ $online ? 'Sedang login' : 'Tidak sedang login' }}"
+                                      data-login-status="{{ $online ? 'aktif' : 'nonaktif' }}">
+                                    <span class="relative flex h-2.5 w-2.5" aria-hidden="true">
+                                        @if ($online)
+                                            <span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-60"></span>
+                                        @endif
+                                        <span class="relative inline-flex h-2.5 w-2.5 rounded-full {{ $online ? 'bg-emerald-500' : 'bg-ink-300' }}"></span>
+                                    </span>
+                                    {{ $online ? 'Aktif' : 'Nonaktif' }}
                                 </span>
                             </td>
                             <td class="px-6 py-4">
@@ -87,7 +106,7 @@
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="4" class="px-6 py-10 text-center text-sm text-ink-400">
+                            <td colspan="5" class="px-6 py-10 text-center text-sm text-ink-400">
                                 Belum ada akun admin.
                                 <a href="{{ route('superadmin.admins.create') }}" class="font-semibold text-brand-600 hover:text-brand-700">Tambah Admin</a>.
                             </td>

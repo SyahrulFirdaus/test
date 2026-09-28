@@ -81,6 +81,6 @@
 
     {{-- Di luar kartu, di atas latar gelap. --}}
     <p class="mt-6 text-center text-xs text-white/60">
-        <a href="{{ route('home') }}" class="font-semibold transition-colors hover:text-white">&larr; Kembali ke website</a>
+        <a href="{{ route('home') }}" class="font-semibold transition-colors hover:text-white">Kembali ke website</a>
     </p>
 </div>

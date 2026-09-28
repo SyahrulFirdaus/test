@@ -48,9 +48,19 @@ class SlaIndustries
      */
     public const NAME = 'SLA';
 
-    /** Batas Margin Profit yang boleh dipakai, dalam persen. */
-    public const MIN_MARGIN = 30;
+    /**
+     * Margin Profit TIDAK dibatasi rentang tertentu: tim boleh memakai
+     * berapa pun sesuai kuotasi. Yang dijaga hanya tidak negatif (harga di
+     * bawah HPP) dan muat di kolomnya, `decimal(8,2)`.
+     */
+    public const MIN_MARGIN = 0;
 
+    public const MARGIN_CEILING = 999999.99;
+
+    /**
+     * Margin bawaan saat Price List SLA pertama kali dibuat — dipakai migrasi
+     * awal tabelnya. Bukan lagi batas atas.
+     */
     public const MAX_MARGIN = 50;
 
     /** Tautan rujukan untuk menghitung sendiri nilai DHL Beacukai. */
@@ -77,12 +87,23 @@ class SlaIndustries
     /** Aturan validasi Margin Profit, dipakai bersama seluruh form yang mengisinya. */
     public static function marginRule(): string
     {
-        return 'numeric|min:'.self::MIN_MARGIN.'|max:'.self::MAX_MARGIN;
+        return 'numeric|min:'.self::MIN_MARGIN.'|max:'.self::MARGIN_CEILING;
     }
 
     public static function marginMessage(): string
     {
-        return 'Margin Profit hanya boleh '.self::MIN_MARGIN.'% sampai '.self::MAX_MARGIN.'%.';
+        return 'Margin Profit tidak boleh negatif.';
+    }
+
+    public static function marginTooLargeMessage(): string
+    {
+        return 'Margin Profit terlalu besar, maksimal '.number_format(self::MARGIN_CEILING, 2, ',', '.').'%.';
+    }
+
+    /** Keterangan kolom Margin Profit pada formulir dan rinciannya. */
+    public static function marginHint(): string
+    {
+        return 'Isi margin profit (%) sesuai kebutuhan.';
     }
 
     /**

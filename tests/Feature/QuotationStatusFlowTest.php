@@ -141,7 +141,8 @@ class QuotationStatusFlowTest extends TestCase
     {
         $quotation = $this->penawaran(QuotationStatus::REVIEWING);
 
-        $this->get(route('tracking.show', $quotation->tracking_number))
+        $this->withSession([\App\Http\Controllers\QuotationTrackingController::SESSION_KEY => [$quotation->tracking_number]])
+            ->get(route('tracking.show', $quotation->tracking_number))
             ->assertOk()
             ->assertSee('File Sedang Direview')
             ->assertDontSee('Menunggu Review')

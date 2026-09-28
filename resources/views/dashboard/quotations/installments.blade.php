@@ -20,7 +20,7 @@
     @endphp
 
     <a href="{{ route('dashboard.quotations.show', $quotation) }}" class="inline-flex items-center gap-2 text-sm font-semibold text-ink-500 transition-colors hover:text-brand-600">
-        &larr; Kembali ke detail penawaran
+        Kembali ke detail penawaran
     </a>
 
     <div class="mt-5">

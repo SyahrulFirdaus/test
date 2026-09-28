@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Models\Concerns\DescribesPrintJob;
 use App\Services\SellingPriceEstimator;
 use App\Support\AnalysisStatus;
+use App\Support\CustomerType;
 use App\Support\QuotationStatus;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
@@ -121,6 +122,24 @@ class QuotationRequest extends Model
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    /**
+     * Penawaran milik pelanggan bertipe tertentu (Personal atau Business).
+     *
+     * Dipakai switch Personal/Business pada dashboard pengelola — lihat
+     * App\Support\DashboardMode. Tipenya melekat pada AKUN pemesan, bukan pada
+     * penawarannya, jadi disaring lewat relasi pemiliknya.
+     *
+     * Penawaran tanpa akun — peninggalan sebelum pengiriman menuntut login —
+     * tidak termasuk segmen mana pun, jadi tidak muncul di kedua mode.
+     */
+    public function scopeForCustomerType(Builder $query, ?string $type): Builder
+    {
+        return $query->when(
+            CustomerType::exists($type),
+            fn (Builder $q) => $q->whereHas('user', fn (Builder $user) => $user->where('customer_type', $type)),
+        );
     }
 
     /** Penawaran milik satu akun saja. */
@@ -619,6 +638,26 @@ class QuotationRequest extends Model
         [$user, $domain] = explode('@', $this->email, 2);
 
         return Str::substr($user, 0, 2).str_repeat('*', max(3, Str::length($user) - 2)).'@'.$domain;
+    }
+
+    /**
+     * Nama untuk halaman tracking: nama depan disensor, sisanya tetap.
+     *
+     * "Syahrul Firdaus" → "S****** Firdaus", "Budi Santoso" → "B*** Santoso".
+     * Hanya tampilan — nama yang tersimpan tidak berubah.
+     */
+    public function getMaskedNameAttribute(): ?string
+    {
+        $parts = preg_split('/\s+/u', trim((string) $this->name), -1, PREG_SPLIT_NO_EMPTY);
+
+        if ($parts === [] || $parts === false) {
+            return $this->name;
+        }
+
+        $first = array_shift($parts);
+        $masked = Str::substr($first, 0, 1).str_repeat('*', max(1, Str::length($first) - 1));
+
+        return implode(' ', [$masked, ...$parts]);
     }
 
     /** Nomor WhatsApp disamarkan, hanya empat angka terakhir yang ditampilkan. */

@@ -10,7 +10,7 @@
 @section('content')
     <a href="{{ route('superadmin.price-list.technologies.index') }}"
        class="inline-flex items-center gap-2 text-sm font-semibold text-ink-500 transition-colors hover:text-brand-600">
-        &larr; Kembali ke Price List
+        Kembali ke Price List
     </a>
 
     <h2 class="mt-5 font-display text-2xl font-bold tracking-tight text-ink-900">

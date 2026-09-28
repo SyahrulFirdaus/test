@@ -38,6 +38,22 @@ class PrintMaterial extends Model
         self::PRICING_MANUAL => 'Kalkulator Manual',
     ];
 
+    /**
+     * Material yang dibuat tanpa memilih metode harga — mis. lewat kode atau
+     * seeder — memakai bawaan teknologinya (App\Support\PricingMethod::
+     * fallbackFor(): SLA manual, lainnya otomatis), BUKAN bawaan kolomnya
+     * (`manual`). Form Tambah Material selalu mewajibkan pilihannya.
+     */
+    protected static function booted(): void
+    {
+        static::creating(function (self $material) {
+            if (blank($material->pricing_method)) {
+                $code = PrintTechnology::query()->whereKey($material->print_technology_id)->value('code');
+                $material->pricing_method = \App\Support\PricingMethod::fallbackFor($code);
+            }
+        });
+    }
+
     public function __construct(array $attributes = [])
     {
         parent::__construct($attributes);

@@ -31,6 +31,9 @@ class FdmMaterial extends PrintMaterial
         // yang hanya mengirim kolom komersial tetap bekerja.
         static::creating(function (self $material) {
             $material->print_technology_id ??= PrintTechnology::idFor(static::TECHNOLOGY);
+
+            // Material FDM berharga per gram, jadi bawaannya Kalkulator Otomatis.
+            $material->pricing_method ??= static::PRICING_AUTOMATIC;
         });
     }
 }

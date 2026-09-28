@@ -165,10 +165,15 @@ class SlaIndustriesTest extends TestCase
 
     /* ================================================ 3. validasi margin === */
 
-    /** @return array<string, array{float}> */
+    /**
+     * Margin Profit tidak dibatasi rentang; yang ditolak hanya nilai negatif
+     * dan yang tidak muat di kolomnya.
+     *
+     * @return array<string, array{float}>
+     */
     public static function marginDitolak(): array
     {
-        return ['dua puluh' => [20.0], 'dua puluh lima' => [25.0], 'lima puluh lima' => [55.0], 'tujuh puluh' => [70.0]];
+        return ['negatif' => [-5.0], 'minus satu' => [-1.0], 'melebihi kolom' => [1000000.0]];
     }
 
     /** @dataProvider marginDitolak */
@@ -182,7 +187,10 @@ class SlaIndustriesTest extends TestCase
     /** @return array<string, array{float}> */
     public static function marginDiterima(): array
     {
-        return ['tiga puluh' => [30.0], 'tiga puluh lima' => [35.0], 'empat puluh' => [40.0], 'lima puluh' => [50.0]];
+        return [
+            'nol' => [0.0], 'dua puluh' => [20.0], 'empat puluh' => [40.0],
+            'tujuh puluh' => [70.0], 'seratus lima puluh' => [150.0], 'seribu dua ratus' => [1200.0],
+        ];
     }
 
     /** @dataProvider marginDiterima */
@@ -346,7 +354,8 @@ class SlaIndustriesTest extends TestCase
         $this->assertTrue($quotation->awaitsPricing());
         $this->assertNull($quotation->display_price);
 
-        $this->get(route('tracking.show', $quotation->tracking_number))
+        $this->withSession([\App\Http\Controllers\QuotationTrackingController::SESSION_KEY => [$quotation->tracking_number]])
+            ->get(route('tracking.show', $quotation->tracking_number))
             ->assertOk()
             ->assertSee('Harga Perlu Dicek Terlebih Dahulu')
             ->assertDontSee('Rp0');
@@ -397,7 +406,8 @@ class SlaIndustriesTest extends TestCase
         $this->assertFalse($quotation->awaitsPricing());
         $this->assertEqualsWithDelta(4385337, (float) $quotation->display_price, 0.01);
 
-        $this->get(route('tracking.show', $quotation->tracking_number))
+        $this->withSession([\App\Http\Controllers\QuotationTrackingController::SESSION_KEY => [$quotation->tracking_number]])
+            ->get(route('tracking.show', $quotation->tracking_number))
             ->assertOk()
             ->assertSee('Rp4.385.337')
             ->assertDontSee('Menunggu Perhitungan');
@@ -414,7 +424,8 @@ class SlaIndustriesTest extends TestCase
             [...$this->contohParameter(50), 'product_name' => 'Impeller'],
         );
 
-        $response = $this->get(route('tracking.show', $quotation->fresh()->tracking_number))->assertOk();
+        $response = $this->withSession([\App\Http\Controllers\QuotationTrackingController::SESSION_KEY => [$quotation->fresh()->tracking_number]])
+            ->get(route('tracking.show', $quotation->fresh()->tracking_number))->assertOk();
 
         foreach (['Harga JLC', 'Ongkir JLC', 'DHL Beacukai', 'HPP', 'Margin Profit'] as $rahasia) {
             $response->assertDontSee($rahasia);
@@ -425,13 +436,123 @@ class SlaIndustriesTest extends TestCase
         $response->assertDontSee('Rp1.461.779');
     }
 
+    /** Form Perhitungan Kalkulator Manual diisi di dalam modal. */
+    public function test_form_perhitungan_manual_berada_di_modal(): void
+    {
+        $quotation = $this->penawaranSlaIndustries();
+        $item = $quotation->items->first();
+
+        $html = $this->actingAs($this->admin())
+            ->get(route('admin.quotations.show', $quotation))
+            ->assertOk()
+            ->assertSee('data-dialog-open="sla-form-'.$item->id.'"', false)
+            ->assertSee('<dialog id="sla-form-'.$item->id.'"', false)
+            ->assertSee('Isi Form Perhitungan')
+            ->assertSee('name="_form_key" value="sla-item-'.$item->id.'"', false)
+            ->getContent();
+
+        // Tertutup saat halaman dibuka biasa.
+        $this->assertDoesNotMatchRegularExpression('/<dialog[^>]*data-dialog-autoopen/s', $html);
+    }
+
+    /** Validasi gagal: modal model yang dikirim dibuka lagi, yang lain tidak. */
+    public function test_modal_terbuka_lagi_saat_validasi_gagal(): void
+    {
+        $quotation = $this->penawaranSlaIndustries();
+        $item = $quotation->items->first();
+        $admin = $this->admin();
+
+        $this->actingAs($admin)
+            ->from(route('admin.quotations.show', $quotation))
+            ->patch(route('admin.quotations.items.sla-industries', [$quotation, $item]),
+                [...$this->contohParameter(-5), '_form_key' => 'sla-item-'.$item->id])
+            ->assertSessionHasErrors('margin_percent');
+
+        $html = $this->actingAs($admin)->get(route('admin.quotations.show', $quotation))->assertOk()->getContent();
+
+        $this->assertMatchesRegularExpression('/<dialog id="sla-form-'.$item->id.'"[^>]*data-dialog-autoopen/s', $html);
+        $this->assertSame(1, preg_match_all('/<dialog[^>]*data-dialog-autoopen/s', $html));
+    }
+
+    /** Penanda formulir tidak mengganggu penyimpanan harga. */
+    public function test_simpan_dari_modal_tetap_menetapkan_harga(): void
+    {
+        $quotation = $this->penawaranSlaIndustries();
+        $item = $quotation->items->first();
+
+        $this->actingAs($this->admin())
+            ->patch(route('admin.quotations.items.sla-industries', [$quotation, $item]),
+                [...$this->contohParameter(), '_form_key' => 'sla-item-'.$item->id])
+            ->assertSessionHasNoErrors();
+
+        $this->assertNotNull($item->fresh()->slaIndustriesQuote);
+    }
+
+    /** Isi modal Detail Perhitungan Harga milik satu model. */
+    private function modalDetailHarga(string $html, int $itemId): string
+    {
+        $start = strpos($html, '<dialog id="price-detail-'.$itemId.'"');
+        $this->assertNotFalse($start, 'Modal Detail Perhitungan Harga tidak ditemukan.');
+
+        return substr($html, $start, strpos($html, '</dialog>', $start) - $start);
+    }
+
+    /** Setelah Form Perhitungan disimpan, Detail Perhitungan Harga menampilkan rinciannya. */
+    public function test_detail_perhitungan_harga_menampilkan_rincian_kalkulator_manual(): void
+    {
+        $quotation = $this->penawaranSlaIndustries();
+        $item = $quotation->items->first();
+        $admin = $this->admin();
+
+        // Belum ditetapkan: modalnya berkata demikian, bukan kosong.
+        $before = $this->modalDetailHarga(
+            $this->actingAs($admin)->get(route('admin.quotations.show', $quotation))->getContent(),
+            $item->id,
+        );
+        $this->assertStringContainsString('belum ditetapkan', $before);
+
+        $this->actingAs($admin)
+            ->patch(route('admin.quotations.items.sla-industries', [$quotation, $item]), $this->contohParameter(50))
+            ->assertSessionHasNoErrors();
+
+        $quote = $item->fresh()->slaIndustriesQuote;
+        $modal = $this->modalDetailHarga(
+            $this->actingAs($admin)->get(route('admin.quotations.show', $quotation))->getContent(),
+            $item->id,
+        );
+
+        foreach (['Harga JLC', 'Ongkir JLC', 'Total Bayar ke JLC', 'DHL Beacukai', 'Margin Profit', 'HPP', 'Profit', 'Final Price'] as $label) {
+            $this->assertStringContainsString($label, $modal);
+        }
+
+        $this->assertStringContainsString('Rp'.number_format($quote->final_price, 0, ',', '.'), $modal);
+        $this->assertStringContainsString('Rp'.number_format($quote->hpp, 0, ',', '.'), $modal);
+        $this->assertStringContainsString('50%', $modal);
+        $this->assertStringNotContainsString('belum ditetapkan', $modal);
+    }
+
+    /** Margin di atas 50% kini diterima dan benar-benar dipakai menghitung harga. */
+    public function test_margin_besar_diterima_pada_penawaran(): void
+    {
+        $quotation = $this->penawaranSlaIndustries();
+        $item = $quotation->items->first();
+
+        $this->actingAs($this->admin())
+            ->patch(route('admin.quotations.items.sla-industries', [$quotation, $item]), $this->contohParameter(120))
+            ->assertSessionHasNoErrors();
+
+        $quote = $item->fresh()->slaIndustriesQuote;
+        $this->assertEqualsWithDelta(120, (float) $quote->margin_percent, 0.01);
+        $this->assertEqualsWithDelta((float) $quote->hpp * 2.2, (float) $quote->final_price, 1.0);
+    }
+
     public function test_margin_di_luar_rentang_ditolak_pada_penawaran(): void
     {
         $quotation = $this->penawaranSlaIndustries();
         $item = $quotation->items->first();
 
         $this->actingAs($this->admin())
-            ->patch(route('admin.quotations.items.sla-industries', [$quotation, $item]), $this->contohParameter(20))
+            ->patch(route('admin.quotations.items.sla-industries', [$quotation, $item]), $this->contohParameter(-5))
             ->assertSessionHasErrors('margin_percent');
 
         $this->assertNull($item->fresh()->slaIndustriesQuote);
@@ -442,7 +563,9 @@ class SlaIndustriesTest extends TestCase
     {
         $quotation = $this->penawaranSlaIndustries();
         $item = $quotation->items->first();
-        $item->update(['technology' => 'FDM']);
+        // Model FDM biasa (Kalkulator Otomatis) — keputusan harga manual yang
+        // tersimpan dari teknologi sebelumnya ikut dibuang.
+        $item->update(['technology' => 'FDM', 'cost_breakdown' => null]);
 
         $this->actingAs($this->admin())
             ->patch(route('admin.quotations.items.sla-industries', [$quotation, $item]), $this->contohParameter())

@@ -90,9 +90,8 @@ class StorePrintMaterialRequest extends FormRequest
             'sale_price' => [$this->pricesApply() ? 'required' : 'nullable', 'numeric', 'min:0', 'max:'.self::MAX_PRICE],
             'remark' => ['nullable', 'string', 'max:120'],
 
-            // Metode penentuan harga dimiliki material SLA, MJF, dan SLM:
-            // Kalkulator Otomatis (rumus FDM) atau Kalkulator Manual. FDM dan
-            // teknologi lain tidak mengirim maupun menyimpannya.
+            // Metode penentuan harga dimiliki setiap material, teknologi apa
+            // pun: Kalkulator Otomatis (rumus FDM) atau Kalkulator Manual.
             ...($this->choosesPricing() ? [
                 'pricing_method' => ['required', 'string', Rule::in(array_keys(PrintMaterial::PRICING_METHODS))],
             ] : []),
@@ -144,8 +143,8 @@ class StorePrintMaterialRequest extends FormRequest
     }
 
     /**
-     * Material ini dijual per gram, jadi harganya wajib diisi: seluruh
-     * teknologi selain SLA/MJF/SLM, dan material mereka dengan Kalkulator Otomatis.
+     * Material ini dijual per gram, jadi harganya wajib diisi: material
+     * dengan Kalkulator Otomatis.
      */
     private function pricesApply(): bool
     {

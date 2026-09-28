@@ -126,6 +126,23 @@ class PrintTechnologyCrudTest extends TestCase
             ->assertSessionHasErrors('code');
     }
 
+    /** Kode milik teknologi arsip (tidak tampil di mana pun) boleh dipakai lagi. */
+    public function test_kode_teknologi_arsip_dapat_dipakai_lagi(): void
+    {
+        $archived = PrintTechnology::create($this->payload(['name' => 'DLP Lama', 'is_active' => false]));
+        $archived->update(['archived_at' => now()]);
+
+        $this->actingAs($this->superAdmin())
+            ->post(route('superadmin.price-list.technologies.store'), $this->payload())
+            ->assertSessionHasNoErrors();
+
+        $technology = PrintTechnology::where('code', 'DLP')->sole();
+        $this->assertSame($archived->getKey(), $technology->getKey());
+        $this->assertSame('Digital Light Processing', $technology->name);
+        $this->assertNull($technology->archived_at);
+        $this->assertTrue($technology->isOffered());
+    }
+
     public function test_kode_disimpan_huruf_kapital(): void
     {
         $this->actingAs($this->superAdmin())
@@ -189,6 +206,7 @@ class PrintTechnologyCrudTest extends TestCase
             'brand' => 'Sunlu',
             'purchase_price' => 300000,
             'sale_price' => 1200,
+            'pricing_method' => 'automatic',
         ]);
 
         $materialId = $technology->materials()->sole()->id;
@@ -230,6 +248,7 @@ class PrintTechnologyCrudTest extends TestCase
                 'brand' => 'Sunlu',
                 'purchase_price' => 400000,
                 'sale_price' => 1600,
+                'pricing_method' => 'automatic',
             ])
             ->assertRedirect(route('superadmin.price-list.technology', ['slug' => 'dlp']));
 
@@ -270,6 +289,7 @@ class PrintTechnologyCrudTest extends TestCase
                 'brand' => 'Sunlu',
                 'purchase_price' => 300000,
                 'sale_price' => 1200,
+                'pricing_method' => 'automatic',
             ])
             ->assertSessionHasNoErrors();
 
@@ -280,6 +300,7 @@ class PrintTechnologyCrudTest extends TestCase
                 'brand' => 'Sunlu',
                 'purchase_price' => 300000,
                 'sale_price' => 1200,
+                'pricing_method' => 'automatic',
             ])
             ->assertSessionHasErrors('material');
     }

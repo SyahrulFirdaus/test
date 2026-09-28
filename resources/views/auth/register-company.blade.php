@@ -16,6 +16,10 @@
 @section('heading', 'Buat akun baru')
 @section('subheading', $step['description'])
 
+@section('brandVisual')
+    @include('auth.partials.register-visual')
+@endsection
+
 @section('form')
     @php
         $value = fn (string $field, $fallback = '') => old($field, $companyData[$field] ?? $fallback);
@@ -152,8 +156,8 @@
         </div>
 
         <div class="mt-9 flex flex-wrap items-center gap-3 border-t border-ink-100 pt-6">
-            <a href="{{ $previousUrl }}" class="btn-outline px-6 py-3">&larr; Kembali</a>
-            <button type="submit" class="btn-primary flex-1 px-6 py-3">Lanjutkan &rarr;</button>
+            <a href="{{ $previousUrl }}" class="btn-outline px-6 py-3">Kembali</a>
+            <button type="submit" class="btn-primary flex-1 px-6 py-3">Lanjutkan</button>
         </div>
     </form>
 @endsection

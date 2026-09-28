@@ -95,6 +95,7 @@ class MaterialMachineTest extends TestCase
                 'machine_cost_id' => $mesin->id,
                 'purchase_price' => 185000,
                 'sale_price' => 231,
+                'pricing_method' => 'automatic',
                 'remark' => 'Standard Material',
             ])
             ->assertSessionHasNoErrors();
@@ -131,6 +132,7 @@ class MaterialMachineTest extends TestCase
                 'machine_cost_id' => '',
                 'purchase_price' => 185000,
                 'sale_price' => 231,
+                'pricing_method' => 'automatic',
             ])
             ->assertSessionHasNoErrors();
 
@@ -149,6 +151,7 @@ class MaterialMachineTest extends TestCase
                 'machine_cost_id' => 9999,
                 'purchase_price' => 185000,
                 'sale_price' => 231,
+                'pricing_method' => 'automatic',
             ])
             ->assertSessionHasErrors('machine_cost_id');
 
@@ -171,6 +174,7 @@ class MaterialMachineTest extends TestCase
                     'machine_cost_id' => $mesin->id,
                     'purchase_price' => 185000,
                     'sale_price' => 231,
+                    'pricing_method' => 'automatic',
                 ])
                 ->assertSessionHasNoErrors();
         }
@@ -191,6 +195,7 @@ class MaterialMachineTest extends TestCase
                 'machine_cost_id' => $mesin->id,
                 'purchase_price' => 185000,
                 'sale_price' => 231,
+                'pricing_method' => 'automatic',
             ])
             ->assertSessionHasErrors('material');
 
@@ -209,6 +214,7 @@ class MaterialMachineTest extends TestCase
                 'machine_cost_id' => '',
                 'purchase_price' => 185000,
                 'sale_price' => 231,
+                'pricing_method' => 'automatic',
             ])
             ->assertSessionHasErrors('material');
 
@@ -281,6 +287,7 @@ class MaterialMachineTest extends TestCase
                 'machine_cost_id' => $creality->id,
                 'purchase_price' => $abs->purchase_price,
                 'sale_price' => $abs->sale_price,
+                'pricing_method' => 'automatic',
             ])
             ->assertSessionHasNoErrors();
 
@@ -397,6 +404,7 @@ class MaterialMachineTest extends TestCase
                 'machine_cost_id' => $mesinB->id,
                 'purchase_price' => $material->purchase_price,
                 'sale_price' => $material->sale_price,
+                'pricing_method' => 'automatic',
             ])
             ->assertSessionHasNoErrors();
 
@@ -545,6 +553,7 @@ class MaterialMachineTest extends TestCase
                     'machine_cost_id' => $mesin->id,
                     'purchase_price' => 185000,
                     'sale_price' => 231,
+                    'pricing_method' => 'automatic',
                 ])
                 ->assertSessionHasErrors($field);
         }
@@ -562,6 +571,7 @@ class MaterialMachineTest extends TestCase
                 'machine_cost_id' => '',
                 'purchase_price' => 9999999999,
                 'sale_price' => 9999999999,
+                'pricing_method' => 'automatic',
             ])
             ->assertSessionHasNoErrors();
 

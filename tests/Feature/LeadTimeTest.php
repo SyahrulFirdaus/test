@@ -175,7 +175,8 @@ class LeadTimeTest extends TestCase
 
         $this->actingAs($quotation->user ?? \App\Models\User::factory()->create());
 
-        $this->get(route('tracking.show', $quotation->tracking_number))
+        $this->withSession([\App\Http\Controllers\QuotationTrackingController::SESSION_KEY => [$quotation->tracking_number]])
+            ->get(route('tracking.show', $quotation->tracking_number))
             ->assertOk()
             ->assertSee('Standard (5–7 Hari Kerja)')
             // Jam mesin tetap tersimpan, tetapi tidak dipakai sebagai lead time.

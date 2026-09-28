@@ -129,15 +129,15 @@
                     <div class="rounded-3xl border border-ink-100 bg-white p-7 shadow-card">
                         <h2 class="font-display text-base font-bold text-ink-900">Detail Permintaan</h2>
 
+                        {{-- Printer/mesin, email, dan WhatsApp sengaja tidak ditampilkan, dan
+                             nama depan disensor. Datanya tetap tersimpan utuh untuk tim
+                             internal dan Pricing Engine. --}}
                         <dl class="mt-5 space-y-4">
                             @foreach ([
                                 'Nomor Tracking' => $quotation->tracking_number,
-                                'Nama Pelanggan' => $quotation->name,
+                                'Nama Pelanggan' => $quotation->masked_name,
                                 'Perusahaan' => $quotation->company ?: '-',
-                                'Email' => $quotation->masked_email,
-                                'WhatsApp' => $quotation->masked_whatsapp,
-                                'Printer' => $quotation->printer_summary,
-                                'Jumlah Model' => $quotation->model_count.' model · 1 mesin per model',
+                                'Jumlah Model' => $quotation->model_count.' model',
                                 'Total Jumlah Cetak' => $quotation->quantity.' unit',
                                 'Tanggal Pengajuan' => $quotation->created_at->translatedFormat('d F Y, H:i').' WIB',
                             ] as $label => $value)
@@ -149,7 +149,7 @@
                         </dl>
 
                         <p class="mt-5 rounded-xl bg-ink-50 p-4 text-[0.7rem] leading-relaxed text-ink-500">
-                            Email dan nomor WhatsApp sengaja disamarkan pada halaman ini. Data lengkapnya tersedia
+                            Email dan nomor WhatsApp tidak ditampilkan pada halaman ini. Data lengkapnya tersedia
                             di dokumen PDF yang dapat Anda unduh.
                         </p>
                     </div>
@@ -158,8 +158,7 @@
                     <div class="rounded-3xl border border-ink-100 bg-white p-7 shadow-card">
                         <h2 class="font-display text-base font-bold text-ink-900">Model yang Dipesan</h2>
                         <p class="mt-1 text-xs text-ink-400">
-                            Setiap model dicetak pada mesinnya sendiri. Seluruhnya termasuk dalam satu
-                            Nomor Tracking yang sama.
+                            Seluruh model termasuk dalam satu Nomor Tracking yang sama.
                         </p>
 
                         <ul class="mt-5 space-y-4">
@@ -173,8 +172,7 @@
                                                 </span>
                                                 <span class="break-all font-display text-sm font-bold text-ink-900">{{ $item->file_name }}</span>
                                             </p>
-                                            <p class="mt-1.5 pl-8 text-xs font-semibold text-brand-600">{{ $item->printer_label }}</p>
-                                            <p class="mt-1 pl-8 text-xs text-ink-500">
+                                            <p class="mt-1.5 pl-8 text-xs text-ink-500">
                                                 {{ $item->file_format }} &middot; {{ $item->technology }} {{ $item->material_label }} &middot;
                                                 {{ $item->resolution_label }} &middot; {{ $item->quantity }} unit
                                             </p>

@@ -14,8 +14,8 @@ namespace App\Support;
  * browser menolak berkas kelewat besar dengan pesan yang jelas — bukan
  * berakhir sebagai error 419/413 yang membingungkan pengguna.
  *
- * Agar batas 300 MB per berkas, 500 MB per permintaan, dan 25 berkas per
- * permintaan benar-benar berlaku, php.ini perlu disetel minimal:
+ * Agar batas 300 MB per berkas, 300 MB total per penawaran, dan 25 berkas
+ * per penawaran benar-benar berlaku, php.ini perlu disetel minimal:
  *   upload_max_filesize = 300M
  *   post_max_size       = 512M
  *   max_file_uploads    = 30
@@ -93,7 +93,7 @@ class UploadLimit
     /** Batas gabungan per permintaan yang dikehendaki aplikasi, dalam byte. */
     public static function preferredTotalBytes(): int
     {
-        return (int) round(((float) config('printing.limits.max_total_size_mb', 500)) * 1024 * 1024);
+        return (int) round(((float) config('printing.limits.max_total_size_mb', 300)) * 1024 * 1024);
     }
 
     public static function preferredTotalMegabytes(): float
@@ -110,6 +110,27 @@ class UploadLimit
     public static function maxTotalMegabytes(): float
     {
         return round(self::maxTotalBytes() / 1024 / 1024, 1);
+    }
+
+    /** Batas total per penawaran untuk teks, mis. "300 MB" (tanpa ",0"). */
+    public static function maxTotalLabel(): string
+    {
+        $megabytes = self::maxTotalMegabytes();
+
+        return number_format($megabytes, floor($megabytes) === $megabytes ? 0 : 1, ',', '.').' MB';
+    }
+
+    /** Pesan saat total seluruh file dalam satu penawaran melampaui batasnya. */
+    public static function totalExceededMessage(): string
+    {
+        return 'Total ukuran file melebihi batas '.self::maxTotalLabel().' per penawaran. '
+            .'Kurangi jumlah/ukuran model atau kirim dalam penawaran terpisah.';
+    }
+
+    /** Apakah total ukuran file (byte) masih di dalam batas satu penawaran. */
+    public static function withinTotal(int $bytes): bool
+    {
+        return $bytes <= self::maxTotalBytes();
     }
 
     /** Banyaknya model per permintaan yang dikehendaki aplikasi. */

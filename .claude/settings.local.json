@@ -182,7 +182,9 @@
       "Bash(sed 's/\\\\x1b\\\\[[0-9;]*m//g' /tmp/suite.txt)",
       "Bash(grep -n 'protected $fillable' -A 18 app/Models/User.php)",
       "Bash(php -r 'echo extension_loaded\\(\"zip\"\\) ? \"zip AKTIF\" : \"zip TIDAK AKTIF\"; echo PHP_EOL; echo \"php.ini: \".php_ini_loaded_file\\(\\).PHP_EOL;')",
-      "Bash(sed 's/\\\\x1b\\\\[[0-9;]*m//g' /tmp/suite2.txt)"
+      "Bash(sed 's/\\\\x1b\\\\[[0-9;]*m//g' /tmp/suite2.txt)",
+      "Bash(sed -i 's/^        return \\(float\\) QuotationRequest::query\\(\\)$/        return \\(float\\) $this->quotations\\(\\)/; s/^        \\\\$profit = QuotationRequest::query\\(\\)$/        $profit = $this->quotations\\(\\)/; s/^        \\\\$counts = QuotationRequest::query\\(\\)$/        $counts = $this->quotations\\(\\)/; s/^        QuotationRequest::query\\(\\)$/        $this->quotations\\(\\)/' app/Http/Controllers/SuperAdmin/DashboardController.php)",
+      "Bash(grep -n 'QuotationRequest::query\\(\\)\\\\|$this->quotations\\(\\)' app/Http/Controllers/SuperAdmin/DashboardController.php)"
     ]
   }
 }

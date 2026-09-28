@@ -475,11 +475,13 @@ return [
         // dilampaui aplikasi. Lihat App\Support\UploadLimit.
         'max_file_size_mb' => 300,
 
-        // Ukuran gabungan seluruh berkas dalam satu permintaan penawaran.
-        // Seluruh model dikirim dalam satu POST, jadi `post_max_size` pada
-        // php.ini harus setidaknya sebesar ini agar batasnya benar-benar
-        // berlaku. Lihat App\Support\UploadLimit.
-        'max_total_size_mb' => 500,
+        // Ukuran gabungan seluruh berkas dalam SATU penawaran — dihitung dari
+        // total semua file, bukan per file. Diperiksa di browser dan di server
+        // (StoreQuotationRequest, serta saat menambah file ke penawaran yang
+        // sudah ada). Seluruh model dikirim dalam satu POST, jadi
+        // `post_max_size` pada php.ini harus setidaknya sebesar ini (>= 301M)
+        // agar batasnya benar-benar berlaku. Lihat App\Support\UploadLimit.
+        'max_total_size_mb' => 300,
     ],
 
     /*

@@ -9,7 +9,7 @@
     @endphp
 
     <a href="{{ route('dashboard.quotations.index') }}" class="inline-flex items-center gap-2 text-sm font-semibold text-ink-500 transition-colors hover:text-brand-600">
-        &larr; Kembali ke Penawaran Saya
+        Kembali ke Penawaran Saya
     </a>
 
     <div class="mt-5 flex flex-wrap items-start justify-between gap-4">

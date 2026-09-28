@@ -105,6 +105,19 @@ class RegistrationTest extends TestCase
         return ['questions' => $questions];
     }
 
+    /**
+     * Lolos CAPTCHA seperti peramban: muat gambarnya (server membuat kode di
+     * sesi), lalu kirim kode itu bersama formulir pendaftaran.
+     *
+     * @return array{captcha: string}
+     */
+    private function captcha(): array
+    {
+        $this->get(route('register.captcha'))->assertOk();
+
+        return ['captcha' => (string) session('captcha.register.code')];
+    }
+
     private function startAs(string $type): void
     {
         $this->post(route('register.type'), ['customer_type' => $type])
@@ -133,7 +146,7 @@ class RegistrationTest extends TestCase
             ->assertSee('Ringkasan informasi')
             ->assertSee('Daftar Sekarang');
 
-        $this->post(route('register.store'))
+        $this->post(route('register.store'), $this->captcha())
             ->assertRedirect(route('login'))
             ->assertSessionHas('status', 'Registrasi berhasil. Silakan login menggunakan email dan password Anda.');
 
@@ -365,7 +378,7 @@ class RegistrationTest extends TestCase
             ->assertSee('Melong, Cimahi Selatan, Kota Cimahi, Jawa Barat')
             ->assertSee('Daftar Sekarang');
 
-        $this->post(route('register.store'))
+        $this->post(route('register.store'), $this->captcha())
             ->assertRedirect(route('login'))
             ->assertSessionHas('status', 'Registrasi Business berhasil. Silakan login menggunakan email dan password Anda.');
 
@@ -417,7 +430,7 @@ class RegistrationTest extends TestCase
             'b_production_type' => 'Production',
         ]));
 
-        $this->post(route('register.store'));
+        $this->post(route('register.store'), $this->captcha());
 
         // Industri manufaktur + kebutuhan produksi = pelanggan industri.
         $this->assertSame('Industrial Customer', User::sole()->businessProfile->segment);
@@ -432,7 +445,7 @@ class RegistrationTest extends TestCase
             'b_production_type' => 'Prototype',
         ]));
 
-        $this->post(route('register.store'));
+        $this->post(route('register.store'), $this->captcha());
 
         $this->assertSame('Prototype Customer', User::sole()->businessProfile->segment);
     }
@@ -472,7 +485,7 @@ class RegistrationTest extends TestCase
     {
         $this->startAs(CustomerType::PERSONAL);
 
-        $this->post(route('register.store'))
+        $this->post(route('register.store'), $this->captcha())
             ->assertRedirect(route('register.step', '1'));
 
         $this->assertSame(0, User::count());
@@ -610,7 +623,7 @@ class RegistrationTest extends TestCase
             'personal_priority' => 'Ketepatan ukuran',
         ]);
 
-        $this->post(route('register.store'));
+        $this->post(route('register.store'), $this->captcha());
 
         $customer = User::customers()->sole();
         $admin = User::factory()->superAdmin()->create();
@@ -649,5 +662,115 @@ class RegistrationTest extends TestCase
 
         $this->assertSame(CustomerType::PERSONAL, $user->fresh()->customer_type);
         $this->assertFalse($user->isBusiness());
+    }
+
+    /* --------------------------------------------------------- captcha --- */
+
+    /** Sampai ke ringkasan pendaftaran Personal, belum menekan Daftar. */
+    private function sampaiRingkasan(): void
+    {
+        $this->startAs(CustomerType::PERSONAL);
+
+        $this->answerPersonalSteps([
+            'personal_purpose' => 'Prototype',
+            'personal_frequency' => 'Rutin',
+            'personal_project_type' => 'Spare Part',
+            'personal_quantity' => '6–20 pcs',
+            'personal_priority' => 'Kualitas',
+        ]);
+    }
+
+    public function test_ringkasan_menampilkan_captcha(): void
+    {
+        $this->sampaiRingkasan();
+
+        $this->get(route('register.step', 'review'))
+            ->assertOk()
+            ->assertSee('Verifikasi CAPTCHA')
+            ->assertSee(route('register.captcha'))
+            ->assertSee('name="captcha"', false);
+    }
+
+    public function test_akun_tidak_dibuat_tanpa_captcha(): void
+    {
+        $this->sampaiRingkasan();
+
+        $this->post(route('register.store'))
+            ->assertRedirect(route('register.step', 'review'))
+            ->assertSessionHasErrors('captcha');
+
+        $this->assertSame(0, User::count());
+    }
+
+    public function test_captcha_salah_ditolak_dan_harus_memakai_kode_baru(): void
+    {
+        $this->sampaiRingkasan();
+
+        $this->get(route('register.captcha'));
+        $benar = (string) session('captcha.register.code');
+
+        $this->post(route('register.store'), ['captcha' => 'SALAH'])
+            ->assertRedirect(route('register.step', 'review'))
+            ->assertSessionHasErrors(['captcha' => 'Verifikasi CAPTCHA gagal: kode tidak sesuai atau sudah kedaluwarsa. Silakan ketik kode yang baru.']);
+
+        // Kode sekali pakai: kode lama yang benar pun tidak berlaku lagi.
+        $this->post(route('register.store'), ['captcha' => $benar])->assertSessionHasErrors('captcha');
+        $this->assertSame(0, User::count());
+
+        // Dengan kode baru, pendaftaran berhasil — huruf kecil pun diterima.
+        $this->get(route('register.captcha'));
+        $this->post(route('register.store'), ['captcha' => strtolower((string) session('captcha.register.code'))])
+            ->assertRedirect(route('login'));
+
+        $this->assertSame(1, User::count());
+    }
+
+    public function test_captcha_kedaluwarsa_ditolak(): void
+    {
+        $this->sampaiRingkasan();
+
+        $this->get(route('register.captcha'));
+        $kode = (string) session('captcha.register.code');
+
+        $this->travel(11)->minutes();
+
+        $this->post(route('register.store'), ['captcha' => $kode])->assertSessionHasErrors('captcha');
+        $this->assertSame(0, User::count());
+    }
+
+    public function test_gambar_captcha_berupa_svg_tanpa_teks_kode(): void
+    {
+        $response = $this->get(route('register.captcha'))
+            ->assertOk()
+            ->assertHeader('content-type', 'image/svg+xml');
+
+        $this->assertStringContainsString('no-store', $response->headers->get('cache-control'));
+        $this->assertMatchesRegularExpression('/^[A-Z2-9]{5}$/', (string) session('captcha.register.code'));
+
+        // Karakter digambar sebagai garis, bukan teks yang dapat dibaca begitu saja.
+        $this->assertStringStartsWith('<svg', $response->getContent());
+        $this->assertStringNotContainsString('<text', $response->getContent());
+    }
+
+    /* ------------------------------------------ tampilan halaman daftar --- */
+
+    public function test_password_dan_konfirmasi_punya_ikon_mata_masing_masing(): void
+    {
+        $this->post(route('register.type'), ['customer_type' => CustomerType::PERSONAL]);
+
+        $html = $this->get(route('register.step', 'account'))->assertOk()->getContent();
+
+        $this->assertStringContainsString('aria-controls="password"', $html);
+        $this->assertStringContainsString('aria-controls="password_confirmation"', $html);
+        // Bawaannya tetap tersembunyi.
+        $this->assertMatchesRegularExpression('/<input type="password"\s+id="password"/', $html);
+        $this->assertMatchesRegularExpression('/<input type="password"\s+id="password_confirmation"/', $html);
+    }
+
+    public function test_halaman_daftar_memuat_objek_3d_sendiri(): void
+    {
+        $this->get(route('register'))
+            ->assertOk()
+            ->assertSee('data-scene-variant="register"', false);
     }
 }

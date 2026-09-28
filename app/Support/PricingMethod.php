@@ -7,9 +7,10 @@ use App\Models\PrintMaterial;
 /**
  * Metode penentuan harga per material: Kalkulator Otomatis atau Manual.
  *
- * Satu mekanisme untuk seluruh teknologi yang memakainya — SLA, MJF, dan SLM.
- * Yang berbeda antar teknologi hanya datanya (material, mesin, parameter
- * Harga), bukan alurnya:
+ * Satu mekanisme untuk SELURUH teknologi — FDM, SLA, MJF, SLM, dan teknologi
+ * yang ditambahkan Superadmin kemudian: setiap material memilih sendiri
+ * metodenya saat ditambahkan. Yang berbeda antar teknologi hanya datanya
+ * (material, mesin, parameter Harga), bukan alurnya:
  *
  *  - `automatic` — rumus Harga Jual yang sudah ada (pola FDM) pada
  *    App\Services\SellingPriceEstimator; harga langsung tampil ke pelanggan.
@@ -17,12 +18,18 @@ use App\Models\PrintMaterial;
  *    Detail Penawaran (App\Models\SlaIndustriesQuote, rumus
  *    App\Support\SlaIndustries::compute()).
  *
- * FDM dan teknologi lain di luar daftar ini tidak memakainya: harganya selalu
- * dihitung otomatis seperti sebelumnya, apa pun isi kolom `pricing_method`.
+ * Dahulu hanya SLA, MJF, dan SLM yang memilikinya. Material teknologi lain
+ * yang sudah ada dipindahkan ke Kalkulator Otomatis — metode yang memang
+ * selama ini berlaku baginya — oleh migrasi
+ * 2026_09_28_000069_apply_pricing_method_to_all_technologies, jadi harganya
+ * tidak berubah.
  */
 class PricingMethod
 {
-    /** Kode teknologi yang materialnya menentukan sendiri metode harganya. */
+    /**
+     * Teknologi yang memakai metode per material SEBELUM berlaku untuk
+     * seluruh teknologi. Kini hanya dipakai migrasinya sebagai catatan.
+     */
     public const TECHNOLOGIES = [SlaIndustries::CODE, 'MJF', 'SLM'];
 
     /**
@@ -37,10 +44,10 @@ class PricingMethod
         return SlaIndustries::is($technologyCode) ? PrintMaterial::PRICING_MANUAL : PrintMaterial::PRICING_AUTOMATIC;
     }
 
+    /** Setiap teknologi memilih metode harga per materialnya. */
     public static function appliesTo(?string $technologyCode): bool
     {
-        return $technologyCode !== null
-            && in_array(strtoupper(trim($technologyCode)), self::TECHNOLOGIES, true);
+        return $technologyCode !== null && trim($technologyCode) !== '';
     }
 
     /**

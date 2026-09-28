@@ -21,6 +21,10 @@
     ? 'Pilih tipe akun Anda terlebih dahulu agar kami dapat menyesuaikan pertanyaan dengan kebutuhan Anda.'
     : 'Lengkapi beberapa langkah singkat agar kami dapat menyesuaikan layanan dengan kebutuhan Anda.')
 
+@section('brandVisual')
+    @include('auth.partials.register-visual')
+@endsection
+
 @section('form')
     <form method="POST" action="{{ route('register.type') }}" class="mt-7">
         @csrf
@@ -54,7 +58,7 @@
             @error('customer_type') <p class="field-error">{{ $message }}</p> @enderror
         </fieldset>
 
-        <button type="submit" class="btn-primary mt-7 w-full">Lanjut &rarr;</button>
+        <button type="submit" class="btn-primary mt-7 w-full">Lanjut</button>
     </form>
 
     <p class="mt-7 border-t border-ink-100 pt-6 text-center text-sm text-ink-500">

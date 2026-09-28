@@ -16,6 +16,8 @@
         <a href="{{ route("admin.dashboard") }}" class="viewer-tool">Dashboard Operasional Admin</a>
     </div>
 
+    <x-dashboard-mode-banner :mode="$dashboard_mode" :label="$dashboard_mode_label" class="mt-5" />
+
     {{-- ================= KARTU STATISTIK =================
          Dua angka uang sengaja bersebelahan: Pendapatan Kotor adalah seluruh
          Harga Jual yang tertagih, Profit Bersih adalah bagian yang benar-benar

@@ -129,6 +129,11 @@ Route::middleware('guest')->group(function () {
         ->middleware('throttle:10,1')
         ->name('register.store');
 
+    // Gambar CAPTCHA pendaftaran; tiap permintaan membuat kode baru.
+    Route::get('/register/captcha', [Auth\RegisteredUserController::class, 'captcha'])
+        ->middleware('throttle:register-captcha')
+        ->name('register.captcha');
+
     Route::get('/lupa-password', [Auth\PasswordResetLinkController::class, 'create'])->name('password.request');
     Route::post('/lupa-password', [Auth\PasswordResetLinkController::class, 'store'])
         ->middleware('throttle:6,1')
@@ -306,6 +311,15 @@ $staffRoutes = function () {
     | edit/hapus secara manual. Superadmin selalu lolos.
     */
     $can = fn (string $permission) => 'admin.permission:'.$permission;
+
+    /*
+    | Switch Personal/Business pada header.
+    |
+    | Sengaja TIDAK dijaga hak akses: yang diubahnya hanya cara melihat
+    | dashboard, bukan data yang boleh dibuka. Menu yang tidak berhak dibuka
+    | Admin tetap tertutup di kedua mode.
+    */
+    Route::put('dashboard/mode', [Admin\DashboardModeController::class, 'update'])->name('dashboard.mode');
 
     // Penawaran.
     Route::middleware($can(AdminPermission::QUOTATION_VIEW))->group(function () use ($can) {
@@ -563,6 +577,14 @@ Route::prefix('superadmin')->name('superadmin.')->middleware(['auth', 'superadmi
     Route::get("akun/admin/{admin}/edit", [SuperAdmin\AdminAccountController::class, "edit"])->name("admins.edit");
     Route::patch("akun/admin/{admin}", [SuperAdmin\AdminAccountController::class, "update"])->name("admins.update");
     Route::delete("akun/admin/{admin}", [SuperAdmin\AdminAccountController::class, "destroy"])->name("admins.destroy");
+
+    /*
+    | Hapus User (pelanggan): khusus Superadmin. Sengaja didaftarkan di grup
+    | ini, BUKAN di $staffRoutes, sehingga alamat /admin/... tidak pernah
+    | memilikinya dan Admin yang memanggil URL-nya langsung ditolak middleware
+    | `superadmin`. Daftar dan detail User tetap di $staffRoutes.
+    */
+    Route::delete('akun/user/{user}', [SuperAdmin\UserController::class, 'destroy'])->name('users.destroy');
     /*
     | Price List: harga material, packaging, dan mesin — sumber data
     | Calculator/Quotation. Tiap item menu sidebar punya halamannya sendiri
@@ -616,6 +638,13 @@ Route::prefix('superadmin')->name('superadmin.')->middleware(['auth', 'superadmi
         Route::get('price-list/material/{technology}/excel/export', [SuperAdmin\MaterialExcelController::class, 'export'])->name('price-list.materials.excel.export');
         Route::get('price-list/material/{technology}/excel/template', [SuperAdmin\MaterialExcelController::class, 'template'])->name('price-list.materials.excel.template');
         Route::get('price-list/material/{technology}/excel/contoh', [SuperAdmin\MaterialExcelController::class, 'example'])->name('price-list.materials.excel.example');
+
+        // Teknologi & Machine Cost: alur yang sama, lihat DatasetExcelController.
+        foreach (['teknologi' => ['technologies', SuperAdmin\TechnologyExcelController::class], 'machine-cost' => ['machine-cost', SuperAdmin\MachineCostExcelController::class]] as $path => [$name, $controller]) {
+            Route::get("price-list/{$path}/excel/export", [$controller, 'export'])->name("price-list.{$name}.excel.export");
+            Route::get("price-list/{$path}/excel/template", [$controller, 'template'])->name("price-list.{$name}.excel.template");
+            Route::get("price-list/{$path}/excel/contoh", [$controller, 'example'])->name("price-list.{$name}.excel.example");
+        }
     });
 
     Route::middleware($canPriceList(AdminPermission::PRICE_LIST_IMPORT))->group(function () {
@@ -623,6 +652,12 @@ Route::prefix('superadmin')->name('superadmin.')->middleware(['auth', 'superadmi
         Route::post('price-list/material/{technology}/excel/pratinjau', [SuperAdmin\MaterialExcelController::class, 'preview'])->name('price-list.materials.excel.preview');
         Route::post('price-list/material/{technology}/excel/import', [SuperAdmin\MaterialExcelController::class, 'store'])->name('price-list.materials.excel.import');
         Route::post('price-list/material/{technology}/excel/batal', [SuperAdmin\MaterialExcelController::class, 'cancel'])->name('price-list.materials.excel.cancel');
+
+        foreach (['teknologi' => ['technologies', SuperAdmin\TechnologyExcelController::class], 'machine-cost' => ['machine-cost', SuperAdmin\MachineCostExcelController::class]] as $path => [$name, $controller]) {
+            Route::post("price-list/{$path}/excel/pratinjau", [$controller, 'preview'])->name("price-list.{$name}.excel.preview");
+            Route::post("price-list/{$path}/excel/import", [$controller, 'store'])->name("price-list.{$name}.excel.import");
+            Route::post("price-list/{$path}/excel/batal", [$controller, 'cancel'])->name("price-list.{$name}.excel.cancel");
+        }
     });
 
     /*

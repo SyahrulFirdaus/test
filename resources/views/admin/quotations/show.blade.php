@@ -6,7 +6,7 @@
     <div>
 
         <a href="{{ staff_route('quotations.index') }}" class="inline-flex items-center gap-2 text-sm font-semibold text-ink-500 transition-colors hover:text-brand-600">
-            &larr; Kembali ke daftar permintaan
+            Kembali ke daftar permintaan
         </a>
 
         {{-- ============ PERMINTAAN PEMBATALAN ============ --}}
@@ -119,7 +119,7 @@
         <div class="mt-8 grid gap-6 lg:grid-cols-12">
 
             {{-- Kolom kiri --}}
-            <div class="space-y-6 lg:col-span-8">
+            <div class="min-w-0 space-y-6 lg:col-span-8">
 
                 {{-- Kontak & pesanan --}}
                 <section class="rounded-2xl border border-ink-100 bg-white p-6 shadow-card sm:p-7">
@@ -415,11 +415,42 @@
                             @endif
                         </dl>
 
-                        {{-- Pengaturan & estimasi model ini --}}
-                        <div class="mt-6 rounded-xl bg-ink-50/70 p-5">
-                            <p class="text-[0.65rem] font-bold uppercase tracking-[0.14em] text-ink-500">Pengaturan &amp; Estimasi</p>
+                        {{-- Pengaturan & Estimasi dan Analisis Kelayakan Cetak dibuka
+                             lewat tombol ke modal (x-admin.modal), bukan lagi terpampang
+                             di kartu. Isinya sama; Hollow Model tidak lagi ditampilkan. --}}
+                        @php
+                            $checkCounts = collect($checks)->countBy(fn ($check) => $check['status'] ?? 'skip');
+                        @endphp
 
-                            <dl class="mt-3 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                        <div class="mt-6 flex flex-wrap items-center gap-2">
+                            <button type="button" class="viewer-tool" data-dialog-open="settings-{{ $item->id }}"
+                                    aria-haspopup="dialog" aria-controls="settings-{{ $item->id }}">
+                                Pengaturan &amp; Estimasi
+                            </button>
+
+                            <button type="button" class="viewer-tool" data-dialog-open="analysis-{{ $item->id }}"
+                                    aria-haspopup="dialog" aria-controls="analysis-{{ $item->id }}">
+                                Analisis Kelayakan Cetak
+                                @if (filled($checks))
+                                    <span class="ml-1 inline-flex items-center gap-1 text-[0.65rem] font-semibold text-ink-400">
+                                        @foreach (['pass' => 'bg-emerald-500', 'warn' => 'bg-amber-500', 'fail' => 'bg-brand-600'] as $status => $dot)
+                                            @if ($checkCounts->get($status))
+                                                <span class="inline-flex items-center gap-0.5">
+                                                    <span class="h-1.5 w-1.5 rounded-full {{ $dot }}"></span>{{ $checkCounts->get($status) }}
+                                                </span>
+                                            @endif
+                                        @endforeach
+                                    </span>
+                                @endif
+                            </button>
+                        </div>
+
+                        {{-- Pengaturan & estimasi model ini --}}
+                        <x-admin.modal id="settings-{{ $item->id }}" eyebrow="Pengaturan & Estimasi"
+                                       :title="$item->position.' · '.$item->file_name" body-class="p-5 sm:p-6">
+                            <x-slot:meta>{{ $item->technology }} {{ $item->material }} &middot; {{ $item->quantity }} unit &middot; {{ $item->printer_name }}</x-slot:meta>
+
+                            <dl class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                                 @foreach ([
                                     'Skala' => $item->scale_label,
                                     'Resolusi' => $item->resolution_label,
@@ -429,7 +460,6 @@
                                     'Support Structure' => $item->support_enabled
                                         ? 'Ya ('.($item->support_type ?: 'normal').')'
                                         : 'Tidak',
-                                    'Hollow Model' => $item->hollow_label,
                                     'Volume Material' => $fmt($item->material_volume_cm3, 2).' cm³',
                                     'Berat Model' => $fmt($item->estimated_weight_g, 1).' gram',
                                     'Berat Support' => $fmt($item->support_weight_g, 1).' gram',
@@ -452,13 +482,15 @@
                                     </dd>
                                 </div>
                             </dl>
+                        </x-admin.modal>
 
                         {{-- Analisis kelayakan model ini --}}
-                        <div class="mt-6">
-                            <p class="text-[0.65rem] font-bold uppercase tracking-[0.14em] text-ink-500">Analisis Kelayakan Cetak</p>
+                        <x-admin.modal id="analysis-{{ $item->id }}" eyebrow="Analisis Kelayakan Cetak"
+                                       :title="$item->position.' · '.$item->file_name" body-class="p-5 sm:p-6">
+                            <x-slot:meta>{{ $item->file_format }} &middot; {{ $item->technology }} {{ $item->material }}</x-slot:meta>
 
                             @if (filled($checks))
-                                <ul class="mt-3 space-y-3">
+                                <ul class="space-y-3">
                                     @foreach ($checks as $check)
                                         @php
                                             $dot = match ($check['status'] ?? 'skip') {
@@ -478,9 +510,9 @@
                                     @endforeach
                                 </ul>
                             @else
-                                <p class="mt-3 text-sm text-ink-400">Tidak ada rincian analisis yang tersimpan untuk model ini.</p>
+                                <p class="text-sm text-ink-400">Tidak ada rincian analisis yang tersimpan untuk model ini.</p>
                             @endif
-                        </div>
+                        </x-admin.modal>
 
                         {{-- ===== Form Perhitungan Kalkulator Manual =====
 
@@ -495,7 +527,13 @@
                              ditampilkan kepada pelanggan. Yang sampai ke
                              pelanggan hanya Final Price. --}}
                         @if ($item->usesManualPricing())
-                            @php $slaQuote = $item->slaIndustriesQuote; @endphp
+                            @php
+                                $slaQuote = $item->slaIndustriesQuote;
+                                $slaFormKey = 'sla-item-'.$item->id;
+                                // Formulir model ini baru saja ditolak validasi:
+                                // modalnya dibuka lagi supaya pesannya terlihat.
+                                $slaReopen = $errors->any() && old('_form_key') === $slaFormKey;
+                            @endphp
 
                             <div class="mt-6 border-t border-ink-100 pt-6">
                                 <div class="flex flex-wrap items-start justify-between gap-3">
@@ -515,11 +553,9 @@
                                         Harga model ini <span class="font-semibold">belum ditetapkan</span>. Pelanggan melihat
                                         keterangan &ldquo;Menunggu Perhitungan&rdquo;, dan penawaran belum dapat dilanjutkan ke
                                         tahap pembayaran sampai formulir ini disimpan.
-                                        Nilai di bawah diambil dari parameter bawaan pada Price List.
+                                        Nilai di formulir diambil dari parameter bawaan pada Price List.
                                     </p>
                                 @else
-                                    @php $slaRate = $slaQuote->usdRateInfo(); @endphp
-
                                     <p class="mt-4 text-xs text-ink-400">
                                         Terakhir ditetapkan
                                         {{ $slaQuote->updated_at->translatedFormat('d F Y, H:i') }} WIB
@@ -528,38 +564,52 @@
                                         @endif
                                         &middot; mengisi ulang formulir ini mengganti harganya.
                                     </p>
-
-                                    {{-- Kurs yang benar-benar dipakai harga yang
-                                         berlaku sekarang. Dicatat terpisah karena
-                                         formulir di bawah memakai kurs HARI INI:
-                                         menyimpan ulang berarti menghitung ulang,
-                                         dan perhitungan baru memakai kurs baru. --}}
-                                    <p class="mt-2 rounded-xl border border-ink-100 bg-ink-50/70 px-4 py-3 text-xs leading-relaxed text-ink-500">
-                                        Harga yang berlaku sekarang dihitung dengan kurs
-                                        <span class="font-mono font-semibold text-ink-800">Rp{{ number_format((float) $slaQuote->usd_rate, 0, ',', '.') }}</span>
-                                        @if ($slaQuote->usd_rate_source)
-                                            &middot; sumber {{ $slaQuote->usd_rate_source }}
-                                        @endif
-                                        @if ($slaQuote->usd_rate_published_at)
-                                            &middot; terbit {{ $slaQuote->usd_rate_published_at->timezone('Asia/Jakarta')->translatedFormat('d F Y, H:i') }} WIB
-                                        @endif.
-                                        Menyimpan ulang formulir di bawah akan memakai kurs yang berlaku saat itu.
-                                    </p>
                                 @endif
 
                                 @can(\App\Support\AdminPermission::QUOTATION_EDIT)
-                                <div class="mt-4">
-                                    @include('partials.sla-industries-formula', [
-                                        'action' => staff_route('quotations.items.sla-industries', [$quotation, $item]),
-                                        'values' => $slaQuote ?? $slaIndustriesDefaults,
-                                        'uid' => 'sla-item-'.$item->id,
-                                        'showProductName' => true,
-                                        'productName' => $slaQuote?->product_name ?? $item->file_name,
-                                        'submitLabel' => $slaQuote === null ? 'Tetapkan Harga Model Ini' : 'Perbarui Harga Model Ini',
-                                        'usdRate' => $slaIndustriesUsdRate,
-                                        'rateEndpoint' => $usdRateEndpoint,
-                                    ])
-                                </div>
+                                    {{-- Formulirnya dibuka di modal, bukan terpampang di kartu. --}}
+                                    <button type="button" class="btn-primary mt-4 px-5 py-2.5"
+                                            data-dialog-open="sla-form-{{ $item->id }}"
+                                            aria-haspopup="dialog" aria-controls="sla-form-{{ $item->id }}">
+                                        {{ $slaQuote === null ? 'Isi Form Perhitungan' : 'Perbarui Form Perhitungan' }}
+                                    </button>
+
+                                    <x-admin.modal id="sla-form-{{ $item->id }}" size="max-w-5xl" :auto-open="$slaReopen"
+                                                   eyebrow="Form Perhitungan Kalkulator Manual"
+                                                   :title="$item->position.' · '.$item->file_name" body-class="p-5 sm:p-6">
+                                        <x-slot:meta>{{ $item->technology }} {{ $item->material }} &middot; {{ $item->quantity }} unit &middot; Internal, tidak terlihat pelanggan</x-slot:meta>
+
+                                        @if ($slaQuote !== null)
+                                            {{-- Kurs yang benar-benar dipakai harga yang
+                                                 berlaku sekarang. Dicatat terpisah karena
+                                                 formulir di bawah memakai kurs HARI INI:
+                                                 menyimpan ulang berarti menghitung ulang,
+                                                 dan perhitungan baru memakai kurs baru. --}}
+                                            <p class="mb-5 rounded-xl border border-ink-100 bg-ink-50/70 px-4 py-3 text-xs leading-relaxed text-ink-500">
+                                                Harga yang berlaku sekarang dihitung dengan kurs
+                                                <span class="font-mono font-semibold text-ink-800">Rp{{ number_format((float) $slaQuote->usd_rate, 0, ',', '.') }}</span>
+                                                @if ($slaQuote->usd_rate_source)
+                                                    &middot; sumber {{ $slaQuote->usd_rate_source }}
+                                                @endif
+                                                @if ($slaQuote->usd_rate_published_at)
+                                                    &middot; terbit {{ $slaQuote->usd_rate_published_at->timezone('Asia/Jakarta')->translatedFormat('d F Y, H:i') }} WIB
+                                                @endif.
+                                                Menyimpan ulang formulir di bawah akan memakai kurs yang berlaku saat itu.
+                                            </p>
+                                        @endif
+
+                                        @include('partials.sla-industries-formula', [
+                                            'action' => staff_route('quotations.items.sla-industries', [$quotation, $item]),
+                                            'values' => $slaQuote ?? $slaIndustriesDefaults,
+                                            'uid' => 'sla-item-'.$item->id,
+                                            'formKey' => $slaFormKey,
+                                            'showProductName' => true,
+                                            'productName' => $slaQuote?->product_name ?? $item->file_name,
+                                            'submitLabel' => $slaQuote === null ? 'Tetapkan Harga Model Ini' : 'Perbarui Harga Model Ini',
+                                            'usdRate' => $slaIndustriesUsdRate,
+                                            'rateEndpoint' => $usdRateEndpoint,
+                                        ])
+                                    </x-admin.modal>
                                 @else
                                     <p class="mt-4 text-xs text-ink-400">Anda tidak memiliki hak akses Edit untuk menetapkan harga model ini.</p>
                                 @endcan
@@ -611,7 +661,7 @@
             </div>
 
             {{-- Kolom kanan --}}
-            <div class="space-y-6 lg:col-span-4">
+            <div class="min-w-0 space-y-6 lg:col-span-4">
 
                 {{-- Estimasi --}}
                 <section class="rounded-2xl border border-ink-100 bg-white p-6 shadow-card sm:p-7">

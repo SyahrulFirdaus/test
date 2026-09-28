@@ -72,6 +72,12 @@
       @endif
       class="space-y-5">
     @csrf
+    {{-- Penanda formulir mana yang dikirim, supaya halaman yang memuat
+         beberapa formulir (mis. modal per model) dapat membuka kembali yang
+         tepat saat validasinya gagal. Tidak ikut divalidasi maupun disimpan. --}}
+    @isset($formKey)
+        <input type="hidden" name="_form_key" value="{{ $formKey }}">
+    @endisset
     @method('PATCH')
 
     @if ($showProductName)
@@ -239,7 +245,7 @@
                             @else
                                 <div class="flex items-center justify-end gap-2">
                                     <input type="number" step="0.01"
-                                           min="{{ SlaIndustries::MIN_MARGIN }}" max="{{ SlaIndustries::MAX_MARGIN }}" required
+                                           min="{{ SlaIndustries::MIN_MARGIN }}" max="{{ SlaIndustries::MARGIN_CEILING }}" required
                                            id="{{ $uid }}-margin" name="margin_percent" value="{{ $val('margin_percent') }}"
                                            class="field-input w-28 text-right font-mono" data-sla-input="margin_percent"
                                            aria-label="Margin profit dalam persen">
@@ -252,7 +258,7 @@
                             @error('margin_percent') <p class="field-error text-right">{{ $message }}</p> @enderror
                         </td>
                         <td class="px-4 py-3 text-xs text-ink-400">
-                            Isi margin profit {{ SlaIndustries::MIN_MARGIN }}%–{{ SlaIndustries::MAX_MARGIN }}%.
+                            {{ SlaIndustries::marginHint() }}
                         </td>
                     </tr>
 

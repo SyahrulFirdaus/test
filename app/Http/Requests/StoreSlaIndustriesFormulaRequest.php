@@ -49,13 +49,13 @@ class StoreSlaIndustriesFormulaRequest extends FormRequest
             'jlc_shipping_usd' => ['required', 'numeric', 'min:0', 'max:'.static::MAX_AMOUNT],
             'customs_idr' => ['required', 'numeric', 'min:0', 'max:'.static::MAX_AMOUNT],
 
-            // Batas margin ditegakkan DI SERVER juga, bukan hanya di formulir:
-            // pemeriksaan di browser dapat dilewati begitu saja.
+            // Margin boleh berapa pun; yang dijaga hanya tidak negatif dan
+            // muat di kolomnya. Ditegakkan di server, bukan hanya di formulir.
             'margin_percent' => [
                 'required',
                 'numeric',
                 'min:'.SlaIndustries::MIN_MARGIN,
-                'max:'.SlaIndustries::MAX_MARGIN,
+                'max:'.SlaIndustries::MARGIN_CEILING,
             ],
         ];
     }
@@ -69,7 +69,7 @@ class StoreSlaIndustriesFormulaRequest extends FormRequest
             'customs_idr.required' => 'DHL Beacukai wajib diisi.',
             'margin_percent.required' => 'Margin Profit wajib diisi.',
             'margin_percent.min' => SlaIndustries::marginMessage(),
-            'margin_percent.max' => SlaIndustries::marginMessage(),
+            'margin_percent.max' => SlaIndustries::marginTooLargeMessage(),
             'numeric' => 'Kolom ini harus berupa angka.',
             'min' => 'Nilainya tidak boleh negatif.',
             'max' => 'Nilainya terlalu besar.',

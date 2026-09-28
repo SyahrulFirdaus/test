@@ -31,7 +31,13 @@ class StorePrintTechnologyRequest extends FormRequest
             'code' => [
                 $technology instanceof PrintTechnology ? 'nullable' : 'required',
                 'string', 'max:12', 'regex:/^[A-Za-z0-9]+$/',
-                Rule::unique('print_technologies', 'code')->ignore($technology),
+                // Saat menambah, kode milik teknologi yang diarsipkan (tidak
+                // tampil di mana pun) boleh dipakai lagi: barisnya dihidupkan
+                // kembali oleh controller. Saat menyunting tetap ketat, karena
+                // mengganti kode ke sana akan bertabrakan dengan baris arsip itu.
+                $technology instanceof PrintTechnology
+                    ? Rule::unique('print_technologies', 'code')->ignore($technology)
+                    : Rule::unique('print_technologies', 'code')->whereNull('archived_at'),
             ],
             'name' => ['required', 'string', 'max:120'],
             'family' => ['nullable', 'string', 'max:60'],

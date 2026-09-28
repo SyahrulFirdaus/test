@@ -40,48 +40,110 @@
         };
     @endphp
 
+    @php
+        $angka = fn ($value) => number_format((float) $value, 0, ',', '.');
+        $technologies = $insights['technologies'];
+        $surface = 'rounded-3xl border border-ink-100/80 bg-white shadow-card';
+    @endphp
+
     {{-- ============================== HEADER ============================== --}}
-    <div class="rounded-3xl border border-transparent bg-gradient-to-br from-brand-700 to-brand-950 p-7 text-white shadow-card sm:p-9">
-        <div class="flex flex-wrap items-start justify-between gap-5">
-            <div class="min-w-0">
-                <p class="text-xs font-semibold uppercase tracking-[0.2em] text-white/60">Selamat datang</p>
-                <h2 class="mt-2 font-display text-2xl font-bold sm:text-3xl">{{ auth()->user()->name }}</h2>
+    <div class="flex flex-wrap items-end justify-between gap-4">
+        <div class="min-w-0">
+            <h2 class="font-display text-2xl font-bold text-ink-900 sm:text-[1.75rem]">
+                {{ $profile?->company_name ?: auth()->user()->name }}
+            </h2>
+            <p class="mt-1 text-sm text-ink-500">{{ now()->translatedFormat('l, d F Y') }}</p>
+        </div>
 
-                @if ($profile?->company_name)
-                    <p class="mt-1.5 font-display text-lg font-semibold text-white/90">{{ $profile->company_name }}</p>
-                @endif
-
-                <span class="mt-3 inline-flex items-center gap-2 rounded-full bg-white/15 px-3.5 py-1.5 text-xs font-bold uppercase tracking-[0.14em] text-white">
-                    Business Account
-                </span>
-            </div>
-
-            <div class="flex flex-wrap gap-3">
-                <a href="{{ route('models') }}" class="btn-primary bg-white text-brand-700 shadow-none hover:bg-white/90 hover:text-brand-800">
-                    + Buat Quotation
-                </a>
-                <a href="{{ route('dashboard.quotations.index') }}" class="btn-ghost-light">Quotations</a>
-            </div>
+        <div class="flex flex-wrap gap-3">
+            <a href="{{ route('dashboard.quotations.index') }}" class="btn-outline px-5 py-2.5">Quotations</a>
+            <a href="{{ route('models') }}" class="btn-primary px-5 py-2.5">+ Buat Quotation</a>
         </div>
     </div>
 
-    {{-- ============================ STATISTIK ============================ --}}
-    <div class="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-        @foreach ([
-            ['label' => 'Active Quotations', 'value' => number_format($stats['active_quotations'], 0, ',', '.'), 'tone' => 'ink'],
-            ['label' => 'Active Orders', 'value' => number_format($stats['active_orders'], 0, ',', '.'), 'tone' => 'ink'],
-            ['label' => 'Completed Orders', 'value' => number_format($stats['completed_orders'], 0, ',', '.'), 'tone' => 'ink'],
-            ['label' => 'Outstanding', 'value' => $ringkas($stats['outstanding']), 'tone' => 'brand'],
-            ['label' => 'Total Spending', 'value' => $ringkas($stats['spending']), 'tone' => 'emerald'],
-        ] as $card)
-            <div class="rounded-2xl border border-ink-100 bg-white p-5 shadow-card">
-                <p class="text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-ink-400">{{ $card['label'] }}</p>
-                <p class="mt-2 font-display text-2xl font-bold
-                          {{ $card['tone'] === 'brand' ? 'text-brand-700' : ($card['tone'] === 'emerald' ? 'text-emerald-600' : 'text-ink-900') }}">
-                    {{ $card['value'] }}
-                </p>
+    {{-- ======================= RINGKASAN & GRAFIK ======================= --}}
+    <div class="mt-6 grid gap-5 lg:grid-cols-12">
+
+        {{-- Empat kartu statistik: yang pertama kartu utama berwarna brand. --}}
+        <div class="grid gap-5 sm:grid-cols-2 lg:col-span-8">
+            <x-dashboard.stat-card hero label="Total Spending" :value="$ringkas($stats['spending'])"
+                                   note="Diterima vs bulan lalu" icon="spark" :trend="$insights['trends']['spending']" />
+
+            <x-dashboard.stat-card label="Active Quotations" :value="$angka($stats['active_quotations'])"
+                                   note="Quotation baru vs bulan lalu" icon="layers" :trend="$insights['trends']['quotations']" />
+
+            <x-dashboard.stat-card label="Outstanding" :value="$ringkas($stats['outstanding'])"
+                                   note="Sisa tagihan yang berjalan" icon="clock"
+                                   :pill="$reminders->isNotEmpty() ? ['text' => $reminders->count().' jatuh tempo', 'class' => 'bg-rose-100 text-rose-700'] : null" />
+
+            <x-dashboard.stat-card label="Active Orders" :value="$angka($stats['active_orders'])"
+                                   :note="$angka($stats['completed_orders']).' pesanan selesai'" icon="printer" :trend="$insights['trends']['orders']" />
+        </div>
+
+        <x-dashboard.order-statistic class="lg:col-span-4" :distribution="$insights['distribution']" :trend="$insights['trends']['quotations']" />
+
+        <x-dashboard.activity-chart class="lg:col-span-8" :monthly="$insights['monthly']" />
+
+        {{-- Teknologi yang paling sering dipesan, digambar sebagai gelembung. --}}
+        <section class="{{ $surface }} p-6 lg:col-span-4">
+            <div>
+                <h3 class="font-display text-lg font-bold text-ink-900">Top Technology</h3>
+                <p class="mt-0.5 text-xs text-ink-400">Teknologi cetak yang paling sering Anda pesan</p>
             </div>
-        @endforeach
+
+            @if ($technologies)
+                @php
+                    $techTotal = array_sum($technologies);
+                    $techMax = max($technologies);
+
+                    // Letak tetap tiap gelembung (titik tengah, persen) dan warnanya.
+                    $bubbles = [
+                        ['x' => 58, 'y' => 40, 'bg' => 'bg-brand-600', 'dot' => 'bg-brand-600'],
+                        ['x' => 30, 'y' => 64, 'bg' => 'bg-brand-400', 'dot' => 'bg-brand-400'],
+                        ['x' => 72, 'y' => 74, 'bg' => 'bg-accent-500', 'dot' => 'bg-accent-500'],
+                        ['x' => 26, 'y' => 28, 'bg' => 'bg-brand-800', 'dot' => 'bg-brand-800'],
+                    ];
+                @endphp
+
+                <div class="grid items-center gap-4 sm:grid-cols-2 lg:grid-cols-1 2xl:grid-cols-2">
+                    <div class="relative mx-auto h-48 w-full max-w-[14rem]">
+                        @foreach (array_slice($technologies, 0, 4, true) as $name => $count)
+                            @php
+                                $bubble = $bubbles[$loop->index];
+                                // Luas gelembung sebanding dengan jumlahnya.
+                                $size = round(40 + 56 * sqrt($count / $techMax));
+                            @endphp
+                            <span class="absolute inline-flex -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full font-display text-sm font-bold text-white {{ $bubble['bg'] }}"
+                                  style="left: {{ $bubble['x'] }}%; top: {{ $bubble['y'] }}%; width: {{ $size }}px; height: {{ $size }}px;
+                                         z-index: {{ 10 - $loop->index }}; box-shadow: 0 0 0 4px var(--surface, #fff);"
+                                  title="{{ $name }}: {{ $count }} quotation">
+                                {{ $angka($count) }}
+                            </span>
+                        @endforeach
+                    </div>
+
+                    <ul class="space-y-3.5">
+                        @foreach (array_slice($technologies, 0, 4, true) as $name => $count)
+                            <li>
+                                <div class="flex items-center gap-2.5 text-sm">
+                                    <span class="h-2.5 w-2.5 shrink-0 rounded-full {{ $bubbles[$loop->index]['dot'] }}"></span>
+                                    <span class="flex-1 truncate font-semibold text-ink-800">{{ $name }}</span>
+                                    <span class="text-xs font-semibold text-ink-400">{{ round($count / $techTotal * 100) }}%</span>
+                                </div>
+                                <div class="ml-5 mt-1.5 h-1.5 overflow-hidden rounded-full bg-ink-100">
+                                    <div class="h-full rounded-full {{ $bubbles[$loop->index]['dot'] }}" style="width: {{ $count / $techMax * 100 }}%"></div>
+                                </div>
+                            </li>
+                        @endforeach
+                    </ul>
+                </div>
+            @else
+                <div class="mt-6 flex h-48 flex-col items-center justify-center rounded-2xl border border-dashed border-ink-200 text-center">
+                    <x-icons.cube class="h-8 w-8 text-ink-300" />
+                    <p class="mt-3 text-sm text-ink-500">Belum ada quotation untuk diringkas.</p>
+                </div>
+            @endif
+        </section>
     </div>
 
     {{-- ====================== PAYMENT REMINDER B2B ====================== --}}
@@ -91,7 +153,7 @@
             $overdue = $daysLeft !== null && $daysLeft < 0;
         @endphp
 
-        <div class="mt-6 rounded-2xl border-2 p-6 shadow-card
+        <div class="mt-6 rounded-3xl border-2 p-6 shadow-card
                     {{ $overdue ? 'border-rose-400 bg-rose-50' : 'border-amber-300 bg-amber-50' }}">
             <div class="flex flex-wrap items-start justify-between gap-5">
                 <div class="min-w-0">
@@ -129,7 +191,7 @@
 
     {{-- Pembayaran sekali bayar yang masih menunggu. --}}
     @if ($paymentDue)
-        <div class="mt-6 rounded-2xl border-2 border-brand-300 bg-brand-50 p-6 shadow-card">
+        <div class="mt-6 rounded-3xl border-2 border-brand-300 bg-brand-50 p-6 shadow-card">
             <div class="flex flex-wrap items-start justify-between gap-5">
                 <div class="min-w-0">
                     <p class="font-display text-base font-bold text-brand-900">Pembayaran Menunggu</p>
@@ -159,7 +221,7 @@
         </div>
 
         @forelse ($terms as $term)
-            <article class="mt-4 overflow-hidden rounded-2xl border border-ink-100 bg-white shadow-card">
+            <article class="mt-4 overflow-hidden rounded-3xl border border-ink-100/80 bg-white shadow-card">
                 <div class="border-b border-ink-100 px-6 py-5">
                     <div class="flex flex-wrap items-start justify-between gap-4">
                         <div>
@@ -245,7 +307,7 @@
                 @endif
             </article>
         @empty
-            <div class="mt-4 rounded-2xl border border-dashed border-ink-200 bg-white p-10 text-center">
+            <div class="mt-4 rounded-3xl border border-dashed border-ink-200 bg-white p-10 text-center">
                 <p class="text-sm text-ink-500">Belum ada skema pembayaran bertahap yang berjalan.</p>
             </div>
         @endforelse
@@ -327,18 +389,18 @@
                 <a href="{{ route('dashboard.quotations.show', $order) }}" class="viewer-tool mt-5">Detail Order</a>
             </article>
         @empty
-            <div class="mt-4 rounded-2xl border border-dashed border-ink-200 bg-white p-10 text-center">
+            <div class="mt-4 rounded-3xl border border-dashed border-ink-200 bg-white p-10 text-center">
                 <p class="text-sm text-ink-500">Tidak ada pekerjaan yang sedang diproduksi.</p>
             </div>
         @endforelse
     </section>
 
     {{-- ====================== RECENT QUOTATIONS ====================== --}}
-    <section class="mt-8 overflow-hidden rounded-2xl border border-ink-100 bg-white shadow-card">
+    <section class="mt-8 overflow-hidden rounded-3xl border border-ink-100/80 bg-white shadow-card">
         <div class="flex flex-wrap items-center justify-between gap-3 border-b border-ink-100 px-6 py-5">
             <h2 class="font-display text-base font-bold text-ink-900">Recent Quotations</h2>
             <a href="{{ route('dashboard.quotations.index') }}" class="text-sm font-semibold text-brand-600 hover:text-brand-700">
-                Lihat Semua Quotation &rarr;
+                Lihat Semua Quotation
             </a>
         </div>
 
@@ -460,7 +522,7 @@
     <div class="mt-8 grid gap-6 lg:grid-cols-12">
 
         {{-- ========================== DOCUMENTS ========================== --}}
-        <section id="documents" class="scroll-mt-24 overflow-hidden rounded-2xl border border-ink-100 bg-white shadow-card lg:col-span-6">
+        <section id="documents" class="scroll-mt-24 overflow-hidden rounded-3xl border border-ink-100/80 bg-white shadow-card lg:col-span-6">
             <div class="border-b border-ink-100 px-6 py-5">
                 <h2 class="font-display text-base font-bold text-ink-900">Documents</h2>
                 <p class="mt-1 text-sm text-ink-500">Dokumen yang tersedia untuk diunduh.</p>
@@ -486,7 +548,7 @@
         </section>
 
         {{-- =========================== RE-ORDER =========================== --}}
-        <section id="reorder" class="scroll-mt-24 overflow-hidden rounded-2xl border border-ink-100 bg-white shadow-card lg:col-span-6">
+        <section id="reorder" class="scroll-mt-24 overflow-hidden rounded-3xl border border-ink-100/80 bg-white shadow-card lg:col-span-6">
             <div class="border-b border-ink-100 px-6 py-5">
                 <h2 class="font-display text-base font-bold text-ink-900">Previous Orders</h2>
                 <p class="mt-1 text-sm text-ink-500">Pesan ulang memakai spesifikasi pesanan sebelumnya.</p>
@@ -521,10 +583,10 @@
     </div>
 
     {{-- ========================== NOTIFIKASI ========================== --}}
-    <section class="mt-8 overflow-hidden rounded-2xl border border-ink-100 bg-white shadow-card">
+    <section class="mt-8 overflow-hidden rounded-3xl border border-ink-100/80 bg-white shadow-card">
         <div class="flex flex-wrap items-center justify-between gap-3 border-b border-ink-100 px-6 py-5">
             <h2 class="font-display text-base font-bold text-ink-900">Notifications</h2>
-            <a href="{{ route('dashboard.notifications.index') }}" class="text-sm font-semibold text-brand-600 hover:text-brand-700">Semua &rarr;</a>
+            <a href="{{ route('dashboard.notifications.index') }}" class="text-sm font-semibold text-brand-600 hover:text-brand-700">Semua</a>
         </div>
 
         <ul class="divide-y divide-ink-100">

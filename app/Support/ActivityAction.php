@@ -124,6 +124,9 @@ class ActivityAction
 
     public const ADMIN_STATUS_UPDATE = 'admin_status_update';
 
+    /** Superadmin menghapus akun pelanggan dari menu User. */
+    public const USER_DELETE = 'user_delete';
+
     public const PRICE_LIST_UPDATE = 'price_list_update';
 
     /*
@@ -195,6 +198,7 @@ class ActivityAction
             self::ADMIN_CREATE => ['label' => 'Tambah Akun Admin', 'module' => ActivityModule::SUPERADMIN],
             self::ADMIN_UPDATE => ['label' => 'Ubah Akun Admin', 'module' => ActivityModule::SUPERADMIN],
             self::ADMIN_DELETE => ['label' => 'Hapus Akun Admin', 'module' => ActivityModule::SUPERADMIN],
+            self::USER_DELETE => ['label' => 'Hapus User', 'module' => ActivityModule::SUPERADMIN],
             self::ADMIN_PASSWORD_RESET => ['label' => 'Reset Password Admin', 'module' => ActivityModule::SUPERADMIN],
             self::ADMIN_PERMISSION_UPDATE => ['label' => 'Update Admin Permission', 'module' => ActivityModule::SUPERADMIN],
             self::ADMIN_STATUS_UPDATE => ['label' => 'Ubah Status Admin', 'module' => ActivityModule::SUPERADMIN],

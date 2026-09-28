@@ -1466,19 +1466,17 @@ export default class ModelWorkspace {
         const choices = available ? [STANDARD_SPEED, EXPRESS_SPEED] : [STANDARD_SPEED];
 
         this.productionOptions.innerHTML = choices
-            .map((key) => {
-                const isExpress = key === EXPRESS_SPEED;
-
-                return `
+            .map(
+                (key) => `
                     <label class="flex cursor-pointer items-center gap-3 rounded-xl border p-3 transition-colors ${
                         key === selected ? 'border-brand-500 bg-brand-50' : 'border-ink-200 hover:bg-ink-50'
                     }">
                         <input type="radio" name="production_speed" value="${key}" class="h-4 w-4 accent-brand-600"
                                ${key === selected ? 'checked' : ''} data-production-option>
-                        <span class="text-sm font-bold text-ink-900">${formatLeadTime(key, totals.manualPricing)}${isExpress ? ' ⚡' : ''}</span>
+                        <span class="text-sm font-bold text-ink-900">${formatLeadTime(key, totals.manualPricing)}</span>
                     </label>
-                `;
-            })
+                `
+            )
             .join('');
 
         if (this.productionNote) {

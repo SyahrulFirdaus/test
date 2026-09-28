@@ -7,7 +7,7 @@
 @section('price-list')
     <a href="{{ route('superadmin.price-list.harga') }}"
        class="mb-5 inline-flex items-center gap-2 text-sm font-semibold text-ink-500 transition-colors hover:text-brand-600">
-        &larr; Kembali ke Rumus Harga Otomatis
+        Kembali ke Rumus Harga Otomatis
     </a>
 
     @php $rupiah = fn ($value) => 'Rp'.number_format((float) $value, 0, ',', '.'); @endphp

@@ -8,6 +8,8 @@
         $angka = fn ($value) => number_format((int) $value, 0, ',', '.');
     @endphp
 
+    <x-dashboard-mode-banner :mode="$dashboard_mode" :label="$dashboard_mode_label" />
+
     {{-- ================= KARTU STATISTIK ================= --}}
     <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
         @foreach ([
@@ -150,7 +152,7 @@
 
             <a href="{{ staff_route('quotations.index', array_filter(['status' => $filters['status']])) }}"
                class="mt-3 inline-block text-sm font-semibold text-brand-600 hover:text-brand-700">
-                Lihat semua di halaman Penawaran &rarr;
+                Lihat semua di halaman Penawaran
             </a>
         </div>
 

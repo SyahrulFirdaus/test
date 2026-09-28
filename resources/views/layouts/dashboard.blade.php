@@ -73,14 +73,27 @@
      * Kunci `group` menentukan heading di atas item; item tanpa `group`
      * (Dashboard) berdiri sendiri. Menu milik Superadmin disaring di bawah.
      */
+    /*
+     * Switch Personal/Business di header hanya mengubah TAMPILAN — lihat
+     * App\Support\DashboardMode. Menu pembayaran yang relevan berbeda di tiap
+     * mode: Personal mengurus verifikasi pembayaran satuan, Business mengurus
+     * Payment Term perusahaan. Hak akses TIDAK ikut berubah — menu yang tidak
+     * berhak dibuka Admin tetap tertutup di kedua mode.
+     */
+    $dashboardMode = \App\Support\DashboardMode::current();
+    $isBusinessMode = \App\Support\DashboardMode::isBusiness($dashboardMode);
+
+    $paymentMenu = $isBusinessMode
+        ? [['group' => 'Pembayaran', 'label' => 'Payment Term', 'route' => $area.'payment-terms.index', 'icon' => 'clock', 'active' => $area.'payment-terms.*', 'permission' => \App\Support\AdminPermission::PAYMENT_TERM_VIEW]]
+        : [['group' => 'Pembayaran Personal', 'label' => 'Verifikasi Pembayaran', 'route' => $area.'payments.index', 'icon' => 'check', 'active' => $area.'payments.*', 'permission' => \App\Support\AdminPermission::PAYMENT_VIEW]];
+
     $staffMenu = array_values(array_filter([
         ['label' => 'Dashboard', 'route' => $area.'dashboard', 'icon' => 'grid', 'active' => $area.'dashboard'],
 
         ['group' => 'Penawaran', 'label' => 'Penawaran', 'route' => $area.'quotations.index', 'icon' => 'layers', 'active' => $area.'quotations.*', 'permission' => \App\Support\AdminPermission::QUOTATION_VIEW],
         ['group' => 'Penawaran', 'label' => 'Notifikasi', 'route' => $area.'notifications.index', 'icon' => 'bell', 'active' => $area.'notifications.*', 'permission' => \App\Support\AdminPermission::NOTIFICATION_VIEW],
 
-        ['group' => 'Pembayaran', 'label' => 'Verifikasi Pembayaran', 'route' => $area.'payments.index', 'icon' => 'check', 'active' => $area.'payments.*', 'permission' => \App\Support\AdminPermission::PAYMENT_VIEW],
-        ['group' => 'Pembayaran', 'label' => 'Payment Term', 'route' => $area.'payment-terms.index', 'icon' => 'clock', 'active' => $area.'payment-terms.*', 'permission' => \App\Support\AdminPermission::PAYMENT_TERM_VIEW],
+        ...$paymentMenu,
 
         // Price List tampil sebagai empat grup accordion — lihat $priceListGroups.
         ['type' => 'price-list', 'superadmin' => true],
@@ -307,6 +320,42 @@
                 </div>
 
                 <div class="flex items-center gap-2 sm:gap-3">
+                    @if ($isAdmin)
+                        {{-- Switch Personal/Business. Mengubah TAMPILAN saja —
+                             segmen pelanggan yang diringkas dashboard beserta
+                             menu pembayarannya; role dan hak akses tidak ikut
+                             berubah. Dikirim sebagai form biasa supaya
+                             pilihannya tersimpan di session dan tetap berlaku
+                             setelah halaman dimuat ulang. --}}
+                        <form method="POST" action="{{ route($area.'dashboard.mode') }}" class="flex items-center">
+                            @csrf
+                            @method('PUT')
+                            <input type="hidden" name="mode"
+                                   value="{{ $isBusinessMode ? \App\Support\DashboardMode::PERSONAL : \App\Support\DashboardMode::BUSINESS }}">
+
+                            <button type="submit"
+                                    class="inline-flex items-center gap-2.5 rounded-xl border border-ink-200 py-1.5 pl-3 pr-2.5 transition-colors hover:border-brand-600"
+                                    role="switch"
+                                    aria-checked="{{ $isBusinessMode ? 'true' : 'false' }}"
+                                    title="{{ $isBusinessMode ? 'Beralih ke Dashboard Personal' : 'Beralih ke Dashboard Business' }}"
+                                    data-dashboard-mode="{{ $dashboardMode }}">
+                                <span class="hidden text-xs font-bold text-ink-700 sm:inline">{{ \App\Support\DashboardMode::label($dashboardMode) }}</span>
+
+                                <span @class([
+                                    'relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors',
+                                    'bg-brand-600' => $isBusinessMode,
+                                    'bg-ink-300' => ! $isBusinessMode,
+                                ])>
+                                    <span @class([
+                                        'inline-block h-4 w-4 transform rounded-full bg-white transition-transform',
+                                        'translate-x-[1.125rem]' => $isBusinessMode,
+                                        'translate-x-0.5' => ! $isBusinessMode,
+                                    ])></span>
+                                </span>
+                            </button>
+                        </form>
+                    @endif
+
                     {{-- Mode gelap. Pilihannya milik perangkat ini saja —
                          disimpan di localStorage, tidak ikut ke akun — jadi
                          satu akun dapat tampil berbeda di laptop dan di ponsel. --}}

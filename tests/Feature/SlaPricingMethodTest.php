@@ -179,14 +179,15 @@ class SlaPricingMethodTest extends TestCase
         $this->assertSame(PrintMaterial::PRICING_MANUAL, $material->fresh()->pricing_method);
     }
 
-    public function test_teknologi_lain_tidak_menampilkan_metode_harga(): void
+    /** Teknologi lain kini juga memilih metode harga per material. */
+    public function test_teknologi_lain_juga_menampilkan_metode_harga(): void
     {
         $fdm = PrintTechnology::where('code', 'FDM')->firstOrFail();
 
         $this->actingAs($this->superAdmin())
             ->get(route('superadmin.price-list.materials.create', $fdm))
             ->assertOk()
-            ->assertDontSee('Menentukan Harga');
+            ->assertSee('Menentukan Harga');
     }
 
     /* ================================================= perhitungan harga === */

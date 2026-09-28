@@ -124,6 +124,7 @@ class QuotationController extends Controller
             'finishings' => Finishing::all(),
             'maxModels' => UploadLimit::maxFiles(),
             'maxFileMb' => UploadLimit::maxMegabytes(),
+            'maxTotalLabel' => UploadLimit::maxTotalLabel(),
         ]);
     }
 
@@ -153,6 +154,11 @@ class QuotationController extends Controller
         /** @var UploadedFile $file */
         $file = $request->file('model');
         $extension = strtolower($file->getClientOriginalExtension());
+
+        // Batas total per penawaran mencakup file yang sudah ada di dalamnya.
+        if (! UploadLimit::withinTotal((int) $quotation->items()->sum('file_size') + (int) $file->getSize())) {
+            throw ValidationException::withMessages(['model' => UploadLimit::totalExceededMessage()]);
+        }
 
         // Geometri diukur di server karena berkas ini tidak melewati viewer di
         // halaman 3D Models. Berkas CAD (STEP/STP) tidak dapat diukur di sini —

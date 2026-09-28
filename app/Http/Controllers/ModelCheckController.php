@@ -265,9 +265,10 @@ class ModelCheckController extends Controller
                 'warnDimensionMm' => config('printing.limits.warn_dimension_mm'),
                 'maxTrianglesFullAnalysis' => config('printing.limits.max_triangles_full_analysis'),
                 'uploadMaxBytes' => UploadLimit::maxBytes(),
-                // Seluruh model dikirim dalam satu POST, jadi batas
-                // gabungannya mengikuti post_max_size.
+                // Batas total seluruh file dalam satu penawaran (bukan per
+                // file). Tetap tidak melebihi post_max_size server.
                 'uploadMaxTotalBytes' => UploadLimit::maxTotalBytes(),
+                'uploadMaxTotalLabel' => UploadLimit::maxTotalLabel(),
                 'maxModels' => UploadLimit::maxFiles(),
             ],
         ];

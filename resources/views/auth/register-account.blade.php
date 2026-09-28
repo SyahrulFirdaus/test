@@ -68,15 +68,16 @@
     <div class="sm:col-span-2 grid gap-5 sm:grid-cols-2">
         <div>
             <label for="password" class="field-label">Password <span class="text-brand-600">*</span></label>
-            <input type="password" id="password" name="password" required autocomplete="new-password"
-                   class="field-input" placeholder="Contoh: Nusama3D!">
+            {{-- Ikon mata lihat/sembunyikan; masing-masing field berdiri sendiri. --}}
+            <x-password-field id="password" name="password" required autocomplete="new-password"
+                              class="field-input mt-0" placeholder="Contoh: Nusama3D!" />
             @error('password') <p class="field-error">{{ $message }}</p> @enderror
         </div>
 
         <div>
             <label for="password_confirmation" class="field-label">Konfirmasi Password <span class="text-brand-600">*</span></label>
-            <input type="password" id="password_confirmation" name="password_confirmation" required
-                   autocomplete="new-password" class="field-input" placeholder="Ulangi kata sandi">
+            <x-password-field id="password_confirmation" name="password_confirmation" required autocomplete="new-password"
+                              class="field-input mt-0" placeholder="Ulangi kata sandi" />
         </div>
 
         <p class="text-xs leading-relaxed text-ink-400 sm:col-span-2">

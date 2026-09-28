@@ -115,10 +115,27 @@ class CustomerDashboardTest extends TestCase
         $response = $this->actingAs($this->personal)->get(route('dashboard'))->assertOk();
 
         $response->assertViewIs('dashboard.personal')
-            ->assertSee('Andi Saputra')
-            ->assertSee('Kelola penawaran, pesanan, dan pembayaran Anda.')
+            ->assertSee('Halo, Andi')
+            ->assertSee('Statistik Pesanan')
+            ->assertSee('Aktivitas Penawaran')
+            ->assertSee('Status Pesanan')
             ->assertSee('Penawaran Terbaru')
             ->assertSee('+ Buat Penawaran');
+    }
+
+    public function test_grafik_dashboard_menghitung_penawaran_milik_akun_sendiri(): void
+    {
+        $this->quotation();
+        $this->quotation([], $this->business);
+
+        $insights = app(\App\Services\CustomerDashboard::class)->insights($this->personal);
+
+        $this->assertCount(7, $insights['monthly']);
+        $this->assertSame(1, end($insights['monthly'])['quotations']);
+        $this->assertSame(1, $insights['distribution']['total']);
+
+        // Bulan lalu kosong: tidak ada pembanding, jadi tren tidak dikarang.
+        $this->assertNull($insights['trends']['quotations']);
     }
 
     public function test_akun_business_mendapat_dashboard_perusahaan(): void

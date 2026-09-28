@@ -6,8 +6,10 @@ use App\Http\Controllers\Controller;
 use App\Models\QuotationItem;
 use App\Models\QuotationRequest;
 use App\Models\User;
+use App\Support\DashboardMode;
 use App\Support\QuotationStatus;
 use Illuminate\Contracts\View\View;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 
@@ -33,11 +35,16 @@ class DashboardController extends Controller
 
     public function index(): View
     {
-        $completed = QuotationRequest::query()->where('status', QuotationStatus::COMPLETED);
+        // Switch Personal/Business di header menentukan segmen pelanggan yang
+        // diringkas halaman ini — lihat App\Support\DashboardMode.
+        $completed = $this->quotations()->where('status', QuotationStatus::COMPLETED);
 
         return view('superadmin.dashboard', [
+            'dashboard_mode' => DashboardMode::current(),
+            'dashboard_mode_label' => DashboardMode::label(),
+
             'summary' => [
-                'quotations' => QuotationRequest::count(),
+                'quotations' => $this->quotations()->count(),
                 'completed' => (clone $completed)->count(),
                 'printed_models' => (int) QuotationItem::whereIn(
                     'quotation_request_id',
@@ -45,7 +52,9 @@ class DashboardController extends Controller
                 )->sum('quantity'),
                 'revenue' => $this->revenue(),
                 'net_profit' => $this->netProfit(),
-                'users' => User::customers()->count(),
+                'users' => User::customers()->ofCustomerType(DashboardMode::customerType())->count(),
+
+                // Akun Admin bukan pelanggan, jadi tidak ikut tersaring segmen.
                 'admins' => User::plainAdmins()->count(),
             ],
 
@@ -59,6 +68,17 @@ class DashboardController extends Controller
     }
 
     /**
+     * Penawaran milik segmen pelanggan yang sedang dilihat.
+     *
+     * Selalu mengembalikan pertanyaan BARU, bukan yang dipakai bersama, supaya
+     * penyaring di satu perhitungan tidak terbawa ke perhitungan lain.
+     */
+    private function quotations(): Builder
+    {
+        return QuotationRequest::query()->forCustomerType(DashboardMode::customerType());
+    }
+
+    /**
      * Total pendapatan kotor: seluruh Harga Jual penawaran yang sudah selesai.
      *
      * Disebut kotor karena di dalamnya masih ada modal — material, jam mesin,
@@ -66,7 +86,7 @@ class DashboardController extends Controller
      */
     private function revenue(): float
     {
-        return (float) QuotationRequest::query()
+        return (float) $this->quotations()
             ->where('status', QuotationStatus::COMPLETED)
             ->sum(DB::raw('COALESCE(estimated_price, estimated_cost, 0)'));
     }
@@ -90,7 +110,7 @@ class DashboardController extends Controller
      */
     private function netProfit(): float
     {
-        $profit = QuotationRequest::query()
+        $profit = $this->quotations()
             ->where('status', QuotationStatus::COMPLETED)
             ->pluck('cost_breakdown')
             ->sum(fn ($breakdown) => (float) (is_array($breakdown) ? ($breakdown['profit'] ?? 0) : 0));
@@ -106,7 +126,7 @@ class DashboardController extends Controller
      */
     private function statusBreakdown(): array
     {
-        $counts = QuotationRequest::query()
+        $counts = $this->quotations()
             ->select('status', DB::raw('count(*) as total'))
             ->groupBy('status')
             ->pluck('total', 'status');
@@ -145,7 +165,7 @@ class DashboardController extends Controller
                 ],
             ]);
 
-        QuotationRequest::query()
+        $this->quotations()
             ->where('created_at', '>=', $start)
             ->get(['created_at', 'status', 'estimated_price', 'estimated_cost'])
             ->each(function (QuotationRequest $quotation) use (&$months) {

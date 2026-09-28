@@ -702,6 +702,14 @@ class QuotationRequestController extends Controller
             subjectLabel: $trackingNumber,
         );
 
+        // Dihapus dari modal "Dipakai oleh" pada menu Teknologi (khusus
+        // Superadmin): kembali ke sana, bukan ke daftar penawaran.
+        if ($request->input('return_to') === 'technologies' && $request->user()?->isSuperAdmin()) {
+            return redirect()
+                ->route('superadmin.price-list.technologies.index')
+                ->with('status', 'Penawaran '.$trackingNumber.' berhasil dihapus.');
+        }
+
         return redirect()
             ->route('admin.quotations.index')
             ->with('status', 'Permintaan penawaran berhasil dihapus.');

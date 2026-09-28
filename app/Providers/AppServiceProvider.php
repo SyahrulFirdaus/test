@@ -6,6 +6,13 @@ use App\Models\CompanyProfile;
 use App\Models\Service;
 use App\Models\User;
 use App\Support\AdminPermission;
+use App\Support\AdminPresence;
+use Illuminate\Cache\RateLimiting\Limit;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\RateLimiter;
+use Illuminate\Auth\Events\Login;
+use Illuminate\Auth\Events\Logout;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\URL;
 use Illuminate\Support\Facades\View;
@@ -45,6 +52,25 @@ class AppServiceProvider extends ServiceProvider
         foreach (AdminPermission::keys() as $permission) {
             Gate::define($permission, fn (User $user) => $user->hasAdminPermission($permission));
         }
+
+        // Status Login Admin pada menu Akun Admin, dicatat langsung dari
+        // event autentikasi yang sudah ada. Lihat App\Support\AdminPresence.
+        Event::listen(Login::class, function (Login $event) {
+            if ($event->user instanceof User && AdminPresence::tracks($event->user)) {
+                AdminPresence::markOnline($event->user);
+            }
+        });
+
+        Event::listen(Logout::class, function (Logout $event) {
+            if ($event->user instanceof User && AdminPresence::tracks($event->user)) {
+                AdminPresence::markOffline($event->user);
+            }
+        });
+
+        // Gambar CAPTCHA pendaftaran punya hitungan sendiri. `throttle:X,Y`
+        // biasa menghitung SELURUH route ber-throttle milik satu IP bersama,
+        // jadi memuat ulang kode tidak boleh menghabiskan jatah Daftar.
+        RateLimiter::for('register-captcha', fn (Request $request) => Limit::perMinute(30)->by('register-captcha|'.$request->ip()));
 
         if ($this->app->environment('production')) {
             URL::forceScheme('https');

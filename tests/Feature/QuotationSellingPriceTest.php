@@ -672,7 +672,10 @@ class QuotationSellingPriceTest extends TestCase
             ->get(route('admin.quotations.show', $quotation))
             ->assertOk()
             ->assertSee('Detail Perhitungan Harga')
-            ->assertSee('Lihat Detail Perhitungan')
+            // Rinciannya dibuka lewat tombol ke modal, bukan dilipat ke bawah.
+            ->assertSee('data-dialog-open="price-detail-', false)
+            ->assertSee('<dialog id="price-detail-', false)
+            ->assertDontSee('<details', false)
             ->assertSee('Detail Harga: bracket.stl', false)
             ->assertSee('Operasional Mesin')
             ->assertSee('Risk Cost')
@@ -681,6 +684,27 @@ class QuotationSellingPriceTest extends TestCase
             ->assertSee('Total Penawaran')
             ->assertSee('Rp122.000')
             ->assertSee('Rp486.900');
+    }
+
+    /** Pengaturan & Estimasi dan Analisis Kelayakan Cetak dibuka lewat modal; Hollow Model tidak ditampilkan. */
+    public function test_pengaturan_dan_analisis_model_dalam_modal(): void
+    {
+        $quotation = $this->quotation();
+        $this->addItem($quotation);
+        $item = $quotation->items()->first();
+
+        $this->actingAs($this->admin())
+            ->get(route('admin.quotations.show', $quotation))
+            ->assertOk()
+            ->assertSee('data-dialog-open="settings-'.$item->id.'"', false)
+            ->assertSee('data-dialog-open="analysis-'.$item->id.'"', false)
+            ->assertSee('<dialog id="settings-'.$item->id.'"', false)
+            ->assertSee('<dialog id="analysis-'.$item->id.'"', false)
+            ->assertSee('Pengaturan &amp; Estimasi', false)
+            ->assertDontSee('Pengaturan &amp;amp; Estimasi', false)
+            ->assertSee('Estimasi Waktu')
+            ->assertSee('Warna Material')
+            ->assertDontSee('Hollow Model');
     }
 
     public function test_dashboard_pelanggan_tidak_menampilkan_rincian_internal(): void

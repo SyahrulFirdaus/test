@@ -167,7 +167,7 @@ class AdminAccountController extends Controller
             $this->activity->log(
                 action: ActivityAction::ADMIN_STATUS_UPDATE,
                 description: 'Mengubah status admin '.$admin->name.': '
-                    .$this->statusLabel($wasActive).' → '.$this->statusLabel($admin->isActive()).'.',
+                    .$this->statusLabel($wasActive).' menjadi '.$this->statusLabel($admin->isActive()).'.',
                 subject: $admin,
                 old: ['status' => $this->statusLabel($wasActive)],
                 new: ['status' => $this->statusLabel($admin->isActive())],

@@ -6,7 +6,7 @@
     @php $rupiah = fn ($value) => 'Rp'.number_format((float) $value, 0, ',', '.'); @endphp
 
     <a href="{{ staff_route('users.index') }}" class="inline-flex items-center gap-2 text-sm font-semibold text-ink-500 transition-colors hover:text-brand-600">
-        &larr; Kembali ke daftar user
+        Kembali ke daftar user
     </a>
 
     <div class="mt-5 grid gap-6 lg:grid-cols-12">

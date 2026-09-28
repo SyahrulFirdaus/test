@@ -11,6 +11,8 @@
  *                   bening), MJF (gear nylon), SLM (lattice logam).
  *   about         — globe jaringan: titik-titik terhubung busur dengan
  *                   denyut cahaya, plus part cetak yang mengorbit.
+ *   register      — halaman Daftar: simpul torus mengilap berhalo partikel
+ *                   dengan riak cincin di lantai.
  *
  * Halaman utama tetap memakai ./print-showcase.js (part sedang dicetak).
  *
@@ -971,9 +973,95 @@ function mergeGeometries(geometries) {
 }
 
 /** Objek hero menurut nama variannya. */
+/* --------------------------------------------------------------- register --- */
+
+/**
+ * Halaman Daftar: simpul torus mengilap yang melayang di atas panggung,
+ * dililit halo partikel bercahaya, dengan riak cincin yang memancar dari
+ * lantainya — "satu akun, seluruh penawaran saling terhubung". Hanya dekorasi.
+ */
+class RegisterScene extends HeroScene {
+    cameraHeight = 2.2;
+
+    build() {
+        this.world.position.y = -1.05;
+
+        this.world.add(stage(2.5, { grid: false }));
+
+        // Simpul utama.
+        this.knot = new THREE.Mesh(
+            new THREE.TorusKnotGeometry(0.72, 0.23, 240, 36, 2, 3),
+            new THREE.MeshPhysicalMaterial({
+                color: BRAND, roughness: 0.22, metalness: 0.35, clearcoat: 1, clearcoatRoughness: 0.12,
+                emissive: 0x3a0e09, emissiveIntensity: 0.5,
+            })
+        );
+        this.knot.position.y = 1.7;
+        this.world.add(this.knot);
+
+        // Rangka tipis di atas simpul, memberi kesan model teknik.
+        this.wire = new THREE.LineSegments(
+            new THREE.WireframeGeometry(new THREE.TorusKnotGeometry(0.73, 0.235, 90, 8, 2, 3)),
+            new THREE.LineBasicMaterial({ color: 0xffd2c6, transparent: true, opacity: 0.12 })
+        );
+        this.knot.add(this.wire);
+
+        // Halo partikel: titik-titik di sepanjang simpul yang lebih besar.
+        const halo = new THREE.TorusKnotGeometry(1.4, 0.06, 520, 5, 3, 5);
+        this.halo = new THREE.Points(
+            halo,
+            new THREE.PointsMaterial({
+                color: GLOW, size: 0.028, transparent: true, opacity: 0.75,
+                depthWrite: false, blending: THREE.AdditiveBlending,
+            })
+        );
+        this.halo.position.y = 1.7;
+        this.world.add(this.halo);
+
+        this.glow = new THREE.PointLight(GLOW, 5, 6, 2);
+        this.glow.position.set(0, 1.7, 0.6);
+        this.world.add(this.glow);
+
+        // Riak cincin yang memancar dari tengah panggung.
+        this.ripples = [0, 1, 2].map((index) => {
+            const ring = new THREE.Mesh(
+                new THREE.TorusGeometry(1, 0.012, 6, 96),
+                new THREE.MeshBasicMaterial({ color: GLOW, transparent: true, opacity: 0, depthWrite: false })
+            );
+            ring.rotation.x = Math.PI / 2;
+            ring.position.y = 0.02;
+            ring.userData.offset = index / 3;
+            this.world.add(ring);
+
+            return ring;
+        });
+    }
+
+    update(delta, elapsed) {
+        this.knot.rotation.y = elapsed * 0.45;
+        this.knot.rotation.x = 0.35 + Math.sin(elapsed * 0.5) * 0.18;
+        this.knot.position.y = 1.7 + Math.sin(elapsed * 1.1) * 0.08;
+
+        this.halo.rotation.y = -elapsed * 0.18;
+        this.halo.rotation.z = Math.sin(elapsed * 0.3) * 0.25;
+        this.halo.position.y = this.knot.position.y;
+
+        this.glow.intensity = 4.5 + Math.sin(elapsed * 2.2) * 1.2;
+
+        this.ripples.forEach((ring) => {
+            const t = (elapsed * 0.28 + ring.userData.offset) % 1;
+            const radius = 0.35 + smooth(t) * 2.1;
+
+            ring.scale.setScalar(radius);
+            ring.material.opacity = 0.55 * (1 - t);
+        });
+    }
+}
+
 export const HERO_SCENES = {
     services: ScanScene,
     technologies: TechnologyScene,
     about: NetworkScene,
     analyzer: AnalyzeScene,
+    register: RegisterScene,
 };

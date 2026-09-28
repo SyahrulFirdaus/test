@@ -14,6 +14,12 @@
             <a href="{{ route('superadmin.price-list.machine-cost.create') }}" class="btn-primary">Tambah Mesin</a>
         </div>
 
+        {{-- Import & Export Excel: alur yang sama dengan material. --}}
+        @include('superadmin.price-list.excel.toolbar', [
+            'title' => 'Import Machine Cost',
+            'routePrefix' => 'superadmin.price-list.machine-cost.excel',
+        ])
+
         <form method="GET" class="mt-4 flex flex-wrap gap-3 rounded-2xl border border-ink-100 bg-white p-4 shadow-card">
             <div class="min-w-[240px] flex-1">
                 <label for="machine_q" class="field-label">Cari Mesin</label>

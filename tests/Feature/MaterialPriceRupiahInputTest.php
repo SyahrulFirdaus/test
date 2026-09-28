@@ -97,6 +97,7 @@ class MaterialPriceRupiahInputTest extends TestCase
             ->post(route('superadmin.price-list.materials.store', $fdm), [
                 'material' => 'PLA Sepuluh', 'brand' => 'ESUN',
                 'purchase_price' => '185000', 'sale_price' => '500',
+                'pricing_method' => 'automatic',
                 // Kiriman palsu untuk kolom tampilan diabaikan.
                 'sale_price_per_10_gram' => '1',
             ])
@@ -127,6 +128,7 @@ class MaterialPriceRupiahInputTest extends TestCase
             ->post(route('superadmin.price-list.materials.store', $fdm), [
                 'material' => 'PLA Kosong', 'brand' => 'ESUN',
                 'purchase_price' => '', 'sale_price' => '',
+                'pricing_method' => 'automatic',
             ])
             ->assertSessionHasErrors(['purchase_price', 'sale_price']);
 
@@ -134,6 +136,7 @@ class MaterialPriceRupiahInputTest extends TestCase
             ->post(route('superadmin.price-list.materials.store', $fdm), [
                 'material' => 'PLA Rupiah', 'brand' => 'ESUN',
                 'purchase_price' => '185000', 'sale_price' => '500',
+                'pricing_method' => 'automatic',
             ])
             ->assertSessionHasNoErrors();
 

@@ -37,6 +37,7 @@ class DashboardController extends Controller
     {
         return view('dashboard.personal', [
             'stats' => $this->dashboard->personalStats($user),
+            'insights' => $this->dashboard->insights($user),
             'recent' => $this->dashboard->recentQuotations($user),
             'tracked' => $this->dashboard->trackedQuotation($user),
             'paymentDue' => $this->dashboard->paymentDue($user),
@@ -50,6 +51,7 @@ class DashboardController extends Controller
     {
         return view('dashboard.business', [
             'stats' => $this->dashboard->businessStats($user),
+            'insights' => $this->dashboard->insights($user),
             'recent' => $this->dashboard->recentQuotations($user),
             'terms' => $this->dashboard->activePaymentTerms($user),
             'reminders' => $this->dashboard->installmentReminders($user),

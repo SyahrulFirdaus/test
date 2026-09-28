@@ -17,12 +17,14 @@ use App\Services\ActivityLogger;
 use App\Services\AddressBook;
 use App\Services\CustomerSegmenter;
 use App\Support\ActivityAction;
+use App\Support\Captcha;
 use App\Support\CustomerType;
 use App\Support\RegionChain;
 use App\Support\RegistrationFlow;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\Response;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
@@ -51,6 +53,9 @@ use Illuminate\Validation\Rule;
  */
 class RegisteredUserController extends Controller
 {
+    /** Tujuan kode CAPTCHA di sesi (lihat App\Support\Captcha). */
+    public const CAPTCHA = 'register';
+
     /**
      * Pemilihan tipe akun.
      *
@@ -191,10 +196,20 @@ class RegisteredUserController extends Controller
      * terlewat — misalnya karena pertanyaan baru ditambahkan admin di tengah
      * pengisian seseorang.
      */
-    public function store(): RedirectResponse
+    public function store(Request $request): RedirectResponse
     {
         if ($redirect = $this->guard(RegistrationFlow::STEP_REVIEW)) {
             return $redirect;
+        }
+
+        // CAPTCHA diperiksa tepat sebelum akun dibuat. Kodenya sekali pakai:
+        // benar atau salah, percobaan berikutnya memakai kode baru.
+        if (blank($request->input('captcha'))) {
+            return $this->captchaFailed('Ketik kode CAPTCHA yang tampil pada gambar terlebih dahulu.');
+        }
+
+        if (! app(Captcha::class)->verify(self::CAPTCHA, $request->input('captcha'))) {
+            return $this->captchaFailed('Verifikasi CAPTCHA gagal: kode tidak sesuai atau sudah kedaluwarsa. Silakan ketik kode yang baru.');
         }
 
         $state = $this->state();
@@ -383,6 +398,25 @@ class RegisteredUserController extends Controller
             'accountEditUrl' => route('register.step', RegistrationFlow::STEP_ACCOUNT),
             'previousUrl' => $this->previousUrl($type, RegistrationFlow::STEP_REVIEW),
         ]);
+    }
+
+    /**
+     * Gambar CAPTCHA pendaftaran (SVG). Setiap permintaan membuat kode baru,
+     * jadi tombol "Ganti kode" cukup memuat ulang gambarnya.
+     */
+    public function captcha(): Response
+    {
+        return response(app(Captcha::class)->image(self::CAPTCHA), 200, [
+            'Content-Type' => 'image/svg+xml',
+            'Cache-Control' => 'no-store, no-cache, must-revalidate, max-age=0',
+        ]);
+    }
+
+    private function captchaFailed(string $message): RedirectResponse
+    {
+        return redirect()
+            ->route('register.step', RegistrationFlow::STEP_REVIEW)
+            ->withErrors(['captcha' => $message]);
     }
 
     /* ------------------------------------------------------------ internal --- */

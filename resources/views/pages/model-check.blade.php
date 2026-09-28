@@ -700,7 +700,7 @@
                                             <span class="field-label">Alamat Pengiriman</span>
                                             <a href="{{ route('dashboard.addresses.index') }}" target="_blank" rel="noopener"
                                                class="text-xs font-semibold text-brand-600 transition-colors hover:text-brand-700">
-                                                Kelola alamat &rarr;
+                                                Kelola alamat
                                             </a>
                                         </div>
 

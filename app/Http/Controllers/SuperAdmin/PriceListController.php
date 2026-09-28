@@ -8,6 +8,8 @@ use App\Models\PackagingItem;
 use App\Models\PricingFormula;
 use App\Models\PrintMaterial;
 use App\Models\PrintTechnology;
+use App\Models\QuotationItem;
+use App\Models\QuotationRequest;
 use App\Models\SlaIndustriesFormula;
 use App\Services\UsdRate;
 use App\Support\PriceListPage;
@@ -146,9 +148,59 @@ class PriceListController extends Controller
 
     public function technologies(): View
     {
+        $technologies = PrintTechnology::query()->managed()->withCount('materials')->ordered()->get();
+
         return view('superadmin.price-list.technologies', [
-            'technologies' => PrintTechnology::query()->managed()->withCount('materials')->ordered()->get(),
+            'technologies' => $technologies,
+            'usage' => $this->technologyUsage($technologies->pluck('code')->all()),
         ]);
+    }
+
+    /**
+     * Penawaran yang memakai tiap teknologi — isi kolom "Dipakai oleh".
+     *
+     * Teknologi yang sudah dipakai penawaran tidak dapat dihapus (lihat
+     * PrintTechnologyController::destroy), jadi daftar ini menunjukkan
+     * penawaran mana yang menahannya. Hanya dibaca; tidak ada yang diubah.
+     *
+     * @param  array<int, string>  $codes
+     * @return array<string, array<int, array{quotation: QuotationRequest, models: int, others: array<int, string>}>>
+     */
+    private function technologyUsage(array $codes): array
+    {
+        $items = QuotationItem::query()
+            ->whereIn('technology', $codes)
+            ->get(['quotation_request_id', 'technology']);
+
+        if ($items->isEmpty()) {
+            return [];
+        }
+
+        $quotations = QuotationRequest::query()
+            ->whereKey($items->pluck('quotation_request_id')->unique())
+            ->with('items:id,quotation_request_id,technology')
+            ->latest()
+            ->get();
+
+        $usage = [];
+
+        foreach ($quotations as $quotation) {
+            $technologiesUsed = $quotation->items->pluck('technology')->unique()->values();
+
+            foreach ($technologiesUsed as $code) {
+                if (! in_array($code, $codes, true)) {
+                    continue;
+                }
+
+                $usage[$code][] = [
+                    'quotation' => $quotation,
+                    'models' => $quotation->items->where('technology', $code)->count(),
+                    'others' => $technologiesUsed->reject(fn ($other) => $other === $code)->values()->all(),
+                ];
+            }
+        }
+
+        return $usage;
     }
 
     /**

@@ -91,7 +91,8 @@ class MjfSlmPricingMethodTest extends TestCase
 
         $this->assertSame([PrintMaterial::PRICING_AUTOMATIC], $methods);
         $this->assertTrue(PricingMethod::appliesTo($code));
-        $this->assertFalse(PricingMethod::appliesTo('FDM'));
+        // Sejak metode harga berlaku untuk seluruh teknologi, FDM pun memilikinya.
+        $this->assertTrue(PricingMethod::appliesTo('FDM'));
     }
 
     #[DataProvider('technologies')]
@@ -217,7 +218,8 @@ class MjfSlmPricingMethodTest extends TestCase
         $this->assertTrue($quotation->awaitsPricing());
         $this->assertNull($quotation->display_price);
 
-        $this->get(route('tracking.show', $quotation->tracking_number))
+        $this->withSession([\App\Http\Controllers\QuotationTrackingController::SESSION_KEY => [$quotation->tracking_number]])
+            ->get(route('tracking.show', $quotation->tracking_number))
             ->assertOk()
             ->assertSee('Harga Perlu Dicek Terlebih Dahulu')
             ->assertDontSee('Rp0');
@@ -244,11 +246,12 @@ class MjfSlmPricingMethodTest extends TestCase
         $this->assertSame(4385337.0, (float) $quotation->display_price);
     }
 
-    public function test_fdm_tidak_menampilkan_menentukan_harga(): void
+    /** Metode harga kini dipilih untuk setiap material, termasuk FDM. */
+    public function test_fdm_juga_menampilkan_menentukan_harga(): void
     {
         $this->actingAs($this->superAdmin())
             ->get(route('superadmin.price-list.materials.create', $this->technology('FDM')))
             ->assertOk()
-            ->assertDontSee('Menentukan Harga');
+            ->assertSee('Menentukan Harga');
     }
 }

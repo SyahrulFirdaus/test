@@ -15,8 +15,10 @@
  * kurs maupun harga yang ditanam di dalam kode.
  */
 
-const MIN_MARGIN = 30;
-const MAX_MARGIN = 50;
+// Margin Profit tidak dibatasi rentang: hanya tidak negatif dan muat di
+// kolomnya (lihat App\Support\SlaIndustries).
+const MIN_MARGIN = 0;
+const MAX_MARGIN = 999999.99;
 
 const rupiah = (value) => Math.ceil(value);
 
@@ -122,8 +124,8 @@ function bind(form) {
         setText(output('final_price'), money(values.finalPrice));
         setText(output('margin_percent'), `${formatMargin(values.marginPercent)}%`);
 
-        // Margin di luar 30%–50% ditolak server; diberitahukan di sini supaya
-        // tidak perlu menunggu kiriman gagal untuk mengetahuinya.
+        // Margin negatif ditolak server; diberitahukan di sini supaya tidak
+        // perlu menunggu kiriman gagal untuk mengetahuinya.
         const margin = Number(inputs.marginPercent?.value);
         const marginValid =
             !inputs.marginPercent ||

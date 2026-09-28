@@ -380,6 +380,7 @@ class MaterialColorListTest extends TestCase
             'brand' => 'eSUN',
             'purchase_price' => 185000,
             'sale_price' => 231,
+            'pricing_method' => 'automatic',
         ];
     }
 

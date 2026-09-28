@@ -178,6 +178,16 @@ class StoreQuotationRequest extends FormRequest
     public function after(): array
     {
         return [
+            // Batas total per penawaran: jumlah ukuran SELURUH file, bukan per
+            // file. Dicek juga di browser, tetapi yang menentukan tetap di sini.
+            function (Validator $validator) {
+                $total = collect((array) $this->file('items', []))
+                    ->sum(fn ($item) => is_array($item) && isset($item['model']) ? (int) $item['model']->getSize() : 0);
+
+                if (! UploadLimit::withinTotal($total)) {
+                    $validator->errors()->add('items', UploadLimit::totalExceededMessage());
+                }
+            },
             function (Validator $validator) {
                 $estimator = app(PrintEstimator::class);
 

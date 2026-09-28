@@ -96,7 +96,7 @@
                 </div>
 
                 <p class="mt-6 text-center text-xs text-ink-400">
-                    <a href="{{ route('home') }}" class="font-semibold transition-colors hover:text-brand-600">&larr; Kembali ke website</a>
+                    <a href="{{ route('home') }}" class="font-semibold transition-colors hover:text-brand-600">Kembali ke website</a>
                 </p>
             </div>
         </main>

@@ -125,7 +125,7 @@ trait CalculatesSlaIndustriesPrice
                 'dollar' => null,
                 'rupiah' => null,
                 'percent' => $values['margin_percent'],
-                'remark' => 'Isi margin profit '.SlaIndustries::MIN_MARGIN.'%–'.SlaIndustries::MAX_MARGIN.'%.',
+                'remark' => SlaIndustries::marginHint(),
             ],
             [
                 'label' => 'HPP',

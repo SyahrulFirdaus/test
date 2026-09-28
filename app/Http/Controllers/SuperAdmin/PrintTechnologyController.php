@@ -58,7 +58,19 @@ class PrintTechnologyController extends Controller
 
     public function store(StorePrintTechnologyRequest $request): RedirectResponse
     {
-        $technology = PrintTechnology::create($request->validated());
+        $data = $request->validated();
+
+        // Kode yang sama mungkin masih dipegang teknologi yang diarsipkan
+        // (mis. SLA lama). Barisnya tidak tampil di mana pun tetapi tetap ada
+        // untuk penawaran lama, jadi dihidupkan kembali dengan isian baru
+        // alih-alih membuat baris kembar yang ditolak unique index.
+        $technology = PrintTechnology::where('code', $data['code'])->whereNotNull('archived_at')->first();
+
+        if ($technology) {
+            $technology->update($data + ['is_active' => true, 'archived_at' => null]);
+        } else {
+            $technology = PrintTechnology::create($data);
+        }
 
         $this->activity->log(
             action: ActivityAction::TECHNOLOGY_CREATE,

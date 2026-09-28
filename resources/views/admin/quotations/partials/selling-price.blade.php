@@ -46,16 +46,21 @@
             </p>
         @endif
 
-        {{-- ===================== ACCORDION PER MODEL ===================== --}}
+        {{-- ===================== KARTU PER MODEL + MODAL ===================== --}}
+        {{-- Tiap model tampil sebagai kartu ringkas; rinciannya dibuka lewat
+             tombol "Detail Perhitungan Harga" di dalam modal (<dialog>), bukan
+             lagi dilipat ke bawah. Isi modalnya sama persis dengan rincian
+             sebelumnya dan hanya membaca `cost_breakdown` yang tersimpan. --}}
         <div class="mt-5 space-y-3">
             @foreach ($models as $entry)
                 @php
                     $item = $entry['item'];
                     $calculation = $entry['calculation'];
+                    $dialogId = 'price-detail-'.$item->id;
                 @endphp
 
-                <details class="group overflow-hidden rounded-2xl border border-ink-100 bg-white">
-                    <summary class="flex cursor-pointer flex-wrap items-center justify-between gap-3 px-5 py-4 hover:bg-ink-50/60">
+                <div class="overflow-hidden rounded-2xl border border-ink-100 bg-white">
+                    <div class="flex flex-wrap items-center justify-between gap-3 px-5 py-4">
                         <div class="min-w-0 flex-1">
                             <p class="truncate text-sm font-bold text-ink-900">
                                 <span class="font-mono text-xs font-semibold text-ink-400">{{ $item->position }}</span>
@@ -68,76 +73,152 @@
                             </p>
                         </div>
 
-                        <div class="text-right">
-                            <p class="text-[0.6rem] font-semibold uppercase tracking-[0.12em] text-ink-400">Harga Penawaran</p>
-                            <p class="font-display text-base font-bold {{ $item->awaitsPricing() ? 'text-amber-700' : 'text-brand-700' }}">
-                                {{ $item->awaitsPricing() ? 'Menunggu Perhitungan' : $rupiah($calculation['selling_price']) }}
-                            </p>
-                            <p class="mt-0.5 text-[0.65rem] font-semibold text-ink-400">
-                                Lihat Detail Perhitungan
-                                <span class="inline-block transition-transform group-open:rotate-180">&#9660;</span>
-                            </p>
+                        <div class="flex flex-wrap items-center gap-4">
+                            <div class="text-right">
+                                <p class="text-[0.6rem] font-semibold uppercase tracking-[0.12em] text-ink-400">Harga Penawaran</p>
+                                <p class="font-display text-base font-bold {{ $item->awaitsPricing() ? 'text-amber-700' : 'text-brand-700' }}">
+                                    {{ $item->awaitsPricing() ? 'Menunggu Perhitungan' : $rupiah($calculation['selling_price']) }}
+                                </p>
+                            </div>
+
+                            <button type="button" class="viewer-tool" data-dialog-open="{{ $dialogId }}"
+                                    aria-haspopup="dialog" aria-controls="{{ $dialogId }}">
+                                Detail Perhitungan Harga
+                            </button>
                         </div>
-                    </summary>
-
-                    <div class="border-t border-ink-100 bg-ink-50/40">
-
-                        {{-- Parameter yang benar-benar dipakai, supaya admin dapat
-                             memeriksa satu nilai tanpa membaca seluruh tabel. --}}
-                        <dl class="grid gap-x-6 gap-y-3 px-5 py-4 sm:grid-cols-2 lg:grid-cols-3">
-                            @foreach ($entry['parameters'] as $label => $value)
-                                <div class="min-w-0">
-                                    <dt class="text-[0.6rem] font-semibold uppercase tracking-[0.12em] text-ink-400">{{ $label }}</dt>
-                                    <dd class="mt-0.5 break-words text-xs font-semibold text-ink-800">{{ $value }}</dd>
-                                </div>
-                            @endforeach
-                        </dl>
-
-                        @if (empty($entry['rows']))
-                            {{-- SLA Industries: harganya satu angka dari kuotasi
-                                 vendor, tanpa komponen material/mesin/risk. Yang
-                                 merincinya adalah Form Perhitungan pada kartu
-                                 modelnya, bukan tabel ini. --}}
-                            <p class="border-t border-ink-100 bg-white px-5 py-4 text-xs leading-relaxed text-ink-500">
-                                Harga model {{ $calculation['technology'] }} ini ditetapkan tim dari kuotasi vendor, bukan dihitung dari
-                                material dan waktu mesin. Rincian lengkapnya
-                                (Harga JLC, ongkir, DHL Beacukai, HPP, dan margin) ada pada
-                                <a href="#model-{{ $item->id }}" class="font-semibold text-brand-600 hover:text-brand-800">Form Perhitungan {{ $calculation['technology'] }}</a>
-                                di kartu model ini.
-                            </p>
-                        @else
-                        <div class="overflow-x-auto border-t border-ink-100 bg-white">
-                            <table class="w-full min-w-[520px] text-left text-sm">
-                                <caption class="px-5 pt-4 text-left text-[0.6rem] font-bold uppercase tracking-[0.12em] text-ink-500">
-                                    Detail Harga: {{ $item->file_name }}
-                                </caption>
-                                <thead>
-                                    <tr class="border-b border-ink-100 text-[0.6rem] uppercase tracking-[0.14em] text-ink-400">
-                                        <th scope="col" class="px-5 py-3 font-bold">Komponen</th>
-                                        <th scope="col" class="px-5 py-3 font-bold">Rumus / Dasar Perhitungan</th>
-                                        <th scope="col" class="px-5 py-3 text-right font-bold">Nilai</th>
-                                    </tr>
-                                </thead>
-                                <tbody class="divide-y divide-ink-100">
-                                    @foreach ($entry['rows'] as $row)
-                                        <tr @class(['bg-brand-50/50' => $row['highlight'] ?? false])>
-                                            <td @class(['px-5 py-2.5 text-xs', 'font-bold text-ink-900' => $row['highlight'] ?? false, 'font-semibold text-ink-700' => empty($row['highlight'])])>{{ $row['label'] }}</td>
-                                            <td class="px-5 py-2.5 text-[0.7rem] text-ink-500">{{ $row['formula'] }}</td>
-                                            <td @class(['px-5 py-2.5 text-right text-xs', 'font-bold text-brand-700' => $row['highlight'] ?? false, 'text-ink-700' => empty($row['highlight'])])>{{ $rupiah($row['value']) }}</td>
-                                        </tr>
-                                    @endforeach
-                                </tbody>
-                            </table>
-                        </div>
-                        @endif
-
-                        @if ($calculation['formula_missing'] ?? false)
-                            <p class="border-t border-ink-100 bg-white px-5 py-3 text-[0.65rem] font-semibold text-amber-700">
-                                Parameter {{ $calculation['technology'] }} belum diisi di Price List, jadi risk dan profit terhitung nol.
-                            </p>
-                        @endif
                     </div>
-                </details>
+                </div>
+
+                <x-admin.modal :id="$dialogId" eyebrow="Detail Perhitungan Harga"
+                               :title="$item->position.' · '.$item->file_name" body-class="bg-ink-50/40">
+                    <x-slot:meta>
+                        {{ $calculation['technology'] ?? $item->technology }} &middot;
+                        {{ $calculation['material_source'] ?? $item->material }} &middot;
+                        {{ $calculation['quantity'] ?? $item->quantity }} unit &middot; {{ $item->printer_name }}
+                        &middot;
+                        <span class="font-semibold {{ $item->awaitsPricing() ? 'text-amber-700' : 'text-brand-700' }}">
+                            {{ $item->awaitsPricing() ? 'Menunggu Perhitungan' : $rupiah($calculation['selling_price']) }}
+                        </span>
+                    </x-slot:meta>
+
+                            {{-- Parameter yang benar-benar dipakai, supaya admin dapat
+                                 memeriksa satu nilai tanpa membaca seluruh tabel. --}}
+                            @if (filled($entry['parameters']))
+                            <dl class="grid gap-x-6 gap-y-3 px-5 py-4 sm:grid-cols-2 lg:grid-cols-3">
+                                @foreach ($entry['parameters'] as $label => $value)
+                                    <div class="min-w-0">
+                                        <dt class="text-[0.6rem] font-semibold uppercase tracking-[0.12em] text-ink-400">{{ $label }}</dt>
+                                        <dd class="mt-0.5 break-words text-xs font-semibold text-ink-800">{{ $value }}</dd>
+                                    </div>
+                                @endforeach
+                            </dl>
+                            @endif
+
+                            @if (empty($entry['rows']))
+                                {{-- Kalkulator Manual: harganya dari kuotasi vendor, tanpa
+                                     komponen material/mesin/risk. Yang ditampilkan adalah
+                                     rincian kuotasi yang TERSIMPAN dari Form Perhitungan
+                                     (SlaIndustriesQuote::breakdown()) — hanya dibaca, tidak
+                                     ada yang dihitung ulang dari Price List. --}}
+                                @php $manualQuote = $item->slaIndustriesQuote; @endphp
+
+                                @if ($manualQuote === null)
+                                    <p class="bg-white px-5 py-4 text-xs leading-relaxed text-amber-800">
+                                        Harga model {{ $calculation['technology'] }} ini <span class="font-semibold">belum ditetapkan</span>.
+                                        Isi dulu <a href="#model-{{ $item->id }}" class="font-semibold text-brand-600 hover:text-brand-800">Form Perhitungan Kalkulator Manual</a>
+                                        di kartu model ini; rinciannya tampil di sini setelah disimpan.
+                                    </p>
+                                @else
+                                    @php
+                                        $usd = fn ($value) => '$'.number_format((float) $value, 2, '.', ',');
+                                        $manualPercent = fn ($value) => rtrim(rtrim(number_format((float) $value, 2, ',', '.'), '0'), ',').'%';
+                                    @endphp
+
+                                    <dl class="grid gap-x-6 gap-y-3 px-5 py-4 sm:grid-cols-2 lg:grid-cols-3">
+                                        @foreach (array_filter([
+                                            'Metode Harga' => 'Kalkulator Manual (kuotasi vendor)',
+                                            'Nama Produk' => $manualQuote->product_name ?: $item->file_name,
+                                            'Kurs USD/IDR' => $rupiah($manualQuote->usd_rate)
+                                                .($manualQuote->usd_rate_source ? ' · '.$manualQuote->usd_rate_source : ''),
+                                            'Margin Profit' => $manualPercent($manualQuote->margin_percent),
+                                            'Ditetapkan' => $manualQuote->updated_at?->translatedFormat('d F Y, H:i').' WIB'
+                                                .($manualQuote->calculatedBy ? ' oleh '.$manualQuote->calculatedBy->name : ''),
+                                        ]) as $label => $value)
+                                            <div class="min-w-0">
+                                                <dt class="text-[0.6rem] font-semibold uppercase tracking-[0.12em] text-ink-400">{{ $label }}</dt>
+                                                <dd class="mt-0.5 break-words text-xs font-semibold text-ink-800">{{ $value }}</dd>
+                                            </div>
+                                        @endforeach
+                                    </dl>
+
+                                    <div class="overflow-x-auto border-t border-ink-100 bg-white">
+                                        <table class="w-full min-w-[560px] text-left text-sm">
+                                            <caption class="px-5 pt-4 text-left text-[0.6rem] font-bold uppercase tracking-[0.12em] text-ink-500">
+                                                Detail Harga: {{ $item->file_name }}
+                                            </caption>
+                                            <thead>
+                                                <tr class="border-b border-ink-100 text-[0.6rem] uppercase tracking-[0.14em] text-ink-400">
+                                                    <th scope="col" class="px-5 py-3 font-bold">Komponen</th>
+                                                    <th scope="col" class="px-5 py-3 text-right font-bold">Dollar</th>
+                                                    <th scope="col" class="px-5 py-3 text-right font-bold">Rupiah</th>
+                                                    <th scope="col" class="px-5 py-3 font-bold">Rumus / Keterangan</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody class="divide-y divide-ink-100">
+                                                @foreach ($manualQuote->breakdown() as $row)
+                                                    <tr @class(['bg-brand-50/50' => $row['highlight'] ?? false])>
+                                                        <td @class(['px-5 py-2.5 text-xs', 'font-bold text-ink-900' => $row['highlight'] ?? false, 'font-semibold text-ink-700' => empty($row['highlight'])])>{{ $row['label'] }}</td>
+                                                        <td class="px-5 py-2.5 text-right font-mono text-xs text-ink-600">
+                                                            {{ $row['dollar'] === null ? '-' : $usd($row['dollar']) }}
+                                                        </td>
+                                                        <td @class(['px-5 py-2.5 text-right text-xs', 'font-bold text-brand-700' => $row['highlight'] ?? false, 'text-ink-700' => empty($row['highlight'])])>
+                                                            @if (array_key_exists('percent', $row))
+                                                                {{ $manualPercent($row['percent']) }}
+                                                            @else
+                                                                {{ $row['rupiah'] === null ? '-' : $rupiah($row['rupiah']) }}
+                                                            @endif
+                                                        </td>
+                                                        <td class="px-5 py-2.5 text-[0.7rem] text-ink-500">
+                                                            {{ ($row['auto'] ?? false) ? 'Otomatis · ' : '' }}{{ $row['remark'] }}
+                                                        </td>
+                                                    </tr>
+                                                @endforeach
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                @endif
+                            @else
+                            <div class="overflow-x-auto border-t border-ink-100 bg-white">
+                                <table class="w-full min-w-[520px] text-left text-sm">
+                                    <caption class="px-5 pt-4 text-left text-[0.6rem] font-bold uppercase tracking-[0.12em] text-ink-500">
+                                        Detail Harga: {{ $item->file_name }}
+                                    </caption>
+                                    <thead>
+                                        <tr class="border-b border-ink-100 text-[0.6rem] uppercase tracking-[0.14em] text-ink-400">
+                                            <th scope="col" class="px-5 py-3 font-bold">Komponen</th>
+                                            <th scope="col" class="px-5 py-3 font-bold">Rumus / Dasar Perhitungan</th>
+                                            <th scope="col" class="px-5 py-3 text-right font-bold">Nilai</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody class="divide-y divide-ink-100">
+                                        @foreach ($entry['rows'] as $row)
+                                            <tr @class(['bg-brand-50/50' => $row['highlight'] ?? false])>
+                                                <td @class(['px-5 py-2.5 text-xs', 'font-bold text-ink-900' => $row['highlight'] ?? false, 'font-semibold text-ink-700' => empty($row['highlight'])])>{{ $row['label'] }}</td>
+                                                <td class="px-5 py-2.5 text-[0.7rem] text-ink-500">{{ $row['formula'] }}</td>
+                                                <td @class(['px-5 py-2.5 text-right text-xs', 'font-bold text-brand-700' => $row['highlight'] ?? false, 'text-ink-700' => empty($row['highlight'])])>{{ $rupiah($row['value']) }}</td>
+                                            </tr>
+                                        @endforeach
+                                    </tbody>
+                                </table>
+                            </div>
+                            @endif
+
+                            @if ($calculation['formula_missing'] ?? false)
+                                <p class="border-t border-ink-100 bg-white px-5 py-3 text-[0.65rem] font-semibold text-amber-700">
+                                    Parameter {{ $calculation['technology'] }} belum diisi di Price List, jadi risk dan profit terhitung nol.
+                                </p>
+                            @endif
+                </x-admin.modal>
             @endforeach
         </div>
 

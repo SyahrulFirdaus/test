@@ -28,7 +28,7 @@
 
     <a href="{{ \App\Support\PriceListPage::technologyUrl($technology) }}"
        class="mb-5 inline-flex items-center gap-2 text-sm font-semibold text-ink-500 transition-colors hover:text-brand-600">
-        &larr; Kembali ke Material {{ $technology->tabLabel() }}
+        Kembali ke Material {{ $technology->tabLabel() }}
     </a>
 
     <p class="text-sm text-ink-500">

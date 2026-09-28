@@ -151,7 +151,8 @@ class MaterialExcelSlaTest extends TestCase
             'Harga Jual', 'Pembulatan Harga', 'Harga/10 gram', 'Remark',
         ];
 
-        $this->assertSame($standard, MaterialSheet::headings($this->fdm()));
+        // Seluruh teknologi kini memilih metode harga per material.
+        $this->assertSame([...$standard, 'Metode Harga'], MaterialSheet::headings($this->fdm()));
         $this->assertSame([...$standard, 'Metode Harga'], MaterialSheet::headings($this->sla()));
     }
 

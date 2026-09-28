@@ -10,7 +10,7 @@
     @endphp
 
     <a href="{{ route('dashboard.quotations.show', $quotation) }}" class="inline-flex items-center gap-2 text-sm font-semibold text-ink-500 transition-colors hover:text-brand-600">
-        &larr; Kembali ke detail penawaran
+        Kembali ke detail penawaran
     </a>
 
     <div class="mt-5">
@@ -30,6 +30,7 @@
                 <h3 class="font-display text-base font-bold text-ink-900">Tambah File 3D</h3>
                 <p class="mt-1 text-sm text-ink-500">
                     Format .STL atau .OBJ, maksimal {{ $maxFileMb }} MB per file dan {{ $maxModels }} file dalam satu penawaran.
+                    Maksimal total ukuran file {{ $maxTotalLabel }} per penawaran.
                 </p>
             </div>
 

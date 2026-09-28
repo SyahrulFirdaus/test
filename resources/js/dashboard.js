@@ -302,7 +302,7 @@ function initNotifications() {
                     <p class="mt-0.5 text-xs leading-relaxed text-ink-500">${escapeHtml(item.message)}</p>
                     ${
                         item.url
-                            ? `<a href="${escapeAttribute(item.url)}" class="mt-2 inline-block text-xs font-semibold text-brand-600 hover:text-brand-700">Lihat detail →</a>`
+                            ? `<a href="${escapeAttribute(item.url)}" class="mt-2 inline-block text-xs font-semibold text-brand-600 hover:text-brand-700">Lihat detail</a>`
                             : ''
                     }
                 </div>

@@ -562,7 +562,7 @@ class SellingPriceEstimator
             $actualWeight = (float) ($calculation['material_qty_g_actual'] ?? $calculation['material_qty_g']);
             $billedWeight = (float) $calculation['material_qty_g'];
             $weightInfo = $actualWeight !== $billedWeight
-                ? $number($actualWeight, 2).' gr → '.$number($billedWeight, 2).' gr'
+                ? $number($actualWeight, 2).' gr menjadi '.$number($billedWeight, 2).' gr'
                 : $number($billedWeight, 2).' gr';
             $materialFormula .= ' · '.$weightInfo.' × '.$rupiah((float) $calculation['material_price_per_g']).'/gr';
             $machineFormula .= ' · '.$this->duration((float) $calculation['machine_time_hours']).' × '.$rupiah((float) $calculation['machine_cost']).'/jam';

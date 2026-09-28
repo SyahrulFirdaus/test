@@ -19,13 +19,12 @@ use App\Support\SlaIndustries;
  * satu berkas per teknologi. Yang membedakan hanya apa yang memang berbeda di
  * basis datanya, dan itu ditentukan teknologinya sendiri:
  *
- *   Sembilan kolom pertama sama bagi semuanya. Teknologi yang materialnya
- *   memilih sendiri metode harganya (SLA, MJF, SLM — lihat
- *   App\Support\PricingMethod) mendapat satu kolom tambahan di paling kanan,
- *   "Metode Harga", karena tanpa itu material Kalkulator Manual yang diimpor
- *   akan diam-diam berubah menjadi Otomatis atau sebaliknya. FDM tidak
- *   memilikinya sama sekali, jadi berkasnya tetap sembilan kolom seperti
- *   sebelumnya.
+ *   Sembilan kolom pertama sama bagi semuanya. Karena setiap material kini
+ *   memilih sendiri metode harganya (lihat App\Support\PricingMethod),
+ *   seluruh teknologi mendapat satu kolom tambahan di paling kanan, "Metode
+ *   Harga" — tanpa itu material Kalkulator Manual yang diimpor akan diam-diam
+ *   berubah menjadi Otomatis atau sebaliknya. Kolom itu boleh tidak ada pada
+ *   berkas lama: material yang sudah ada mempertahankan metodenya.
  *
  * Tiga kolom harga TIDAK tersimpan di basis data melainkan diturunkan dari
  * Harga Beli dan Harga Jual (lihat App\Models\Concerns\HasMaterialPricing):

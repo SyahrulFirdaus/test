@@ -106,8 +106,8 @@ export default function initQuotationForm(viewer, root) {
             })
             .join('');
 
-        // Ukuran gabungan seluruh berkas ditampilkan di muka: batas satu
-        // permintaan mengikuti `post_max_size` server, jadi pengguna tahu sisa
+        // Ukuran gabungan seluruh berkas ditampilkan di muka: batasnya dihitung
+        // dari TOTAL semua file dalam satu penawaran, jadi pengguna tahu sisa
         // ruangnya sebelum menekan Kirim — bukan setelah permintaannya ditolak.
         const totalBytes = payload.items.reduce((carry, item) => carry + item.file.size, 0);
         const maxTotalBytes = viewer.config?.limits?.uploadMaxTotalBytes ?? 0;
@@ -120,11 +120,14 @@ export default function initQuotationForm(viewer, root) {
                     <p class="mt-1 text-xs font-semibold ${overLimit ? 'text-brand-700' : 'text-ink-500'}">
                         Total ukuran file ${formatBytes(totalBytes)}
                         <span class="font-normal text-ink-400">
-                            &middot; ${payload.items.length} file${maxTotalBytes ? ` &middot; batas ${formatBytes(maxTotalBytes)} per permintaan` : ''}
+                            &middot; ${payload.items.length} file
                         </span>
                     </p>
+                    ${maxTotalBytes
+                        ? `<p class="mt-0.5 text-[0.7rem] text-ink-400">Maksimal total ukuran file ${totalLimitLabel(viewer.config)} per penawaran.</p>`
+                        : ''}
                     ${overLimit
-                        ? '<p class="mt-1 text-[0.7rem] font-semibold text-brand-700">⚠ Melebihi batas satu permintaan. Kurangi jumlah model lalu kirim sisanya terpisah.</p>'
+                        ? `<p class="mt-1 text-[0.7rem] font-semibold text-brand-700">${totalExceededMessage(viewer.config)}</p>`
                         : ''}
                 </div>
             </div>
@@ -321,16 +324,13 @@ export default function initQuotationForm(viewer, root) {
             return;
         }
 
-        // Seluruh model dikirim dalam satu POST, jadi ukuran gabungannya juga
-        // dibatasi post_max_size.
+        // Batas total per penawaran: jumlah ukuran seluruh file, bukan per
+        // file. Server memeriksanya lagi (StoreQuotationRequest).
         const totalBytes = payload.items.reduce((carry, item) => carry + item.file.size, 0);
         const maxTotal = viewer.config?.limits?.uploadMaxTotalBytes;
 
         if (maxTotal && totalBytes > maxTotal) {
-            showAlert(
-                `Ukuran seluruh file ${formatBytes(totalBytes)} melebihi batas satu permintaan ` +
-                    `(${formatBytes(maxTotal)}). Kurangi jumlah model lalu kirim sisanya sebagai permintaan terpisah.`
-            );
+            showAlert(`${totalExceededMessage(viewer.config)} (Total saat ini ${formatBytes(totalBytes)}.)`);
             return;
         }
 
@@ -503,6 +503,16 @@ function colorLabel(config, key) {
 /** Label finishing sesuai config, mis. "Painting". */
 function finishingLabel(config, key) {
     return config?.finishing?.options?.[key]?.label ?? 'Tanpa Finishing';
+}
+
+/** Batas total per penawaran sebagai teks, mis. "300 MB" — dikirim server. */
+function totalLimitLabel(config) {
+    return config?.limits?.uploadMaxTotalLabel ?? formatBytes(config?.limits?.uploadMaxTotalBytes ?? 0);
+}
+
+function totalExceededMessage(config) {
+    return `⚠️ Total ukuran file melebihi batas ${totalLimitLabel(config)} per penawaran. ` +
+        'Kurangi jumlah/ukuran model atau kirim dalam penawaran terpisah.';
 }
 
 /**

@@ -8,7 +8,7 @@
     @php $value = fn (string $field, $fallback = '') => old($field, $machineCost->{$field} ?? $fallback); @endphp
 
     <a href="{{ route('superadmin.price-list.machine-cost.index') }}" class="inline-flex items-center gap-2 text-sm font-semibold text-ink-500 transition-colors hover:text-brand-600">
-        &larr; Kembali ke Price List
+        Kembali ke Price List
     </a>
 
     <div class="mt-5 max-w-2xl">

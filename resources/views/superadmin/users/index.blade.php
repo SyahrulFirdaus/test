@@ -92,6 +92,24 @@
                                         <a href="{{ $user->whatsapp_link }}" target="_blank" rel="noopener noreferrer" class="viewer-tool">WhatsApp</a>
                                     @endif
                                     <a href="{{ staff_route('users.show', $user) }}" class="viewer-tool">Detail</a>
+
+                                    {{-- Hapus User: khusus Superadmin. Admin tidak melihat
+                                         tombolnya, dan route-nya juga menolak Admin. Konfirmasi
+                                         memakai modal bersama (data-confirm). --}}
+                                    @if (auth()->user()->isSuperAdmin())
+                                        <form method="POST" action="{{ route('superadmin.users.destroy', $user) }}"
+                                              data-confirm="Apakah Anda yakin ingin menghapus user ini? Data user yang dihapus tidak dapat digunakan kembali."
+                                              data-confirm-title="Hapus User?"
+                                              data-confirm-accept="Ya, Hapus"
+                                              data-confirm-cancel="Batal">
+                                            @csrf
+                                            @method('DELETE')
+                                            <button type="submit" class="viewer-tool border-brand-200 text-brand-700 hover:border-brand-600 hover:bg-brand-50"
+                                                    aria-label="Hapus user {{ $user->name }}">
+                                                Hapus
+                                            </button>
+                                        </form>
+                                    @endif
                                 </div>
                             </td>
                         </tr>

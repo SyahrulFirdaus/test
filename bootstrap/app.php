@@ -6,6 +6,7 @@ use App\Http\Middleware\EnsureUserIsAdmin;
 use App\Http\Middleware\EnsureUserIsBusiness;
 use App\Http\Middleware\EnsureUserIsCustomer;
 use App\Http\Middleware\EnsureUserIsSuperAdmin;
+use App\Http\Middleware\TrackAdminPresence;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -30,6 +31,8 @@ return Application::configure(basePath: dirname(__DIR__))
         // login: akun yang dinonaktifkan langsung kehilangan sesinya.
         $middleware->web(append: [
             EnsureAccountIsActive::class,
+            // Status Login pada menu Akun Admin; hanya mencatat.
+            TrackAdminPresence::class,
         ]);
 
         // Area admin dan area pelanggan punya halaman masuk masing-masing,

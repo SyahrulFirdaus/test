@@ -11,7 +11,7 @@
     @endphp
 
     <a href="{{ staff_route('payment-terms.index') }}" class="inline-flex items-center gap-2 text-sm font-semibold text-ink-500 transition-colors hover:text-brand-600">
-        &larr; Kembali ke Payment Terms
+        Kembali ke Payment Terms
     </a>
 
     <div class="mt-5 flex flex-wrap items-start justify-between gap-4">

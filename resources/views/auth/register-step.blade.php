@@ -16,6 +16,10 @@
 @section('heading', 'Buat akun baru')
 @section('subheading', $step['description'] ?? 'Lengkapi informasi di bawah ini untuk melanjutkan.')
 
+@section('brandVisual')
+    @include('auth.partials.register-visual')
+@endsection
+
 @section('form')
     <div class="mt-7 border-t border-ink-100 pt-7">
         <x-register-progress
@@ -59,8 +63,8 @@
         @endif
 
         <div class="mt-9 flex flex-wrap items-center gap-3 border-t border-ink-100 pt-6">
-            <a href="{{ $previousUrl }}" class="btn-outline px-6 py-3">&larr; Kembali</a>
-            <button type="submit" class="btn-primary flex-1 px-6 py-3">Lanjut &rarr;</button>
+            <a href="{{ $previousUrl }}" class="btn-outline px-6 py-3">Kembali</a>
+            <button type="submit" class="btn-primary flex-1 px-6 py-3">Lanjut</button>
         </div>
     </form>
 @endsection
