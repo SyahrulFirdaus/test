@@ -132,6 +132,17 @@ class MaterialExcelTest extends TestCase
         $this->assertSame('Standard Material', $line[8]);
     }
 
+    public function test_export_tanpa_material_memberi_notifikasi(): void
+    {
+        $technology = $this->fdm();
+        $technology->materials()->delete();
+
+        $this->actingAs($this->superAdmin())
+            ->get(route('superadmin.price-list.materials.excel.export', $technology))
+            ->assertRedirect()
+            ->assertSessionHas('status', 'Tidak ada data material '.$technology->tabLabel().' yang dapat diekspor.');
+    }
+
     public function test_template_kosong_dan_contoh_terisi(): void
     {
         $technology = $this->fdm();

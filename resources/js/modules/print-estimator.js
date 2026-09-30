@@ -125,6 +125,9 @@ export function estimate(technology, material, geometryVolumeCm3, quantity = 1, 
         quantity: qty,
         totalWeightG: totalWeight,
         minutes: totalMinutes,
+        // Waktu satu unit lengkap (setup + cetak + finishing) — Harga Jual
+        // dihitung per unit lalu dikalikan jumlah unit.
+        minutesPerUnit: Math.max(1, Math.round((technology.setupHours + unitHours + finishingHours / qty) * 60)),
         dimensions: options.dimensions ?? null,
         pricing: options.pricing ?? {},
         cost: options.cost ?? {},

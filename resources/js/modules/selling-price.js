@@ -62,27 +62,33 @@ export function sellingPrice(input) {
         };
     }
 
-    // Machine Time sudah mencakup seluruh unit model ini.
-    const machineTimeHours = (Number(input.minutes) || 0) / 60;
+    // Harga Jual dihitung untuk SATU unit secara lengkap — termasuk setup
+    // mesin, overtime, Basic Fee, dan pembulatan 10 gram — lalu dikalikan
+    // jumlah unit, sehingga harga N unit = harga 1 unit x N.
+    // Sama persis dengan App\Services\SellingPriceEstimator::calculate().
+    const unitMinutes = Number.isFinite(Number(input.minutesPerUnit)) && input.minutesPerUnit !== null
+        ? Number(input.minutesPerUnit)
+        : Math.max(1, Math.round((Number(input.minutes) || 0) / quantity));
+    const machineTimeHours = unitMinutes / 60;
     const machine = input.pricing?.machines?.[input.printerKey] ?? null;
     const machineCost = machine ? Number(machine.cost) || 0 : Number(formula.machineCost) || 0;
 
-    // Berat model + support berlaku per unit, jadi dikalikan jumlah unit.
+    // Berat model + support satu unit.
     //
     // Material ditagih per kelipatan 10 gram: beratnya dibulatkan ke ATAS ke
-    // kelipatan 10 sebelum dikalikan harga, sekali pada berat total pesanan.
+    // kelipatan 10 sebelum dikalikan harga, per unit.
     // Pembulatan enam desimal pada hasil baginya menahan sisa galat pecahan
     // biner supaya 20 g tidak terbaca 20,0000000001 lalu ditagih 30 g.
     // Sama persis dengan App\Services\SellingPriceEstimator::calculate().
-    const totalWeightG = round2((Number(input.totalWeightG) || 0) * quantity);
+    const totalWeightG = round2(Number(input.totalWeightG) || 0);
     const materialQty = Math.ceil(Math.round((totalWeightG / 10) * 1e6) / 1e6) * 10;
     const materialPrice = Number(input.materialPricePerGram) || Number(formula.materialPricePerG) || 0;
 
-    // Satu unit dikemas dalam satu kardus, jadi biayanya ikut jumlah unit.
+    // Satu unit dikemas dalam satu kardus.
     const box = smallestFittingBox(input.dimensions, input.pricing?.packaging ?? []);
-    const packaging = (box ? box.price : Number(formula.packagingCost) || 0) * quantity;
+    const packaging = box ? box.price : Number(formula.packagingCost) || 0;
 
-    // Basic Fee melekat pada objectnya, jadi dikenakan sekali per model.
+    // Basic Fee satu unit.
     const basic = basicFeeFor(input.dimensions, input.cost ?? {});
 
     const overtime = Number(formula.overtimeCost) || 0;
@@ -99,7 +105,8 @@ export function sellingPrice(input) {
     // Harga printing: harga mencetak partnya saja. Biaya finishing dan tambahan
     // Express keduanya diturunkan dari angka ini, bukan dari total akhir, jadi
     // keduanya tidak pernah saling melipatgandakan.
-    const printingPrice = round2(subtotal + profit + basic.fee);
+    const unitPrintingPrice = round2(subtotal + profit + basic.fee);
+    const printingPrice = round2(unitPrintingPrice * quantity);
 
     // Custom Finishing tidak dapat dihitung otomatis — harganya ditetapkan tim
     // lewat kuotasi project, jadi browser TIDAK boleh menebak angkanya.
@@ -116,22 +123,26 @@ export function sellingPrice(input) {
         };
     }
 
-    const finishingPrice = finishingPriceFor(input.finishingOption, printingPrice);
+    // Finishing juga dihitung per unit (termasuk harga minimumnya).
+    const finishingPrice = round2(finishingPriceFor(input.finishingOption, unitPrintingPrice) * quantity);
     const expressPercent = input.productionSpeed === 'express'
         ? Math.max(0, Number(input.leadTime?.express?.surchargePercent ?? 0) || 0)
         : 0;
     const expressFee = round2(printingPrice * (expressPercent / 100));
     const sellingPrice = round2(printingPrice + expressFee + finishingPrice);
 
+    // Seluruh komponen satu unit dikalikan jumlah unit.
+    const times = (value) => round2(value * quantity);
+
     return {
         technology,
 
-        machine_time_hours: round2(machineTimeHours),
+        machine_time_hours: times(machineTimeHours),
         machine_cost: round2(machineCost),
         machine_source: machine ? machine.name : null,
 
-        material_qty_g: round2(materialQty),
-        material_qty_g_actual: round2(totalWeightG),
+        material_qty_g: times(materialQty),
+        material_qty_g_actual: times(totalWeightG),
         material_price_per_g: round2(materialPrice),
 
         risk_percent: riskPercent,
@@ -142,16 +153,16 @@ export function sellingPrice(input) {
         largest_dimension_mm: round2(basic.largestMm),
         basic_fee_label: basic.label,
 
-        material_cost: round2(materialCost),
-        machine_operational_cost: round2(machineOperational),
-        hpp: round2(hpp),
-        risk_cost: round2(riskCost),
-        subtotal_hpp_risk: round2(hpp + riskCost),
-        packaging: round2(packaging),
-        overtime: round2(overtime),
-        subtotal: round2(subtotal),
-        profit: round2(profit),
-        basic_fee: round2(basic.fee),
+        material_cost: times(materialCost),
+        machine_operational_cost: times(machineOperational),
+        hpp: times(hpp),
+        risk_cost: times(riskCost),
+        subtotal_hpp_risk: times(hpp + riskCost),
+        packaging: times(packaging),
+        overtime: times(overtime),
+        subtotal: times(subtotal),
+        profit: times(profit),
+        basic_fee: times(basic.fee),
         printing_price: printingPrice,
 
         production_speed: input.productionSpeed ?? 'standard',

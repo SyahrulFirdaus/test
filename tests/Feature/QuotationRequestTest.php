@@ -62,6 +62,7 @@ class QuotationRequestTest extends TestCase
             'quantity' => $quantity,
             'total_weight_g' => $estimate['total_weight_g'],
             'minutes' => $estimate['total_minutes'],
+            'minutes_per_unit' => $estimate['minutes_per_unit'],
             'dimensions' => $dimensions,
         ])['selling_price'];
     }
@@ -223,6 +224,7 @@ class QuotationRequestTest extends TestCase
             'quantity' => 3,
             'total_weight_g' => $expected['total_weight_g'],
             'minutes' => $expected['total_minutes'],
+            'minutes_per_unit' => $expected['minutes_per_unit'],
             'dimensions' => ['x' => 50, 'y' => 40, 'z' => 30],
         ]);
 
@@ -581,6 +583,7 @@ class QuotationRequestTest extends TestCase
             'quantity' => $quantity,
             'total_weight_g' => $estimate['total_weight_g'],
             'minutes' => $estimate['total_minutes'],
+            'minutes_per_unit' => $estimate['minutes_per_unit'],
             'dimensions' => ['x' => 50, 'y' => 40, 'z' => 30],
         ])['selling_price'];
 

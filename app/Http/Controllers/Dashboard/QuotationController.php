@@ -559,6 +559,7 @@ class QuotationController extends Controller
             'quantity' => (int) $settings['quantity'],
             'total_weight_g' => $estimate['total_weight_g'],
             'minutes' => $estimate['total_minutes'],
+            'minutes_per_unit' => $estimate['minutes_per_unit'] ?? null,
             'dimensions' => $dimensions ?: null,
         ]);
 

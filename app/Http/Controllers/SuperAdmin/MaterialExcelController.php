@@ -62,6 +62,14 @@ class MaterialExcelController extends Controller
 
         $count = $technology->materials()->count();
 
+        // Tanpa material, berkas yang terunduh hanya berisi judul kolom —
+        // lebih jelas memberi tahu pengelola daripada mengirim berkas kosong.
+        if ($count === 0) {
+            return redirect()
+                ->to(PriceListPage::technologyUrl($technology))
+                ->with('status', 'Tidak ada data material '.$technology->tabLabel().' yang dapat diekspor.');
+        }
+
         $this->activity->log(
             action: ActivityAction::PRICE_LIST_EXPORT,
             description: 'Meng-export '.$count.' material '.$technology->tabLabel().' ke Excel.',

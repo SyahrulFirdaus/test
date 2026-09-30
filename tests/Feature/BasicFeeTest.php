@@ -103,6 +103,7 @@ class BasicFeeTest extends TestCase
             'quantity' => $quantity,
             'total_weight_g' => $estimate['total_weight_g'],
             'minutes' => $estimate['total_minutes'],
+            'minutes_per_unit' => $estimate['minutes_per_unit'],
             'dimensions' => $dimensions,
         ]);
     }
@@ -126,9 +127,10 @@ class BasicFeeTest extends TestCase
         $sedang = $this->priceOf($estimate, $sedangDim, 2);
         $besar = $this->priceOf($estimate, $besarDim, 2);
 
+        // Basic Fee per unit x 2 unit.
         $this->assertSame(0.0, $kecil['basic_fee']);
-        $this->assertSame(25000.0, $sedang['basic_fee']);
-        $this->assertSame(50000.0, $besar['basic_fee']);
+        $this->assertSame(50000.0, $sedang['basic_fee']);
+        $this->assertSame(100000.0, $besar['basic_fee']);
 
         // Subtotal dan Profit tidak tersentuh ukuran object; Basic Fee berdiri
         // sendiri sesudahnya. Packaging dikecualikan karena kardusnya memang
@@ -149,7 +151,7 @@ class BasicFeeTest extends TestCase
         $this->assertSame('Besar', $besar['basic_fee_label']);
     }
 
-    public function test_basic_fee_dikenakan_sekali_per_model_bukan_per_unit(): void
+    public function test_basic_fee_dikenakan_per_unit(): void
     {
         $estimator = app(PrintEstimator::class);
         $dimensions = ['x' => 100, 'y' => 80, 'z' => 50];
@@ -158,7 +160,19 @@ class BasicFeeTest extends TestCase
         $sepuluh = $this->priceOf($estimator->estimate('FDM', 'PLA Plus Standart ESUN', 120, 10, ['surface_area_cm2' => 180]), $dimensions, 10);
 
         $this->assertSame(25000.0, $satu['basic_fee']);
-        $this->assertSame(25000.0, $sepuluh['basic_fee']);
+        $this->assertSame(250000.0, $sepuluh['basic_fee']);
+    }
+
+    public function test_harga_jual_n_unit_sama_dengan_harga_satu_unit_kali_n(): void
+    {
+        $estimator = app(PrintEstimator::class);
+        $dimensions = ['x' => 126, 'y' => 16.3, 'z' => 176];
+
+        $satu = $this->priceOf($estimator->estimate('FDM', 'PLA Plus Standart ESUN', 66.12, 1, ['dimensions' => $dimensions]), $dimensions, 1);
+        $sepuluh = $this->priceOf($estimator->estimate('FDM', 'PLA Plus Standart ESUN', 66.12, 10, ['dimensions' => $dimensions]), $dimensions, 10);
+
+        $this->assertGreaterThan(0, $satu['selling_price']);
+        $this->assertSame(round($satu['selling_price'] * 10, 2), $sepuluh['selling_price']);
     }
 
     public function test_penawaran_yang_dibuat_pelanggan_sudah_memakai_basic_fee(): void
@@ -262,8 +276,9 @@ class BasicFeeTest extends TestCase
         $kecil = $estimator->forItem($this->quotationWithItem(['x' => 50, 'y' => 40, 'z' => 30]));
         $besar = $estimator->forItem($this->quotationWithItem(['x' => 250, 'y' => 150, 'z' => 100]));
 
+        // Model ini 2 unit: Basic Fee Rp50.000 per unit.
         $this->assertSame(0.0, $kecil['basic_fee']);
-        $this->assertSame(50000.0, $besar['basic_fee']);
+        $this->assertSame(100000.0, $besar['basic_fee']);
 
         // Subtotal dan Profit tidak tersentuh — Basic Fee ditambahkan sesudahnya.
         $this->assertSame($kecil['subtotal'], $besar['subtotal']);
@@ -273,7 +288,7 @@ class BasicFeeTest extends TestCase
             round($besar['subtotal'] + $besar['profit'] + $besar['basic_fee'], 2),
             $besar['selling_price'],
         );
-        $this->assertSame(round($kecil['selling_price'] + 50000, 2), $besar['selling_price']);
+        $this->assertSame(round($kecil['selling_price'] + 100000, 2), $besar['selling_price']);
     }
 
     public function test_detail_admin_menampilkan_baris_basic_fee(): void
@@ -285,7 +300,8 @@ class BasicFeeTest extends TestCase
             ->assertOk()
             ->assertSee('Basic Fee')
             ->assertSee('Subtotal + Profit + Basic Fee')
-            ->assertSee('Rp50.000');
+            ->assertSee('Rp100.000')
+            ->assertSee('× 2 unit');
     }
 
     /* -------------------------------------- simulasi Price List → Harga --- */

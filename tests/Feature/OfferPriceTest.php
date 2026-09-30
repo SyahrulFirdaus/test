@@ -112,7 +112,8 @@ class OfferPriceTest extends TestCase
 
         // Basic Fee memang berbeda antar keduanya, jadi keduanya benar-benar
         // memakai Harga Jual miliknya sendiri.
-        $this->assertSame(50000.0, (float) $items[0]->cost_breakdown['basic_fee']);
+        // Model pertama 2 unit: Basic Fee Rp50.000 per unit.
+        $this->assertSame(100000.0, (float) $items[0]->cost_breakdown['basic_fee']);
         $this->assertSame(0.0, (float) $items[1]->cost_breakdown['basic_fee']);
     }
 

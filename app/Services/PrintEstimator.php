@@ -346,6 +346,9 @@ class PrintEstimator
             'basic_fee_label' => BasicFee::label($largestDimension),
 
             'unit_minutes' => (int) max(1, round($unitHours * 60)),
+            // Waktu satu unit lengkap (setup + cetak + finishing) — sama dengan
+            // total_minutes pada qty 1. Dipakai Harga Jual per unit.
+            'minutes_per_unit' => (int) max(1, round(($tech['setup_hours'] + $unitHours + Finishing::hoursPerUnit($finishing)) * 60)),
             // Waktu total mencakup pengerjaan finishing setelah part dicetak.
             'total_minutes' => (int) max(1, round(($totalHours + $finishingHours) * 60)),
         ];

@@ -172,11 +172,11 @@ class QuotationSellingPriceTest extends TestCase
         $this->assertSame(30.0, (float) $this->hitung(20.01)['material_qty_g']);
     }
 
-    /** Pembulatan dikenakan sekali pada berat total pesanan, bukan per unit. */
-    public function test_pembulatan_dikenakan_pada_berat_total_bukan_per_unit(): void
+    /** Pembulatan dikenakan per unit, lalu dikalikan jumlah unit. */
+    public function test_pembulatan_dikenakan_per_unit(): void
     {
-        // 3 unit x 12 g = 36 g total, ditagih 40 g — bukan 3 x 20 g = 60 g.
-        $this->assertSame(40.0, (float) $this->hitung(12, quantity: 3)['material_qty_g']);
+        // 12 g per unit ditagih 20 g, jadi 3 unit = 60 g.
+        $this->assertSame(60.0, (float) $this->hitung(12, quantity: 3)['material_qty_g']);
     }
 
     /** @return array<string, mixed> */
@@ -501,8 +501,9 @@ class QuotationSellingPriceTest extends TestCase
         $this->assertSame(0.0, $result['difference']);
         $this->assertFalse($result['reconstructed']);
 
-        // Model 200 mm kena Basic Fee Sedang, model 60 mm tidak kena sama sekali.
-        $this->assertSame(25000.0, (float) $result['models'][0]['calculation']['basic_fee']);
+        // Model 200 mm (2 unit) kena Basic Fee Sedang per unit, model 60 mm
+        // tidak kena sama sekali.
+        $this->assertSame(50000.0, (float) $result['models'][0]['calculation']['basic_fee']);
         $this->assertSame(0.0, (float) $result['models'][1]['calculation']['basic_fee']);
     }
 
@@ -648,15 +649,19 @@ class QuotationSellingPriceTest extends TestCase
 
         $server = $this->estimator()->calculate([
             'technology' => 'FDM', 'material' => 'PLA Plus Standart ESUN', 'printer' => 'ender3',
-            'quantity' => 2, 'total_weight_g' => 37.5, 'minutes' => 150,
+            'quantity' => 2, 'total_weight_g' => 37.5, 'minutes' => 150, 'minutes_per_unit' => 80,
             'dimensions' => ['x' => 200, 'y' => 100, 'z' => 100],
         ]);
 
-        $browser = (150 / 60) * $payload['machines']['ender3']['cost']
-            + $this->billedWeightG(37.5 * 2) * $publicMaterial['pricePerGram']
-            + $payload['packaging'][0]['price'] * 2
+        // Harga satu unit x 2 unit.
+        $browser = 2 * round(
+            (80 / 60) * $payload['machines']['ender3']['cost']
+            + $this->billedWeightG(37.5) * $publicMaterial['pricePerGram']
+            + $payload['packaging'][0]['price']
             + $formula['overtimeCost']
-            + $server['basic_fee'];
+            + $server['basic_fee'] / 2,
+            2,
+        );
 
         $this->assertEqualsWithDelta($server['selling_price'], round($browser, 2), 0.05);
     }
