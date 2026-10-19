@@ -1,7 +1,15 @@
 {{--
     Hero halaman dalam.
 
+    Teks hero memakai animasi CSS `data-hero-reveal` (setara AOS fade-up),
+    bukan AOS: AOS menyembunyikan elemen sampai JavaScript berjalan sehingga
+    teks utama halaman — elemen LCP di ponsel — terlambat tampil.
+
     Tanpa `scene`: latar gelap bergrid seperti semula.
+    Slot opsional `visual` (hanya untuk varian tanpa `scene`): elemen yang
+    ditaruh di sisi kanan hero pada layar besar, mis. model 3D halaman
+    industri. Tanpa slot ini tampilan hero tidak berubah sama sekali.
+
     Dengan `scene` (services | technologies | about): latar 3D bergaya hero
     halaman utama — components/scene-3d — dengan objek 3D milik halaman itu
     sendiri (resources/js/modules/hero-scenes.js). Objeknya digeser ke kanan
@@ -26,7 +34,7 @@
 
         <div class="container-page relative w-full">
             @if ($current)
-                <nav aria-label="Breadcrumb" class="mb-7" data-aos="fade-up">
+                <nav aria-label="Breadcrumb" class="mb-7" data-hero-reveal>
                     <ol class="flex items-center gap-2 text-xs font-medium text-white/60">
                         <li><a href="{{ route('home') }}" class="transition-colors hover:text-brand-300">Home</a></li>
                         <li aria-hidden="true" class="text-white/30">/</li>
@@ -38,26 +46,26 @@
             <div class="max-w-2xl">
                 @if ($eyebrow)
                     <span class="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-4 py-1.5 text-xs font-semibold uppercase tracking-[0.18em] text-brand-300 backdrop-blur"
-                          data-aos="fade-up">
+                          data-hero-reveal>
                         <span class="inline-block h-1.5 w-1.5 rounded-full bg-brand-500"></span>
                         {{ $eyebrow }}
                     </span>
                 @endif
 
-                <h1 class="mt-6 text-4xl font-bold leading-[1.1] tracking-tight text-white drop-shadow-lg sm:text-5xl lg:text-6xl [&_span]:text-brand-300"
-                    data-aos="fade-up" data-aos-delay="80">
+                <h1 class="mt-6 text-4xl font-bold leading-[1.1] tracking-tight text-white text-drop-shadow-lg sm:text-5xl lg:text-6xl [&_span]:text-brand-300"
+                    data-hero-reveal style="animation-delay: 80ms">
                     {!! $title !!}
                 </h1>
 
                 @if ($description)
-                    <p class="mt-6 max-w-xl text-base leading-relaxed text-white/80 drop-shadow sm:text-lg"
-                       data-aos="fade-up" data-aos-delay="140">
+                    <p class="mt-6 max-w-xl text-base leading-relaxed text-white/80 text-drop-shadow sm:text-lg"
+                       data-hero-reveal style="animation-delay: 140ms">
                         {{ $description }}
                     </p>
                 @endif
 
                 @if (isset($actions))
-                    <div class="mt-8 flex flex-col gap-3 sm:flex-row" data-aos="fade-up" data-aos-delay="200">
+                    <div class="mt-8 flex flex-col gap-3 sm:flex-row" data-hero-reveal style="animation-delay: 200ms">
                         {{ $actions }}
                     </div>
                 @endif
@@ -77,9 +85,15 @@
         <div class="absolute -left-24 top-10 h-72 w-72 rounded-full bg-brand-700/35 blur-3xl" aria-hidden="true"></div>
         <div class="absolute -right-20 bottom-0 h-80 w-80 rounded-full bg-brand-900/50 blur-3xl" aria-hidden="true"></div>
 
+        @if (isset($visual))
+            <div class="pointer-events-none absolute inset-y-0 right-0 hidden w-[46%] lg:block xl:right-[4%] xl:w-[42%]" aria-hidden="true">
+                {{ $visual }}
+            </div>
+        @endif
+
         <div class="container-page relative">
             @if ($current)
-                <nav aria-label="Breadcrumb" class="mb-7" data-aos="fade-up">
+                <nav aria-label="Breadcrumb" class="mb-7" data-hero-reveal>
                     <ol class="flex items-center gap-2 text-xs font-medium text-ink-400">
                         <li><a href="{{ route('home') }}" class="transition-colors hover:text-brand-300">Home</a></li>
                         <li aria-hidden="true" class="text-ink-600">/</li>
@@ -88,29 +102,29 @@
                 </nav>
             @endif
 
-            <div class="max-w-3xl">
+            <div class="{{ isset($visual) ? 'max-w-3xl lg:max-w-[52%]' : 'max-w-3xl' }}">
                 @if ($eyebrow)
                     <span class="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/5 px-4 py-1.5 text-xs font-semibold uppercase tracking-[0.18em] text-brand-300"
-                          data-aos="fade-up">
+                          data-hero-reveal>
                         <span class="inline-block h-1.5 w-1.5 rounded-full bg-brand-500"></span>
                         {{ $eyebrow }}
                     </span>
                 @endif
 
                 <h1 class="mt-6 text-4xl font-bold leading-[1.1] tracking-tight text-white sm:text-5xl lg:text-6xl"
-                    data-aos="fade-up" data-aos-delay="80">
+                    data-hero-reveal style="animation-delay: 80ms">
                     {!! $title !!}
                 </h1>
 
                 @if ($description)
                     <p class="mt-6 max-w-2xl text-base leading-relaxed text-ink-300 sm:text-lg"
-                       data-aos="fade-up" data-aos-delay="140">
+                       data-hero-reveal style="animation-delay: 140ms">
                         {{ $description }}
                     </p>
                 @endif
 
                 @if (isset($actions))
-                    <div class="mt-9 flex flex-col gap-3 sm:flex-row" data-aos="fade-up" data-aos-delay="200">
+                    <div class="mt-9 flex flex-col gap-3 sm:flex-row" data-hero-reveal style="animation-delay: 200ms">
                         {{ $actions }}
                     </div>
                 @endif

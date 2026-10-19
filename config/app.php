@@ -56,6 +56,20 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Canonical URL
+    |--------------------------------------------------------------------------
+    |
+    | Alamat resmi situs. Bila terisi, setiap variasi (http://, www.) dialihkan
+    | permanen ke alamat ini (App\Http\Middleware\RedirectToCanonicalUrl).
+    | Default-nya APP_URL di production dan kosong di lingkungan lain, jadi
+    | localhost tidak terpengaruh.
+    |
+    */
+
+    'canonical_url' => env('APP_CANONICAL_URL', env('APP_ENV') === 'production' ? env('APP_URL') : null),
+
+    /*
+    |--------------------------------------------------------------------------
     | Application Timezone
     |--------------------------------------------------------------------------
     |

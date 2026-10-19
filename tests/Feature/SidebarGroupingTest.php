@@ -49,7 +49,7 @@ class SidebarGroupingTest extends TestCase
         $html = $this->actingAs($this->superAdmin())->get(route('superadmin.dashboard'))->assertOk()->getContent();
 
         $this->assertSame(['User', 'Activity Log', 'Profil', 'Ganti Password', 'Akun Admin'], $this->groupItems($html, 'Akun'));
-        $this->assertSame(['Penawaran', 'Notifikasi'], $this->groupItems($html, 'Penawaran'));
+        $this->assertSame(['Lead', 'Penawaran', 'Notifikasi'], $this->groupItems($html, 'Penawaran'));
         $this->assertSame(['Verifikasi Pembayaran', 'Payment Term'], $this->groupItems($html, 'Pembayaran'));
 
         // Urutan kelompok: Penawaran, Pembayaran, Price List, lalu Akun.
@@ -67,7 +67,7 @@ class SidebarGroupingTest extends TestCase
 
         // Admin factory memegang seluruh hak akses, termasuk User › Lihat.
         $this->assertSame(['User', 'Profil', 'Ganti Password'], $this->groupItems($html, 'Akun'));
-        $this->assertSame(['Penawaran', 'Notifikasi'], $this->groupItems($html, 'Penawaran'));
+        $this->assertSame(['Lead', 'Penawaran', 'Notifikasi'], $this->groupItems($html, 'Penawaran'));
         $this->assertSame(['Verifikasi Pembayaran', 'Payment Term'], $this->groupItems($html, 'Pembayaran'));
         $this->assertStringNotContainsString('title="Price List"', $html);
     }

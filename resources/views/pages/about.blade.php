@@ -1,7 +1,10 @@
 @extends('layouts.app')
 
 @section('title', 'About')
+@section('og-image', 'about')
 @section('description', 'Profil ' . $company->name . ', visi dan misi perusahaan, keunggulan layanan, serta informasi kontak lengkap.')
+
+@section('quote-href', '#form-kontak')
 
 @section('content')
 
@@ -65,10 +68,10 @@
                         </div>
 
                         <div class="mt-6 grid grid-cols-2 gap-4">
-                            @foreach ($company->stats as $stat)
+                            @foreach (\App\Support\CompanyStats::all() as $stat)
                                 <div class="rounded-2xl border border-ink-100 bg-gradient-to-br from-brand-50 to-white p-5 text-center shadow-card">
                                     <p class="font-display text-3xl font-bold text-brand-600">
-                                        <span data-counter="{{ $stat['value'] }}">0</span>{{ $stat['suffix'] }}
+                                        <span @if ($stat['value'] !== null) data-counter="{{ $stat['value'] }}" @endif>{{ $stat['display'] }}</span>{{ $stat['suffix'] }}
                                     </p>
                                     <p class="mt-1.5 text-xs font-semibold uppercase tracking-[0.1em] text-ink-500">{{ $stat['label'] }}</p>
                                 </div>
@@ -194,7 +197,7 @@
 
                 <div class="lg:col-span-7" data-aos="fade-left">
                     <div class="grid h-full gap-4 sm:grid-cols-2">
-                        <a href="tel:{{ preg_replace('/\s+/', '', $company->phone) }}"
+                        <a href="{{ $company->phone_link }}" data-cta="content"
                            class="group rounded-3xl border border-white/10 bg-white/5 p-7 backdrop-blur transition-all duration-300 hover:-translate-y-1 hover:border-brand-400/50 hover:bg-white/10">
                             <span class="inline-flex h-12 w-12 items-center justify-center rounded-xl bg-brand-600 text-white">
                                 <x-icons.phone class="h-5 w-5" />
@@ -203,7 +206,7 @@
                             <p class="mt-1.5 font-display text-lg font-bold text-white">{{ $company->phone }}</p>
                         </a>
 
-                        <a href="{{ $company->whatsapp_link }}" target="_blank" rel="noopener noreferrer"
+                        <a href="{{ wa_link() }}" target="_blank" rel="noopener noreferrer" data-wa-link data-cta="content"
                            class="group rounded-3xl border border-white/10 bg-white/5 p-7 backdrop-blur transition-all duration-300 hover:-translate-y-1 hover:border-brand-400/50 hover:bg-white/10">
                             <span class="inline-flex h-12 w-12 items-center justify-center rounded-xl bg-brand-600 text-white">
                                 <x-icons.whatsapp class="h-5 w-5" />
@@ -212,7 +215,7 @@
                             <p class="mt-1.5 font-display text-lg font-bold text-white">{{ $company->whatsapp }}</p>
                         </a>
 
-                        <a href="mailto:{{ $company->email }}"
+                        <a href="mailto:{{ $company->email }}" data-cta="content"
                            class="group rounded-3xl border border-white/10 bg-white/5 p-7 backdrop-blur transition-all duration-300 hover:-translate-y-1 hover:border-brand-400/50 hover:bg-white/10 sm:col-span-2">
                             <span class="inline-flex h-12 w-12 items-center justify-center rounded-xl bg-brand-600 text-white">
                                 <x-icons.mail class="h-5 w-5" />
@@ -224,6 +227,38 @@
                     </div>
                 </div>
             </div>
+
+            {{-- Form Kontak (komponen bersama) --}}
+            <div class="mt-6 grid gap-6 lg:grid-cols-12">
+                <div class="lg:col-span-5">
+                    <h3 class="font-display text-xl font-bold text-white">Kirim pesan &amp; file</h3>
+                    <p class="mt-3 text-sm leading-relaxed text-ink-400">
+                        Isi form ini dan lampirkan file 3D, gambar kerja, atau foto bila ada. Tim kami meninjaunya dan menghubungi Anda pada jam kerja berikutnya.
+                    </p>
+                </div>
+                <div class="lg:col-span-7">
+                    <x-contact-form embedded />
+                </div>
+            </div>
+
+            {{-- Peta lokasi workshop, disematkan dari Google Maps (tanpa API key)
+                 berdasarkan alamat di Profil Perusahaan. Dimuat lazy agar tidak
+                 memperlambat halaman. --}}
+            @php
+                $mapQuery = trim(collect([$company->address, $company->city])->filter()->implode(', '));
+            @endphp
+
+            @if ($mapQuery !== '')
+                <div class="mt-6 overflow-hidden rounded-3xl border border-white/10 bg-white/5" data-aos="fade-up">
+                    <iframe src="https://www.google.com/maps?q={{ urlencode($mapQuery) }}&amp;hl=id&amp;z=16&amp;output=embed"
+                            title="Peta lokasi workshop {{ $company->name }}"
+                            class="block h-[320px] w-full border-0 sm:h-[420px]"
+                            loading="lazy"
+                            referrerpolicy="no-referrer-when-downgrade"
+                            allowfullscreen
+                            data-company-map></iframe>
+                </div>
+            @endif
         </div>
     </section>
 

@@ -37,6 +37,16 @@ class AdminPermission
 
     public const QUOTATION_UPDATE_STATUS = 'quotation.update_status';
 
+    /* -------------------------------------------------------------- Lead */
+
+    public const LEAD_VIEW = 'lead.view';
+
+    /** Mengubah status lead dan nilai deal. */
+    public const LEAD_EDIT = 'lead.edit';
+
+    /** Mengunduh data Deal (email, HP, GCLID) untuk impor konversi Google Ads. */
+    public const LEAD_EXPORT = 'lead.export';
+
     /* ------------------------------------------------ Verifikasi Pembayaran */
 
     public const PAYMENT_VIEW = 'payment.view';
@@ -52,6 +62,19 @@ class AdminPermission
     /* -------------------------------------------------------- Notifikasi */
 
     public const NOTIFICATION_VIEW = 'notification.view';
+
+    /* ------------------------------------------------ Pengaturan WhatsApp */
+
+    public const WHATSAPP_VIEW = 'whatsapp.view';
+
+    public const WHATSAPP_EDIT = 'whatsapp.edit';
+
+    /* ----------------------------------------------------- Ulasan Google */
+
+    public const REVIEW_VIEW = 'review.view';
+
+    /** Menambah, mengubah, dan menghapus ulasan serta tautan profil Google. */
+    public const REVIEW_EDIT = 'review.edit';
 
     /* -------------------------------------------------------- Price List */
 
@@ -137,6 +160,26 @@ class AdminPermission
                     ],
                 ],
             ],
+            'lead' => [
+                'label' => 'Lead',
+                'permissions' => [
+                    self::LEAD_VIEW => [
+                        'label' => 'Lihat',
+                        'description' => 'Membuka menu Lead beserta sumber kedatangannya (GCLID/UTM) dan detail lead.',
+                        'default' => false,
+                    ],
+                    self::LEAD_EDIT => [
+                        'label' => 'Edit',
+                        'description' => 'Mengubah status lead (Lead/Quotation/Deal/Batal) dan nilai deal.',
+                        'default' => false,
+                    ],
+                    self::LEAD_EXPORT => [
+                        'label' => 'Export CSV Deal',
+                        'description' => 'Mengunduh CSV Deal (email, nomor HP, GCLID, nilai deal) untuk diimpor ke Google Ads.',
+                        'default' => false,
+                    ],
+                ],
+            ],
             'payment' => [
                 'label' => 'Verifikasi Pembayaran',
                 'permissions' => [
@@ -173,6 +216,36 @@ class AdminPermission
                     self::NOTIFICATION_VIEW => [
                         'label' => 'Lihat',
                         'description' => 'Halaman notifikasi dan ikon lonceng di header.',
+                        'default' => false,
+                    ],
+                ],
+            ],
+            'whatsapp' => [
+                'label' => 'Pengaturan WhatsApp',
+                'permissions' => [
+                    self::WHATSAPP_VIEW => [
+                        'label' => 'Lihat',
+                        'description' => 'Membuka menu Pengaturan WhatsApp dan riwayat pengiriman notifikasi.',
+                        'default' => true,
+                    ],
+                    self::WHATSAPP_EDIT => [
+                        'label' => 'Edit',
+                        'description' => 'Mengubah nomor WhatsApp pengirim, memeriksa koneksi, dan uji kirim.',
+                        'default' => true,
+                    ],
+                ],
+            ],
+            'review' => [
+                'label' => 'Ulasan Google',
+                'permissions' => [
+                    self::REVIEW_VIEW => [
+                        'label' => 'Lihat',
+                        'description' => 'Membuka menu Ulasan Google yang tampil di halaman Home.',
+                        'default' => false,
+                    ],
+                    self::REVIEW_EDIT => [
+                        'label' => 'Kelola',
+                        'description' => 'Menambah, mengubah, menyembunyikan, dan menghapus ulasan, serta tautan profil Google.',
                         'default' => false,
                     ],
                 ],

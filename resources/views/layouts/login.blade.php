@@ -22,13 +22,13 @@
     @include('partials.google-tag')
 
     <link rel="icon" type="image/svg+xml" href="{{ asset('images/favicon.svg') }}">
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+    @include('partials.fonts')
 
     @vite(['resources/css/app.css', 'resources/js/auth-scene.js'])
 </head>
 <body class="min-h-screen bg-brand-950">
+    @include('partials.google-tag-noscript')
+
 
     {{-- ================= LATAR 3D ================= --}}
     {{-- Mesin digeser ke kiri bawah supaya tidak tertutup kartu di tengah. --}}
@@ -37,6 +37,9 @@
     <main class="relative flex min-h-screen items-center justify-center px-5 py-12">
         @yield('content')
     </main>
+
+    {{-- Pemberitahuan cookie, sama dengan halaman publik lainnya. --}}
+    @include('partials.cookie-banner')
 
     @stack('scripts')
 

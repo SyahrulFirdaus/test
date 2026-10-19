@@ -1,26 +1,32 @@
 <!DOCTYPE html>
-<html lang="id" class="scroll-smooth">
+{{-- overflow-x-clip: elemen animasi yang belum masuk (AOS fade-left/right,
+     bergeser 100px) tidak melebarkan halaman — tanpa ini ponsel memperkecil
+     tampilan dan bilah CTA sticky ikut mengecil. --}}
+<html lang="id" class="scroll-smooth overflow-x-clip">
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="csrf-token" content="{{ csrf_token() }}">
 
-    @include('partials.seo')
-
+    {{-- Consent Mode v2 default → GTM → Google tag: sedekat mungkin dengan awal <head>. --}}
     @include('partials.google-tag')
+
+    @include('partials.seo')
 
     <link rel="icon" type="image/svg+xml" href="{{ asset('images/favicon.svg') }}">
     <link rel="apple-touch-icon" href="{{ asset('images/favicon.svg') }}">
 
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+    @include('partials.fonts')
 
     @vite(['resources/css/app.css', 'resources/js/app.js'])
 
     @stack('head')
 </head>
-<body class="min-h-screen bg-white">
+{{-- Di ponsel ada bilah CTA sticky (partials/sticky-cta): konten diberi ruang
+     bawah setinggi bilah agar tidak pernah tertutup. --}}
+<body class="min-h-screen bg-white {{ View::hasSection('bare') ? '' : 'pb-[calc(4.5rem+env(safe-area-inset-bottom))] md:pb-0' }}">
+    @include('partials.google-tag-noscript')
+
     <a href="#main"
        class="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-[60] focus:rounded-full focus:bg-brand-600 focus:px-5 focus:py-2.5 focus:text-sm focus:font-semibold focus:text-white">
         Lompat ke konten utama
@@ -38,7 +44,9 @@
 
     @unless (View::hasSection('bare'))
         @include('partials.footer')
-        @include('partials.scroll-top')
+        @include('partials.consult-cta')
+        @include('partials.sticky-cta')
+        @include('partials.cookie-banner')
     @endunless
 
     {{-- Modal konfirmasi bersama; dipakai tombol Logout pada navbar. --}}

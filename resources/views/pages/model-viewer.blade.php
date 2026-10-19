@@ -1,6 +1,7 @@
 @extends('layouts.app')
 
 @section('title', '3D Viewer')
+@section('og-image', 'models')
 @section('description', 'Pratinjau 3D satu model: putar, zoom, dan geser object dari segala sudut.')
 
 {{-- Layar penuh: tanpa navbar, footer, maupun tombol kembali ke atas. --}}

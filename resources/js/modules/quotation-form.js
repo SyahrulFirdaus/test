@@ -439,6 +439,20 @@ export default function initQuotationForm(viewer, root) {
             form.style.display = 'none';
             successPanel.style.display = 'block';
             form.reset();
+
+            // Konversi quote: dikirim SETELAH respons server sukses dan modal
+            // sukses tampil — bukan saat tombol diklik — dan sekali per nomor
+            // tracking. user_data (email & HP) untuk Enhanced Conversions.
+            trackQuoteSubmitted(data, payload.items.length);
+
+            // Lanjut ke halaman Terima Kasih. Diberi jeda singkat supaya event
+            // di atas sempat terkirim; panel sukses tetap tampil sebagai
+            // cadangan bila pengalihan tertahan.
+            if (data.thanks_url) {
+                setTimeout(() => {
+                    window.location.href = data.thanks_url;
+                }, 1200);
+            }
         } catch (error) {
             console.error(error);
             showAlert('Koneksi ke server terputus. Periksa jaringan Anda lalu coba lagi.');
@@ -446,6 +460,53 @@ export default function initQuotationForm(viewer, root) {
             setSubmitting(false);
         }
     });
+}
+
+/**
+ * Event dataLayer `quote_submitted` (lihat partials/google-tag). Nomor yang
+ * sudah pernah dilaporkan di sesi browser ini tidak dikirim ulang.
+ */
+function trackQuoteSubmitted(data, fallbackCount) {
+    const number = data.tracking_number;
+
+    if (!number) {
+        return;
+    }
+
+    const key = 'nusama3d-quote-tracked';
+    let sent = [];
+
+    try {
+        sent = JSON.parse(window.sessionStorage.getItem(key) || '[]');
+    } catch {
+        sent = [];
+    }
+
+    if (sent.includes(number)) {
+        return;
+    }
+
+    const params = {
+        tracking_number: number,
+        model_count: data.model_count ?? fallbackCount,
+        guest: Boolean(data.guest),
+    };
+
+    if (data.user_data && Object.keys(data.user_data).length) {
+        params.user_data = data.user_data;
+    }
+
+    if (typeof window.nusamaTrack === 'function') {
+        window.nusamaTrack('quote_submitted', params);
+    } else {
+        (window.dataLayer = window.dataLayer || []).push({ event: 'quote_submitted', ...params });
+    }
+
+    try {
+        window.sessionStorage.setItem(key, JSON.stringify([...sent, number].slice(-20)));
+    } catch {
+        // Penyimpanan diblokir: event tetap terkirim untuk permintaan ini.
+    }
 }
 
 /**

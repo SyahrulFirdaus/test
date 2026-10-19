@@ -72,6 +72,8 @@
             <button type="submit" class="btn-primary w-full">Masuk</button>
         </form>
 
+        <x-legal-note action="masuk" class="mt-4 text-center" />
+
         @isset($footer)
             <div class="mt-7 border-t border-ink-100 pt-6 text-center text-sm text-ink-500">
                 {{ $footer }}

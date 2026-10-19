@@ -5,6 +5,8 @@ use App\Http\Controllers\Admin;
 use App\Http\Controllers\Auth;
 use App\Http\Controllers\Dashboard;
 use App\Http\Controllers\HomeController;
+use App\Http\Controllers\IndustryController;
+use App\Http\Controllers\LeadController;
 use App\Http\Controllers\LegacyPathRedirectController;
 use App\Http\Controllers\ModelCheckController;
 use App\Support\AdminPermission;
@@ -32,7 +34,22 @@ use Illuminate\Support\Facades\Route;
 
 Route::get('/', [HomeController::class, 'index'])->name('home');
 Route::get('/services', [ServiceController::class, 'index'])->name('services');
+// Landing page per layanan untuk iklan & SEO; daftar halamannya di
+// config/service-pages.php. Pola dibatasi ketat agar tidak bentrok dengan
+// route lain — selain keenam slug itu, 404.
+Route::get('/services/{page}', [ServiceController::class, 'show'])
+    ->where('page', '3d-printing|reverse-engineering|3d-scanning|product-development|3d-design|paint-finishing')
+    ->name('services.show');
+
+// Landing page Miniatur Teknik & Souvenir Korporat.
+Route::get('/miniatur-teknik', [App\Http\Controllers\MiniaturController::class, 'show'])->name('miniatur');
+
 Route::get('/technologies', [TechnologyController::class, 'index'])->name('technologies');
+Route::get('/industri', [IndustryController::class, 'index'])->name('industries');
+// Detail tiap industri; slug-nya didaftarkan di config/industries.php.
+Route::get('/industri/{industry}', [IndustryController::class, 'show'])
+    ->where('industry', '[a-z0-9-]+')
+    ->name('industries.show');
 Route::get('/3d-models', [ModelCheckController::class, 'index'])->name('models');
 // 3D Viewer satu model, dibuka di tab yang sama dari daftar halaman 3D Models.
 // `{model}` adalah id berkas di browser pengunjung, bukan path — polanya
@@ -46,10 +63,23 @@ Route::get('/3d-models/viewer', [ModelCheckController::class, 'legacyViewer'])->
 Route::get('/3d-models/panduan', [ModelCheckController::class, 'guide'])->name('models.guide');
 Route::get('/about', [AboutController::class, 'index'])->name('about');
 
+// Halaman legal: Kebijakan Privasi dan Syarat & Ketentuan.
+Route::view('/kebijakan-privasi', 'pages.legal.privacy')->name('legal.privacy');
+Route::view('/syarat-ketentuan', 'pages.legal.terms')->name('legal.terms');
+
 // Halaman "Cek Barang" berganti nama menjadi "3D Models". Tautan lama yang
 // terlanjur tersebar tetap sampai ke tujuannya lewat redirect permanen.
 Route::permanentRedirect('/cek-barang', '/3d-models');
 Route::permanentRedirect('/cek-barang/viewer', '/3d-models/viewer');
+
+// Halaman Terima Kasih setelah formulir/quotation terkirim (noindex).
+Route::get('/terima-kasih', [App\Http\Controllers\ThanksController::class, 'show'])->name('thanks');
+
+// Formulir publik (Form Kontak, konsultasi Miniatur, form singkat landing
+// page layanan) → Lead Management. Lihat App\Http\Controllers\LeadController.
+Route::post('/leads', [LeadController::class, 'store'])
+    ->middleware('throttle:10,1')
+    ->name('leads.store');
 
 Route::post('/3d-models/penawaran', [QuotationRequestController::class, 'store'])
     ->middleware(['auth', 'throttle:10,1'])
@@ -457,12 +487,68 @@ $staffRoutes = function () {
         });
     });
 
+    /*
+    | Lead Management: lead dari Form landing page layanan dan dari Quotation
+    | beserta sumbernya (GCLID/UTM). Status lead & nilai deal terpisah dari
+    | status quotation, pembayaran, dan produksi.
+    */
+    Route::middleware($can(AdminPermission::LEAD_VIEW))->group(function () use ($can) {
+        Route::get('penawaran/lead', [Admin\LeadController::class, 'index'])->name('leads.index');
+        // Export CSV Deal (Google Ads) — sebelum route {lead} agar tidak tertangkap sebagai id.
+        Route::get('penawaran/lead/export-deal', [Admin\LeadController::class, 'exportDeals'])
+            ->middleware($can(AdminPermission::LEAD_EXPORT))
+            ->name('leads.export-deals');
+        Route::get('penawaran/lead/{lead}', [Admin\LeadController::class, 'show'])->name('leads.show');
+        Route::get('penawaran/lead/{lead}/lampiran/{index}', [Admin\LeadController::class, 'attachment'])
+            ->whereNumber('index')
+            ->name('leads.attachment');
+        Route::patch('penawaran/lead/{lead}', [Admin\LeadController::class, 'update'])
+            ->middleware($can(AdminPermission::LEAD_EDIT))
+            ->name('leads.update');
+    });
+
     // Notifikasi (juga lonceng di header).
     Route::middleware($can(AdminPermission::NOTIFICATION_VIEW))->group(function () {
         Route::get('penawaran/notifikasi', [Admin\NotificationController::class, 'index'])->name('notifications.index');
         Route::get('penawaran/notifikasi/terbaru', [Admin\NotificationController::class, 'latest'])->name('notifications.latest');
         Route::post('penawaran/notifikasi/baca-semua', [Admin\NotificationController::class, 'readAll'])->name('notifications.read-all');
         Route::post('penawaran/notifikasi/{notification}/baca', [Admin\NotificationController::class, 'read'])->name('notifications.read');
+    });
+
+    /*
+    | Pengaturan WhatsApp: nomor pengirim notifikasi status penawaran, status
+    | koneksi, uji kirim, dan riwayat pengiriman. Credential API tidak pernah
+    | lewat sini — tempatnya di .env (config/whatsapp.php).
+    */
+    Route::middleware($can(AdminPermission::WHATSAPP_VIEW))->group(function () use ($can) {
+        Route::get('pengaturan/whatsapp', [Admin\WhatsAppSettingController::class, 'edit'])->name('whatsapp.edit');
+
+        Route::middleware($can(AdminPermission::WHATSAPP_EDIT))->group(function () {
+            Route::patch('pengaturan/whatsapp', [Admin\WhatsAppSettingController::class, 'update'])->name('whatsapp.update');
+            Route::post('pengaturan/whatsapp/periksa-koneksi', [Admin\WhatsAppSettingController::class, 'check'])
+                ->middleware('throttle:10,1')
+                ->name('whatsapp.check');
+            Route::post('pengaturan/whatsapp/uji-kirim', [Admin\WhatsAppSettingController::class, 'test'])
+                ->middleware('throttle:5,1')
+                ->name('whatsapp.test');
+        });
+    });
+
+    /*
+    | Ulasan Google yang tampil di Home, plus tautan profil Google-nya.
+    | Route "tambah" sebelum route berparameter.
+    */
+    Route::middleware($can(AdminPermission::REVIEW_VIEW))->group(function () use ($can) {
+        Route::get('pengaturan/ulasan-google', [Admin\ReviewController::class, 'index'])->name('reviews.index');
+
+        Route::middleware($can(AdminPermission::REVIEW_EDIT))->group(function () {
+            Route::patch('pengaturan/ulasan-google/tautan', [Admin\ReviewController::class, 'updateLink'])->name('reviews.link');
+            Route::get('pengaturan/ulasan-google/tambah', [Admin\ReviewController::class, 'create'])->name('reviews.create');
+            Route::post('pengaturan/ulasan-google', [Admin\ReviewController::class, 'store'])->name('reviews.store');
+            Route::get('pengaturan/ulasan-google/{testimonial}/ubah', [Admin\ReviewController::class, 'edit'])->name('reviews.edit');
+            Route::patch('pengaturan/ulasan-google/{testimonial}', [Admin\ReviewController::class, 'update'])->name('reviews.update');
+            Route::delete('pengaturan/ulasan-google/{testimonial}', [Admin\ReviewController::class, 'destroy'])->name('reviews.destroy');
+        });
     });
 
     /*

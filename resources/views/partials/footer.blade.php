@@ -18,7 +18,7 @@
                 <div class="flex items-start gap-3">
                     <x-logo-mark class="h-12 w-12 shrink-0" />
                     <span class="flex flex-col gap-1 leading-tight">
-                        <span class="font-display text-xl font-bold text-white">{{ $company->name }}</span>
+                        <span class="notranslate font-display text-xl font-bold text-white" translate="no">{{ $company->name }}</span>
                         <span class="text-[0.7rem] font-semibold uppercase tracking-[0.1em] text-brand-300">{{ $company->tagline }}</span>
                     </span>
                 </div>
@@ -47,7 +47,7 @@
             <div class="sm:col-span-1 lg:col-span-2">
                 <h2 class="font-display text-sm font-semibold uppercase tracking-[0.16em] text-white">Menu</h2>
                 <ul class="mt-5 space-y-3 text-sm">
-                    @foreach ([['Home', 'home'], ['Services', 'services'], ['Technologies', 'technologies'], ['3D Models', 'models'], ['About', 'about'], ['Tracking Penawaran', 'tracking.index']] as [$label, $route])
+                    @foreach ([['Home', 'home'], ['Services', 'services'], ['Technologies', 'technologies'], ['Industri', 'industries'], ['3D Models', 'models'], ['About', 'about'], ['Tracking Penawaran', 'tracking.index']] as [$label, $route])
                         <li>
                             <a href="{{ route($route) }}" class="inline-flex items-center gap-2 text-ink-400 transition-colors hover:text-brand-300">
                                 {{ $label }}
@@ -63,11 +63,16 @@
                 <ul class="mt-5 space-y-3 text-sm">
                     @foreach ($footerServices as $service)
                         <li>
-                            <a href="{{ route('services') }}#{{ $service->slug }}" class="text-ink-400 transition-colors hover:text-brand-300">
+                            <a href="{{ \App\Support\ServicePages::url($service->slug) }}" class="text-ink-400 transition-colors hover:text-brand-300">
                                 {{ $service->title }}
                             </a>
                         </li>
                     @endforeach
+                    <li>
+                        <a href="{{ route('miniatur') }}" class="text-ink-400 transition-colors hover:text-brand-300">
+                            Miniatur Teknik &amp; Souvenir
+                        </a>
+                    </li>
                 </ul>
             </div>
 
@@ -82,13 +87,13 @@
                     @if ($company->phone)
                         <li class="flex gap-3">
                             <x-icons.phone class="mt-0.5 h-5 w-5 shrink-0 text-brand-400" />
-                            <a href="tel:{{ preg_replace('/\s+/', '', $company->phone) }}" class="text-ink-400 transition-colors hover:text-brand-300">{{ $company->phone }}</a>
+                            <a href="{{ $company->phone_link }}" data-cta="footer" class="text-ink-400 transition-colors hover:text-brand-300">{{ $company->phone }}</a>
                         </li>
                     @endif
                     @if ($company->email)
                         <li class="flex gap-3">
                             <x-icons.mail class="mt-0.5 h-5 w-5 shrink-0 text-brand-400" />
-                            <a href="mailto:{{ $company->email }}" class="break-all text-ink-400 transition-colors hover:text-brand-300">{{ $company->email }}</a>
+                            <a href="mailto:{{ $company->email }}" data-cta="footer" class="break-all text-ink-400 transition-colors hover:text-brand-300">{{ $company->email }}</a>
                         </li>
                     @endif
                     @if ($company->operational_hours)
@@ -103,6 +108,13 @@
 
         <div class="flex flex-col items-center justify-between gap-4 border-t border-white/10 py-7 text-xs text-ink-500 sm:flex-row">
             <p>&copy; {{ now()->year }} {{ $company->legal_name ?: $company->name }}. Seluruh hak cipta dilindungi.</p>
+
+            <nav aria-label="Legal" class="flex items-center gap-5">
+                <a href="{{ route('legal.privacy') }}" class="transition-colors hover:text-brand-300">Kebijakan Privasi</a>
+                <a href="{{ route('legal.terms') }}" class="transition-colors hover:text-brand-300">Syarat &amp; Ketentuan</a>
+                {{-- Membuka kembali banner persetujuan cookie (ubah/tarik persetujuan). --}}
+                <button type="button" class="transition-colors hover:text-brand-300" data-cookie-settings>Pengaturan Cookie</button>
+            </nav>
         </div>
     </div>
 </footer>

@@ -1,6 +1,7 @@
 @extends('layouts.app')
 
 @section('title', '3D Printing Guide')
+@section('og-image', 'models')
 @section('description', 'Panduan menyiapkan file 3D sebelum diunggah: format yang didukung, ketebalan dinding minimum, support, overhang, batas ukuran cetak, pilihan material, serta tips mendesain model agar siap dicetak.')
 
 @section('content')

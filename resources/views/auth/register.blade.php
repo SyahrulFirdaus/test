@@ -61,6 +61,8 @@
         <button type="submit" class="btn-primary mt-7 w-full">Lanjut</button>
     </form>
 
+    <x-legal-note action="mendaftar" class="mt-4 text-center" />
+
     <p class="mt-7 border-t border-ink-100 pt-6 text-center text-sm text-ink-500">
         Sudah punya akun?
         <a href="{{ route('login') }}" class="font-semibold text-brand-600 transition-colors hover:text-brand-700">Masuk di sini</a>

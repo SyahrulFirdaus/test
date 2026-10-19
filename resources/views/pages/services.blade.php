@@ -1,7 +1,25 @@
 @extends('layouts.app')
 
 @section('title', 'Services')
+@section('og-image', 'services')
 @section('description', 'Enam layanan 3D printing terpadu: 3D Printing Services, Product Development, Reverse Engineering, 3D Design, 3D Scanning, serta Paint & Finishing.')
+
+@push('head')
+    {{-- Anchor lama (/services#reverse-engineering, dst.) kini punya landing
+         page sendiri; pengunjung langsung diarahkan ke halaman tersebut. --}}
+    <script>
+        (function () {
+            var urls = @json($landingUrls);
+            var slug = decodeURIComponent(window.location.hash.slice(1));
+
+            if (Object.prototype.hasOwnProperty.call(urls, slug)) {
+                window.location.replace(urls[slug]);
+            }
+        })();
+    </script>
+@endpush
+
+@section('quote-href', '#form-kontak')
 
 @section('content')
 
@@ -33,7 +51,7 @@
                     <x-service-card
                         :service="$service"
                         :delay="($loop->index % 3) * 80"
-                        :href="'#'.$service->slug" />
+                        :href="$landingUrls[$service->slug] ?? '#'.$service->slug" />
                 @endforeach
             </div>
         </div>
@@ -84,10 +102,18 @@
                                 </ul>
                             @endif
 
-                            <a href="{{ route('about') }}#kontak" class="mt-8 inline-flex items-center gap-2 text-sm font-semibold text-brand-600 transition-colors hover:text-brand-800">
-                                Diskusikan kebutuhan {{ $service->title }}
-                                <x-icons.arrow-right class="h-4 w-4" />
-                            </a>
+                            <div class="mt-8 flex flex-wrap items-center gap-x-6 gap-y-3">
+                                @isset($landingUrls[$service->slug])
+                                    <a href="{{ $landingUrls[$service->slug] }}" class="btn-primary">
+                                        Lihat halaman {{ $service->title }}
+                                        <x-icons.arrow-right class="h-4 w-4" />
+                                    </a>
+                                @endisset
+                                <a href="{{ route('about') }}#kontak" class="inline-flex items-center gap-2 text-sm font-semibold text-brand-600 transition-colors hover:text-brand-800">
+                                    Diskusikan kebutuhan {{ $service->title }}
+                                    <x-icons.arrow-right class="h-4 w-4" />
+                                </a>
+                            </div>
                         </div>
                     </div>
                 </article>
@@ -119,6 +145,10 @@
             </div>
         </div>
     </section>
+
+    <x-contact-form
+        eyebrow="Konsultasi Layanan"
+        title="Tanyakan layanan yang Anda butuhkan" />
 
     <x-cta-band
         eyebrow="Siap Memulai"

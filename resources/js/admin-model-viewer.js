@@ -28,7 +28,7 @@ async function boot(container) {
     }
 
     if (!webglAvailable()) {
-        fail(container, 'Browser ini tidak mendukung WebGL.');
+        fail(container, 'Pratinjau 3D tidak tersedia di browser ini. Data dan berkas penawaran tetap dapat diproses seperti biasa.');
 
         return;
     }

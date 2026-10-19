@@ -125,6 +125,15 @@ class QuotationRequest extends Model
     }
 
     /**
+     * Lead pada Lead Management. Diisi App\Services\LeadRecorder lewat query
+     * langsung, jadi sengaja tidak masuk $fillable.
+     */
+    public function lead(): BelongsTo
+    {
+        return $this->belongsTo(Lead::class);
+    }
+
+    /**
      * Penawaran milik pelanggan bertipe tertentu (Personal atau Business).
      *
      * Dipakai switch Personal/Business pada dashboard pengelola — lihat

@@ -28,7 +28,7 @@ async function boot(container) {
     const id = container.dataset.modelId;
 
     if (!webglAvailable()) {
-        showState(container, 'error', 'Browser ini tidak mendukung WebGL.');
+        showState(container, 'error', 'Pratinjau 3D tidak tersedia di browser Anda. Namun, Anda tetap bisa mengunggah model dan mengajukan permintaan penawaran seperti biasa.');
 
         return;
     }

@@ -8,6 +8,7 @@ use App\Models\QuotationRequest;
 use App\Models\User;
 use App\Notifications\NewQuotationSubmitted;
 use App\Services\ActivityLogger;
+use App\Services\LeadRecorder;
 use App\Services\MeshInspector;
 use App\Services\PrintEstimator;
 use App\Services\SellingPriceEstimator;
@@ -31,6 +32,7 @@ class QuotationRequestController extends Controller
         private readonly SellingPriceEstimator $sellingPrice,
         private readonly ActivityLogger $activity,
         private readonly MeshInspector $inspector,
+        private readonly LeadRecorder $leads,
     ) {}
 
     /**
@@ -167,16 +169,38 @@ class QuotationRequestController extends Controller
             actor: $request->user(),
         );
 
+        // Lead Management: tautkan ke lead kontak ini beserta sumber
+        // kedatangannya (GCLID/UTM). Tidak pernah menggagalkan quotation.
+        $this->leads->recordQuotation($quotation, $request);
+
         // Seluruh admin diberi tahu supaya penawaran baru langsung terlihat di
         // ikon lonceng dashboard mereka.
         Notification::send(User::admins()->get(), new NewQuotationSubmitted($quotation));
 
+        // Halaman Terima Kasih (/terima-kasih?tipe=quote) menampilkan nomor
+        // tracking ini. Konversinya sendiri (quote_submitted) dikirim halaman
+        // 3D Models begitu respons ini diterima.
+        $request->session()->flash('lead_submitted', [
+            'tipe' => 'quote',
+            'form' => 'quotation',
+            'tracking_number' => $quotation->tracking_number,
+        ]);
+
         return response()->json([
             'message' => 'Permintaan penawaran berhasil dikirim.',
+            'thanks_url' => route('thanks', ['tipe' => 'quote']),
             'tracking_number' => $quotation->tracking_number,
             'model_count' => $items->count(),
             'tracking_url' => route('tracking.show', $quotation->tracking_number),
             'document_url' => route('tracking.document', $quotation->tracking_number),
+            // Enhanced Conversions: email & nomor HP pemohon untuk event
+            // quote_submitted (di-hash Google tag). Hanya di badan respons
+            // untuk pemiliknya sendiri, tidak pernah di URL.
+            'user_data' => array_filter([
+                'email' => mb_strtolower(trim((string) $quotation->email)) ?: null,
+                'phone_number' => ($phone = \App\Models\Lead::normalizePhone($quotation->whatsapp)) ? '+'.$phone : null,
+            ]),
+            'guest' => $request->user() === null,
         ], 201);
     }
 

@@ -1,7 +1,6 @@
 /**
  * Pelengkap `scroll-behavior: smooth` pada CSS:
  * - memindahkan fokus ke target anchor agar tetap ramah keyboard & screen reader
- * - mengatur tampil/sembunyi tombol kembali ke atas
  */
 export default function initSmoothScroll() {
     document.querySelectorAll('a[href^="#"]').forEach((link) => {
@@ -50,24 +49,4 @@ export default function initSmoothScroll() {
     };
 
     window.addEventListener('load', () => window.setTimeout(scrollToHash, 150));
-
-    const toTop = document.querySelector('[data-scroll-top]');
-
-    if (!toTop) {
-        return;
-    }
-
-    const toggleVisibility = () => {
-        const visible = window.scrollY > 600;
-        toTop.classList.toggle('opacity-0', !visible);
-        toTop.classList.toggle('pointer-events-none', !visible);
-        toTop.classList.toggle('translate-y-3', !visible);
-    };
-
-    toggleVisibility();
-    window.addEventListener('scroll', toggleVisibility, { passive: true });
-
-    toTop.addEventListener('click', () => {
-        window.scrollTo({ top: 0, behavior: 'smooth' });
-    });
 }

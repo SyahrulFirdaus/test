@@ -170,3 +170,20 @@ export default class SharedRenderer {
         this.renderer.dispose();
     }
 }
+
+/**
+ * Pengganti SharedRenderer untuk browser tanpa WebGL.
+ *
+ * Antarmukanya sama, tetapi tidak pernah menggambar apa pun. Card mesin tetap
+ * dapat dibangun untuk mengukur geometri, menjalankan analisis kelayakan, dan
+ * menghitung estimasi; hanya pratinjau 3D-nya yang tidak tersedia.
+ */
+export function createNullRenderer() {
+    return {
+        register: (view) => view,
+        unregister() {},
+        invalidate() {},
+        invalidateAll() {},
+        dispose() {},
+    };
+}

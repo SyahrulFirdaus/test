@@ -18,13 +18,22 @@ const HEIGHT = 480;
 const BACKGROUND = 0xf3eeec;
 
 let renderer = null;
+// Browser tanpa WebGL: cukup dicoba sekali, selanjutnya thumbnail dilewati.
+let unavailable = false;
 
 function getRenderer() {
-    if (renderer) {
+    if (renderer || unavailable) {
         return renderer;
     }
 
-    renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+    try {
+        renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+    } catch {
+        unavailable = true;
+
+        return null;
+    }
+
     renderer.setPixelRatio(1);
     renderer.setSize(WIDTH, HEIGHT, false);
     renderer.setClearColor(BACKGROUND, 1);
@@ -44,7 +53,7 @@ function getRenderer() {
  * @returns {string} data URL PNG, atau string kosong bila gagal
  */
 export function renderThumbnail(object) {
-    if (!object) {
+    if (!object || unavailable) {
         return '';
     }
 
@@ -85,6 +94,11 @@ export function renderThumbnail(object) {
         camera.updateProjectionMatrix();
 
         const engine = getRenderer();
+
+        if (!engine) {
+            return '';
+        }
+
         engine.render(scene, camera);
 
         return engine.domElement.toDataURL('image/png');

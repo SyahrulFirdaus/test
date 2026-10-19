@@ -1,11 +1,14 @@
 @extends('layouts.app')
 
 @section('title', '3D Models')
+@section('og-image', 'models')
 @section('description', 'Pre-Print Analyzer: unggah beberapa file STL atau OBJ sekaligus. Setiap model mendapat mesin printer dan build plate sendiri, lengkap dengan viewer 3D, analisis kelayakan, pengaturan printing, dan estimasi biayanya masing-masing.')
 
 {{-- Tanpa hero gelap di halaman ini, navbar diminta tampil solid sejak awal
      agar menunya tetap terbaca di atas latar putih. --}}
 @section('navbar-style', 'solid')
+
+@section('quote-href', '#viewer')
 
 @section('content')
 
@@ -18,17 +21,21 @@
                 {{-- Konfigurasi estimasi & batas analisis, dibaca oleh JavaScript --}}
                 <script type="application/json" data-printing-config>@json($printingConfig)</script>
 
-                {{-- Peringatan bila browser tidak mendukung WebGL --}}
-                <div class="mb-8 rounded-2xl border border-amber-200 bg-amber-50 p-6" style="display: none" data-viewer-unsupported>
+                {{-- Pemberitahuan bila browser tidak mendukung WebGL. Unggah model
+                     dan permintaan penawaran tetap berjalan; hanya pratinjau 3D
+                     yang ditiadakan. --}}
+                <div class="mb-8 rounded-2xl border border-amber-200 bg-amber-50 p-6" style="display: none" data-viewer-unsupported role="status">
                     <div class="flex gap-4">
                         <span class="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-amber-100 text-amber-700">
                             <x-icons.alert class="h-5 w-5" />
                         </span>
                         <div>
-                            <h2 class="font-display text-base font-bold text-amber-900">Browser Anda belum mendukung WebGL</h2>
+                            <h2 class="font-display text-base font-bold text-amber-900">Pratinjau 3D tidak tersedia di browser Anda</h2>
                             <p class="mt-1.5 text-sm leading-relaxed text-amber-800">
-                                Viewer 3D memerlukan WebGL untuk menggambar model. Silakan gunakan versi terbaru Chrome, Edge, Firefox, atau Safari,
-                                lalu pastikan akselerasi perangkat keras (hardware acceleration) aktif pada pengaturan browser.
+                                Namun, Anda tetap bisa mengunggah model dan mengajukan permintaan penawaran seperti biasa.
+                            </p>
+                            <p class="mt-1.5 text-xs leading-relaxed text-amber-700">
+                                Ingin melihat pratinjau 3D? Gunakan versi terbaru Chrome, Edge, Firefox, atau Safari dengan akselerasi perangkat keras (hardware acceleration) aktif.
                             </p>
                         </div>
                     </div>
@@ -46,7 +53,9 @@
                     <div class="min-w-0 lg:col-span-8">
 
                     {{-- ================= 1. AREA UNGGAH ================= --}}
-                    <div data-aos="fade-up">
+                    {{-- Di bagian paling atas halaman: animasi CSS, bukan AOS, agar
+                         langsung tampil tanpa menunggu JavaScript. --}}
+                    <div data-hero-reveal>
 
                         {{-- Panduan menyiapkan model, sengaja diletakkan di atas area
                              unggah agar terbaca sebelum file pertama dipilih. --}}
@@ -133,8 +142,8 @@
                             <h2 class="font-display text-xl font-bold text-ink-900 sm:text-2xl">Model yang Diunggah</h2>
                             <p class="mt-1.5 text-sm leading-relaxed text-ink-500">
                                 <span class="font-semibold text-brand-600" data-printer-count>0/{{ $maxModels }}</span>
-                                model &middot; klik thumbnail atau tombol <span class="font-semibold text-ink-700">Lihat 3D</span>
-                                untuk melihat pratinjau 3D-nya.
+                                model<span data-viewer-hint> &middot; klik thumbnail atau tombol <span class="font-semibold text-ink-700">Lihat 3D</span>
+                                untuk melihat pratinjau 3D-nya</span>.
                             </p>
                         </div>
 
@@ -810,6 +819,8 @@
                                 Dengan mengirim permintaan ini, Anda menyetujui file model diunggah ke server kami untuk keperluan peninjauan produksi.
                                 File diperlakukan sebagai rahasia dan hanya dapat diakses tim internal.
                             </p>
+
+                            <x-legal-note action="mengirim permintaan penawaran" class="mt-2" />
                         </form>
 
                         {{-- Status berhasil --}}

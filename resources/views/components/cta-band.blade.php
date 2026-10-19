@@ -30,7 +30,7 @@
                 </p>
 
                 <div class="mt-9 flex flex-col items-center justify-center gap-3 sm:flex-row">
-                    <a href="{{ $primaryHref ?? route('services') }}"
+                    <a href="{{ $primaryHref ?? route('services') }}" data-cta="content"
                        class="btn w-full bg-white text-brand-700 hover:-translate-y-0.5 hover:bg-brand-50 sm:w-auto">
                         {{ $primaryLabel }}
                         <x-icons.arrow-right class="h-4 w-4" />

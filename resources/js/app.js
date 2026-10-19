@@ -3,6 +3,7 @@ import AOS from 'aos';
 
 import initConfirmDialog from './modules/confirm-dialog';
 import initNavbar from './modules/navbar';
+import initLanguageSwitcher from './modules/language-switcher';
 import initCounters from './modules/counters';
 import initSmoothScroll from './modules/smooth-scroll';
 
@@ -18,6 +19,7 @@ AOS.init({
 
 initConfirmDialog();
 initNavbar();
+initLanguageSwitcher();
 initSmoothScroll();
 initCounters({ animate: !prefersReducedMotion });
 

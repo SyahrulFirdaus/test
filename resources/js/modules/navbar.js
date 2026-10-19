@@ -45,7 +45,7 @@ export default function initNavbar() {
         link.addEventListener('click', () => setMenuOpen(false));
     });
 
-    window.matchMedia('(min-width: 1024px)').addEventListener('change', (event) => {
+    window.matchMedia('(min-width: 1280px)').addEventListener('change', (event) => {
         if (event.matches) {
             setMenuOpen(false);
         }
@@ -57,26 +57,28 @@ export default function initNavbar() {
         }
     });
 
-    initSupportMenu(navbar);
+    initDropdownMenu(navbar, 'support');
+    initDropdownMenu(navbar, 'industry');
 }
 
 /**
- * Menu "Support Us" pada layar besar.
+ * Menu dropdown pada layar besar: "Support Us" (data-support-*) dan
+ * "Industri" (data-industry-*).
  *
- * Isinya kontak perusahaan; panelnya tertutup lagi begitu pengguna menekan di
- * luar menu atau menekan Escape. Pada layar kecil menu ini memakai <details>
- * bawaan browser sehingga tidak memerlukan JavaScript sama sekali.
+ * Panelnya tertutup lagi begitu pengguna menekan di luar menu atau menekan
+ * Escape. Pada layar kecil menu ini memakai <details> bawaan browser sehingga
+ * tidak memerlukan JavaScript sama sekali.
  */
-function initSupportMenu(navbar) {
-    const root = navbar.querySelector('[data-support-menu]');
+function initDropdownMenu(navbar, name) {
+    const root = navbar.querySelector(`[data-${name}-menu]`);
 
     if (!root) {
         return;
     }
 
-    const toggle = root.querySelector('[data-support-toggle]');
-    const panel = root.querySelector('[data-support-panel]');
-    const caret = root.querySelector('[data-support-caret]');
+    const toggle = root.querySelector(`[data-${name}-toggle]`);
+    const panel = root.querySelector(`[data-${name}-panel]`);
+    const caret = root.querySelector(`[data-${name}-caret]`);
 
     if (!toggle || !panel) {
         return;
@@ -88,9 +90,15 @@ function initSupportMenu(navbar) {
         caret?.classList.toggle('rotate-180', open);
     };
 
-    toggle.addEventListener('click', (event) => {
-        event.stopPropagation();
+    // Klik tidak dihentikan propagasinya supaya dropdown lain yang sedang
+    // terbuka ikut tertutup lewat listener dokumen di bawah.
+    toggle.addEventListener('click', () => {
         setOpen(panel.classList.contains('hidden'));
+    });
+
+    // Tautan anchor di halaman yang sama tidak memuat ulang halaman.
+    panel.querySelectorAll('a').forEach((link) => {
+        link.addEventListener('click', () => setOpen(false));
     });
 
     document.addEventListener('click', (event) => {

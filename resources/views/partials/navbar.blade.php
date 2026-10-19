@@ -12,8 +12,14 @@
         ['label' => 'Home', 'route' => 'home'],
         ['label' => 'Services', 'route' => 'services'],
         ['label' => 'Technologies', 'route' => 'technologies'],
+        // Menu dropdown; isinya diambil dari config/industries.php.
+        ['label' => 'Industri', 'route' => 'industries', 'dropdown' => true],
+        ['label' => 'Miniatur Teknik', 'route' => 'miniatur'],
         ['label' => 'About', 'route' => 'about'],
     ];
+
+    // Industri unggulan yang ditampilkan di dropdown "Industri".
+    $featuredIndustries = collect(config('industries'))->where('featured', true);
 
     // Admin diarahkan ke dashboardnya sendiri, bukan dashboard pelanggan.
     $dashboardRoute = auth()->check() && auth()->user()->isAdmin() ? 'admin.dashboard' : 'dashboard';
@@ -24,7 +30,8 @@
             'icon' => 'whatsapp',
             'label' => 'WhatsApp',
             'value' => $company->whatsapp,
-            'href' => $company->whatsapp_link,
+            // Teks otomatis per halaman (App\Support\WhatsAppLink).
+            'href' => $company->whatsapp_link ? wa_link() : null,
             'external' => true,
         ],
         [
@@ -38,7 +45,7 @@
             'icon' => 'phone',
             'label' => 'Telepon',
             'value' => $company->phone,
-            'href' => $company->phone ? 'tel:'.preg_replace('/\s+/', '', $company->phone) : null,
+            'href' => $company->phone_link,
             'external' => false,
         ],
         [
@@ -72,9 +79,11 @@
             </p>
 
             @if ($company->whatsapp_link)
-                <a href="{{ $company->whatsapp_link }}"
+                <a href="{{ wa_link() }}"
                    target="_blank"
                    rel="noopener noreferrer"
+                   data-wa-link
+                   data-cta="header"
                    class="hidden shrink-0 items-center gap-1.5 text-[0.7rem] font-semibold text-ink-500 transition-colors hover:text-brand-600 sm:inline-flex">
                     <x-icons.whatsapp class="h-3.5 w-3.5" />
                     {{ $company->whatsapp }}
@@ -93,16 +102,64 @@
             <div class="flex min-w-0 items-center gap-6 xl:gap-8">
                 <a href="{{ route('home') }}" class="flex shrink-0 items-center gap-3" aria-label="{{ $company->name }}, kembali ke beranda">
                     <x-logo-mark class="h-11 w-11 shrink-0" />
-                    <span class="brand-name font-display text-xl font-bold tracking-tight">{{ $company->name }}</span>
+                    <span class="brand-name notranslate font-display text-xl font-bold tracking-tight" translate="no">{{ $company->name }}</span>
                 </a>
 
-                <div class="hidden items-center gap-1 lg:flex">
+                <div class="hidden items-center gap-1 xl:flex">
                     @foreach ($menu as $item)
-                        <a href="{{ route($item['route']) }}"
-                           class="nav-link"
-                           @if (request()->routeIs($item['route'])) aria-current="page" @endif>
-                            {{ $item['label'] }}
-                        </a>
+                        @if ($item['dropdown'] ?? false)
+                            {{-- Industri: dropdown berisi daftar industri unggulan --}}
+                            <div class="relative" data-industry-menu>
+                                <button type="button"
+                                        class="nav-link inline-flex items-center gap-1"
+                                        data-industry-toggle
+                                        aria-expanded="false"
+                                        aria-haspopup="true"
+                                        @if (request()->routeIs($item['route'], $item['route'].'.*')) aria-current="page" @endif>
+                                    {{ $item['label'] }}
+                                    <x-icons.chevron-down class="h-3.5 w-3.5 transition-transform duration-200" data-industry-caret />
+                                </button>
+
+                                <div class="absolute left-0 top-full z-50 mt-2 hidden w-[22rem] overflow-hidden rounded-2xl border border-ink-100 bg-white shadow-card-hover"
+                                     data-industry-panel>
+                                    {{-- Judul "Industri" menuju halaman ringkasan seluruh industri. --}}
+                                    <a href="{{ route('industries') }}"
+                                       class="group/industri flex items-center justify-between gap-3 border-b border-ink-100 bg-ink-50/70 px-5 py-3 transition-colors hover:bg-brand-50/70">
+                                        <span>
+                                            <span class="block text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-ink-400">Berdasarkan Industri</span>
+                                            <span class="mt-0.5 block font-display text-sm font-bold text-ink-900 transition-colors group-hover/industri:text-brand-600">Industri</span>
+                                        </span>
+                                        <span class="inline-flex items-center gap-1 text-[0.7rem] font-semibold text-brand-600">
+                                            Lihat semua
+                                            <x-icons.arrow-right class="h-3.5 w-3.5 transition-transform duration-200 group-hover/industri:translate-x-0.5" />
+                                        </span>
+                                    </a>
+
+                                    <ul class="py-2">
+                                        @foreach ($featuredIndustries as $industry)
+                                            <li>
+                                                <a href="{{ route('industries.show', $industry['slug']) }}"
+                                                   class="block px-5 py-2 text-sm font-medium leading-snug text-ink-700 transition-colors hover:bg-brand-50/60 hover:text-brand-600">
+                                                    {{ $industry['name'] }}
+                                                </a>
+                                            </li>
+                                        @endforeach
+                                    </ul>
+
+                                    <a href="{{ route('industries') }}#lainnya"
+                                       class="flex items-center gap-1.5 border-t border-ink-100 bg-ink-50/70 px-5 py-3 font-mono text-xs font-semibold text-brand-600 transition-colors hover:text-brand-700">
+                                        dan lainnya
+                                        <x-icons.arrow-right class="h-3.5 w-3.5" />
+                                    </a>
+                                </div>
+                            </div>
+                        @else
+                            <a href="{{ route($item['route']) }}"
+                               class="nav-link"
+                               @if (request()->routeIs($item['route'])) aria-current="page" @endif>
+                                {{ $item['label'] }}
+                            </a>
+                        @endif
                     @endforeach
 
                     {{-- Support Us: dropdown berisi kontak perusahaan --}}
@@ -130,6 +187,7 @@
                                         <{{ $tag }}
                                             @if ($contact['href'])
                                                 href="{{ $contact['href'] }}"
+                                                data-cta="menu"
                                                 @if ($contact['external']) target="_blank" rel="noopener noreferrer" @endif
                                             @endif
                                             class="flex items-start gap-3 px-5 py-3 transition-colors {{ $contact['href'] ? 'hover:bg-brand-50/60' : '' }}">
@@ -153,8 +211,16 @@
                 </div>
             </div>
 
-            {{-- Kanan: Order Now (outline) + Sign In (primary) --}}
-            <div class="hidden shrink-0 items-center gap-2.5 lg:flex">
+            {{-- Kanan: pilihan bahasa + Order Now (outline) + Sign In (primary).
+                 Bahasa Inggris memakai terjemahan otomatis Google Translate
+                 (resources/js/modules/language-switcher.js). --}}
+            <div class="hidden shrink-0 items-center gap-2.5 xl:flex">
+                <div class="lang-switch notranslate" translate="no" role="group" aria-label="Pilih bahasa" data-lang-switch>
+                    <button type="button" data-lang="id" aria-pressed="true" title="Bahasa Indonesia">ID</button>
+                    <span aria-hidden="true">/</span>
+                    <button type="button" data-lang="en" aria-pressed="false" title="English (terjemahan otomatis)">EN</button>
+                </div>
+
                 <a href="{{ route('models') }}" class="nav-cta-outline">Order Now</a>
 
                 @auth
@@ -173,8 +239,17 @@
                 @endauth
             </div>
 
+            {{-- Pilihan bahasa tetap terlihat di layar kecil, di samping tombol menu. --}}
+            <div class="ml-auto flex shrink-0 items-center xl:hidden">
+                <div class="lang-switch notranslate" translate="no" role="group" aria-label="Pilih bahasa" data-lang-switch>
+                    <button type="button" data-lang="id" aria-pressed="true" title="Bahasa Indonesia">ID</button>
+                    <span aria-hidden="true">/</span>
+                    <button type="button" data-lang="en" aria-pressed="false" title="English (terjemahan otomatis)">EN</button>
+                </div>
+            </div>
+
             <button type="button"
-                    class="nav-toggle inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl lg:hidden"
+                    class="nav-toggle inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl xl:hidden"
                     data-navbar-toggle
                     aria-expanded="false"
                     aria-controls="navbar-menu"
@@ -186,16 +261,56 @@
     </nav>
 
     {{-- ================= MENU MOBILE ================= --}}
-    <div id="navbar-menu" class="hidden lg:hidden" data-navbar-menu>
+    <div id="navbar-menu" class="hidden xl:hidden" data-navbar-menu>
         <div class="px-5 pb-5 sm:px-8">
             <div class="rounded-2xl border border-ink-100 bg-white p-3 shadow-card">
                 @foreach ($menu as $item)
-                    <a href="{{ route($item['route']) }}"
-                       class="nav-link-mobile"
-                       @if (request()->routeIs($item['route'])) aria-current="page" @endif>
-                        {{ $item['label'] }}
-                        <x-icons.arrow-right class="h-4 w-4 opacity-50" />
-                    </a>
+                    @if ($item['dropdown'] ?? false)
+                        {{-- Industri dibentangkan dengan <details> seperti Support Us --}}
+                        <details class="rounded-xl">
+                            <summary class="nav-link-mobile cursor-pointer list-none"
+                                     @if (request()->routeIs($item['route'], $item['route'].'.*')) aria-current="page" @endif>
+                                {{ $item['label'] }}
+                                <x-icons.chevron-down class="h-4 w-4 opacity-50" />
+                            </summary>
+
+                            <ul class="mb-2 space-y-0.5 px-2 pb-1">
+                                <li class="px-2 pb-1 pt-1 text-[0.6rem] font-semibold uppercase tracking-[0.14em] text-ink-400">Berdasarkan Industri</li>
+                                <li>
+                                    <a href="{{ route('industries') }}"
+                                       class="flex items-center justify-between rounded-lg bg-ink-50 px-2 py-2 font-display text-sm font-bold text-ink-900 transition-colors hover:bg-brand-50 hover:text-brand-600">
+                                        Industri
+                                        <span class="inline-flex items-center gap-1 text-[0.7rem] font-semibold text-brand-600">
+                                            Lihat semua
+                                            <x-icons.arrow-right class="h-3.5 w-3.5" />
+                                        </span>
+                                    </a>
+                                </li>
+                                @foreach ($featuredIndustries as $industry)
+                                    <li>
+                                        <a href="{{ route('industries.show', $industry['slug']) }}"
+                                           class="block rounded-lg px-2 py-2 text-sm font-medium leading-snug text-ink-700 transition-colors hover:bg-brand-50 hover:text-brand-600">
+                                            {{ $industry['name'] }}
+                                        </a>
+                                    </li>
+                                @endforeach
+                                <li>
+                                    <a href="{{ route('industries') }}#lainnya"
+                                       class="inline-flex items-center gap-1.5 rounded-lg px-2 py-2 font-mono text-xs font-semibold text-brand-600">
+                                        dan lainnya
+                                        <x-icons.arrow-right class="h-3.5 w-3.5" />
+                                    </a>
+                                </li>
+                            </ul>
+                        </details>
+                    @else
+                        <a href="{{ route($item['route']) }}"
+                           class="nav-link-mobile"
+                           @if (request()->routeIs($item['route'])) aria-current="page" @endif>
+                            {{ $item['label'] }}
+                            <x-icons.arrow-right class="h-4 w-4 opacity-50" />
+                        </a>
+                    @endif
                 @endforeach
 
                 {{-- Support Us dibentangkan langsung di menu mobile --}}
@@ -212,6 +327,7 @@
                                 <{{ $tag }}
                                     @if ($contact['href'])
                                         href="{{ $contact['href'] }}"
+                                        data-cta="menu"
                                         @if ($contact['external']) target="_blank" rel="noopener noreferrer" @endif
                                     @endif
                                     class="flex items-start gap-3 rounded-lg px-2 py-2">

@@ -3,8 +3,14 @@
 namespace App\Providers;
 
 use App\Models\CompanyProfile;
+use App\Models\QuotationRequest;
 use App\Models\Service;
 use App\Models\User;
+use App\Observers\QuotationWhatsAppObserver;
+use App\Services\WhatsApp\CloudApiGateway;
+use App\Services\WhatsApp\LogGateway;
+use App\Services\WhatsApp\WhatsAppGateway;
+use App\Services\WhatsApp\WhatsAppNotifier;
 use App\Support\AdminPermission;
 use App\Support\AdminPresence;
 use Illuminate\Cache\RateLimiting\Limit;
@@ -28,6 +34,16 @@ class AppServiceProvider extends ServiceProvider
         // Profil perusahaan dipakai di navbar, footer, dan skema SEO pada
         // setiap halaman. Di-resolve sekali per request lewat singleton.
         $this->app->singleton(CompanyProfile::class, fn () => CompanyProfile::current() ?? $this->fallbackProfile());
+
+        // Jalur kirim WhatsApp dipilih lewat WHATSAPP_DRIVER (config/whatsapp.php).
+        // Selain `cloud_api`, pesan hanya dicatat di log — aman untuk lokal & test.
+        $this->app->bind(WhatsAppGateway::class, fn () => config('whatsapp.driver') === 'cloud_api'
+            ? new CloudApiGateway
+            : new LogGateway);
+
+        // Satu instance per request: hitungan kegagalannya dipakai untuk
+        // memberi tahu admin di halaman berikutnya.
+        $this->app->scoped(WhatsAppNotifier::class);
     }
 
     /**
@@ -52,6 +68,10 @@ class AppServiceProvider extends ServiceProvider
         foreach (AdminPermission::keys() as $permission) {
             Gate::define($permission, fn (User $user) => $user->hasAdminPermission($permission));
         }
+
+        // Notifikasi WhatsApp setiap kali Admin/Superadmin mengubah status
+        // penawaran, lewat jalur mana pun. Lihat QuotationWhatsAppObserver.
+        QuotationRequest::observe(QuotationWhatsAppObserver::class);
 
         // Status Login Admin pada menu Akun Admin, dicatat langsung dari
         // event autentikasi yang sudah ada. Lihat App\Support\AdminPresence.

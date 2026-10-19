@@ -300,6 +300,9 @@ class RegisteredUserController extends Controller
         // dan kata sandi yang baru saja didaftarkan.
         return redirect()
             ->route('login')
+            // Event sign_up dikirim halaman berikutnya (partials/google-tag),
+            // sekali saja — flash hilang setelah satu permintaan.
+            ->with('datalayer', [['event' => 'sign_up', 'method' => 'email']])
             ->with('status', $type === CustomerType::BUSINESS
                 ? 'Registrasi Business berhasil. Silakan login menggunakan email dan password Anda.'
                 : 'Registrasi berhasil. Silakan login menggunakan email dan password Anda.');

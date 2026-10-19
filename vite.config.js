@@ -17,6 +17,8 @@ export default defineConfig({
                 'resources/js/admin-model-viewer.js',
                 // Animasi 3D pada panel brand halaman Masuk.
                 'resources/js/auth-scene.js',
+                // Model 3D pada galeri "Contoh Hasilnya" di halaman Industri.
+                'resources/js/industry-gallery.js',
                 // Sidebar, ikon lonceng, dan popup notifikasi dashboard.
                 'resources/js/dashboard.js',
             ],

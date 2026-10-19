@@ -142,6 +142,8 @@
         </div>
     </form>
 
+    <x-legal-note action="mendaftar" class="mt-4 text-center" />
+
     @push('scripts')
         <script>
             // "Ganti kode": muat gambar baru; server membuat kode baru sekaligus.

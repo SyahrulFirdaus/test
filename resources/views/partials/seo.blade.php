@@ -12,7 +12,21 @@
         : ($company->short_description ?: 'Layanan 3D printing, desain, dan reverse engineering untuk kebutuhan industri.');
     $metaDescription = \Illuminate\Support\Str::limit(strip_tags($metaDescription), 158);
 
-    $ogImage = asset('images/og-cover.svg');
+    // Gambar pratinjau tautan (WhatsApp, Facebook, LinkedIn, X): JPG 1200×630
+    // di public/images/og/{nama}.jpg. Halaman memilih gambarnya lewat
+    // @section('og-image', 'services'); tanpa itu dipakai default.jpg.
+    // SVG sengaja tidak dipakai karena tidak didukung platform tersebut.
+    $ogKey = trim($__env->yieldContent('og-image')) ?: 'default';
+    $ogPath = 'images/og/'.$ogKey.'.jpg';
+
+    if (! is_file(public_path($ogPath))) {
+        $ogPath = 'images/og/default.jpg';
+    }
+
+    // Versi berkas ikut di URL supaya cache pratinjau platform diperbarui
+    // ketika gambarnya diganti.
+    $ogImage = asset($ogPath).'?v='.filemtime(public_path($ogPath));
+    $ogImageAlt = $pageTitle;
 
     // Halaman tertentu — misalnya tracking penawaran yang memuat data pelanggan —
     // menimpa nilai ini lewat @section('robots').
@@ -35,37 +49,34 @@
 <meta property="og:description" content="{{ $metaDescription }}">
 <meta property="og:url" content="{{ url()->current() }}">
 <meta property="og:image" content="{{ $ogImage }}">
+@if (str_starts_with($ogImage, 'https://'))
+<meta property="og:image:secure_url" content="{{ $ogImage }}">
+@endif
+<meta property="og:image:type" content="image/jpeg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="{{ $ogImageAlt }}">
 
 {{-- Twitter --}}
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="{{ $pageTitle }}">
 <meta name="twitter:description" content="{{ $metaDescription }}">
 <meta name="twitter:image" content="{{ $ogImage }}">
+<meta name="twitter:image:alt" content="{{ $ogImageAlt }}">
 
 @php
-    $structuredData = [
-        '@context' => 'https://schema.org',
-        '@type' => 'LocalBusiness',
-        'name' => $company->name,
-        'legalName' => $company->legal_name,
-        'description' => $metaDescription,
-        'url' => url('/'),
-        'image' => $ogImage,
-        'email' => $company->email,
-        'telephone' => $company->phone,
-        'foundingDate' => $company->founded_year,
-        'address' => [
-            '@type' => 'PostalAddress',
-            'streetAddress' => $company->address,
-            'addressLocality' => $company->city,
-            'addressCountry' => 'ID',
-        ],
-        'sameAs' => array_values($company->socials ?? []),
-    ];
+    // Schema LocalBusiness dari data Profil Perusahaan (App\Support\BusinessSchema):
+    // nama, alamat, telepon, jam buka, dan tautan peta. Gambar memakai
+    // pratinjau default agar konsisten di semua halaman.
+    $structuredData = \App\Support\BusinessSchema::for(
+        $company,
+        $metaDescription,
+        is_file(public_path('images/og/default.jpg')) ? asset('images/og/default.jpg') : null,
+    );
 @endphp
 
 {{-- Structured data agar mesin pencari mengenali entitas perusahaan --}}
 <script type="application/ld+json">
     {{-- JSON_HEX_TAG: teks berisi "</script>" tidak dapat menutup tag ini. --}}
-    {!! json_encode(array_filter($structuredData), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP) !!}
+    {!! json_encode($structuredData, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP) !!}
 </script>

@@ -90,6 +90,7 @@
     $staffMenu = array_values(array_filter([
         ['label' => 'Dashboard', 'route' => $area.'dashboard', 'icon' => 'grid', 'active' => $area.'dashboard'],
 
+        ['group' => 'Penawaran', 'label' => 'Lead', 'route' => $area.'leads.index', 'icon' => 'tag', 'active' => $area.'leads.*', 'permission' => \App\Support\AdminPermission::LEAD_VIEW],
         ['group' => 'Penawaran', 'label' => 'Penawaran', 'route' => $area.'quotations.index', 'icon' => 'layers', 'active' => $area.'quotations.*', 'permission' => \App\Support\AdminPermission::QUOTATION_VIEW],
         ['group' => 'Penawaran', 'label' => 'Notifikasi', 'route' => $area.'notifications.index', 'icon' => 'bell', 'active' => $area.'notifications.*', 'permission' => \App\Support\AdminPermission::NOTIFICATION_VIEW],
 
@@ -103,7 +104,10 @@
         ['group' => 'Akun', 'label' => 'Profil', 'route' => $area.'profile.edit', 'icon' => 'user', 'active' => $area.'profile.*', 'permission' => \App\Support\AdminPermission::PROFILE_EDIT],
         ['group' => 'Akun', 'label' => 'Ganti Password', 'route' => $area.'password.edit', 'icon' => 'lock', 'active' => $area.'password.*', 'permission' => \App\Support\AdminPermission::PROFILE_SECURITY],
         ['group' => 'Akun', 'label' => 'Akun Admin', 'route' => 'superadmin.admins.index', 'icon' => 'users', 'active' => 'superadmin.admins.*', 'superadmin' => true],
-    ], fn (array $item) => ($isSuperAdmin || ! ($item['superadmin'] ?? false))
+
+        ['group' => 'Pengaturan', 'label' => 'Ulasan Google', 'route' => $area.'reviews.index', 'icon' => 'star', 'active' => $area.'reviews.*', 'permission' => \App\Support\AdminPermission::REVIEW_VIEW],
+        ['group' => 'Pengaturan', 'label' => 'Pengaturan WhatsApp', 'route' => $area.'whatsapp.edit', 'icon' => 'whatsapp', 'active' => $area.'whatsapp.*', 'permission' => \App\Support\AdminPermission::WHATSAPP_VIEW],
+    ],fn (array $item) => ($isSuperAdmin || ! ($item['superadmin'] ?? false))
         // Hak akses Admin dari basis data (`*.view`); Superadmin selalu lolos.
         && (! isset($item['permission']) || $user->can($item['permission']))));
 
@@ -167,13 +171,16 @@
     <title>@yield('title', 'Dashboard') &middot; {{ $isSuperAdmin ? 'Superadmin' : ($isAdmin ? 'Admin' : 'Akun') }} {{ $company->name }}</title>
 
     <link rel="icon" type="image/svg+xml" href="{{ asset('images/favicon.svg') }}">
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+    @include('partials.fonts')
 
     @vite(['resources/css/app.css', 'resources/js/dashboard.js'])
 </head>
 <body class="min-h-screen bg-ink-50">
+    {{-- GTM (noscript) mengikuti tag Google: hanya untuk pelanggan. --}}
+    @unless ($isAdmin)
+        @include('partials.google-tag-noscript')
+    @endunless
+
 
     {{-- Latar gelap saat sidebar dibuka di layar kecil --}}
     <div class="fixed inset-0 z-40 hidden bg-ink-950/50 lg:hidden" data-sidebar-backdrop></div>
@@ -449,6 +456,17 @@
                 </div>
             @endif
 
+            {{-- Notifikasi WhatsApp yang gagal tidak menggagalkan perubahan
+                 status; admin cukup diberi tahu. Lihat QuotationWhatsAppObserver. --}}
+            @if ($isAdmin && session('whatsapp_warning'))
+                <div class="mb-6 rounded-xl border border-amber-200 bg-amber-50 px-5 py-4 text-sm font-semibold text-amber-700">
+                    {{ session('whatsapp_warning') }}
+                    @can(\App\Support\AdminPermission::WHATSAPP_VIEW)
+                        <a href="{{ staff_route('whatsapp.edit', ['status' => \App\Models\WhatsAppNotification::FAILED]) }}" class="underline">Lihat riwayat</a>
+                    @endcan
+                </div>
+            @endif
+
             @if ($errors->any())
                 <div class="mb-6 rounded-xl border border-brand-200 bg-brand-50 px-5 py-4 text-sm text-brand-800">
                     <p class="font-semibold">Periksa kembali isian berikut:</p>
@@ -470,6 +488,11 @@
     {{-- Modal konfirmasi bersama: logout, pembatalan penawaran, dan aksi lain
          yang perlu ditanya lebih dulu. Satu markup untuk semuanya. --}}
     <x-confirm-dialog />
+
+    {{-- Persetujuan cookie mengikuti tag Google: hanya untuk pelanggan. --}}
+    @unless ($isAdmin)
+        @include('partials.cookie-banner')
+    @endunless
 
     @stack('scripts')
 

@@ -1,6 +1,7 @@
 @extends('layouts.app')
 
 @section('title', 'Technologies')
+@section('og-image', 'technologies')
 @section('description', 'Teknologi 3D printing yang kami operasikan: FDM, SLA, MJF, dan SLM, lengkap dengan kelebihan, material, spesifikasi, serta contoh aplikasinya.')
 
 @section('content')

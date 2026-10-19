@@ -70,3 +70,15 @@ if (! function_exists('harga_penawaran')) {
         return 'Rp'.number_format((float) $value, 0, ',', '.');
     }
 }
+
+if (! function_exists('wa_link')) {
+    /**
+     * Tautan WhatsApp perusahaan dengan teks otomatis halaman ini (dan
+     * "[Google]" untuk pengunjung dari iklan). Lihat App\Support\WhatsAppLink.
+     * Bila nomor belum diatur, menunjuk ke bagian kontak halaman About.
+     */
+    function wa_link(?string $text = null): string
+    {
+        return \App\Support\WhatsAppLink::href($text);
+    }
+}

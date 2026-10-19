@@ -32,4 +32,6 @@
 
         <button type="submit" class="btn-primary w-full">Simpan Password Baru</button>
     </form>
+
+    <x-legal-note action="melanjutkan" class="mt-4 text-center" />
 @endsection

@@ -1,4 +1,4 @@
-import SharedRenderer from './shared-renderer';
+import SharedRenderer, { createNullRenderer } from './shared-renderer';
 import PrinterCard from './printer-card';
 import { createModelChannel, createModelId, modelStore } from './model-store';
 import { toRecord } from './model-record';
@@ -78,8 +78,16 @@ const sizeText = (size) =>
  * benar-benar menekan "Minta Penawaran".
  */
 export default class ModelWorkspace {
-    constructor(root) {
+    /**
+     * @param {HTMLElement} root
+     * @param {{webgl?: boolean}} [options] webgl: false bila browser tidak
+     *        menyediakan WebGL — unggah, analisis, estimasi, dan penawaran tetap
+     *        berjalan, hanya pratinjau 3D (thumbnail & tombol "Lihat 3D") yang
+     *        ditiadakan.
+     */
+    constructor(root, { webgl = true } = {}) {
         this.root = root;
+        this.webgl = webgl;
 
         this.dropzone = root.querySelector('[data-dropzone]');
         this.input = root.querySelector('[data-file-input]');
@@ -113,7 +121,7 @@ export default class ModelWorkspace {
         // spesifikasi modelnya — hanya harganya yang ditahan.
         this.showsPrice = this.config.auth?.check === true;
 
-        this.renderer = new SharedRenderer();
+        this.renderer = webgl ? new SharedRenderer() : createNullRenderer();
 
         /** @type {Array<object>} catatan model yang tersimpan di browser */
         this.records = [];
@@ -237,6 +245,8 @@ export default class ModelWorkspace {
         });
 
         const queue = accepted.slice(0, room);
+        // Ekstensi berkas yang berhasil dianalisis, untuk event file_upload.
+        const analyzed = [];
 
         for (const [index, file] of queue.entries()) {
             const progress = queue.length > 1 ? ` (${index + 1}/${queue.length})` : '';
@@ -272,6 +282,7 @@ export default class ModelWorkspace {
 
                 await modelStore.put(record);
                 this.records.push(record);
+                analyzed.push(extensionOf(file.name));
             } catch (error) {
                 console.error(error);
                 problems.push({
@@ -292,6 +303,21 @@ export default class ModelWorkspace {
 
         if (problems.length) {
             this.showFileProblems(problems);
+        }
+
+        // Event dataLayer file_upload — hanya jumlah dan tipe berkas; nama
+        // berkas dan isi model tidak pernah dikirim.
+        if (analyzed.length) {
+            const params = {
+                file_count: analyzed.length,
+                file_types: [...new Set(analyzed.filter(Boolean))].join(','),
+            };
+
+            if (typeof window.nusamaTrack === 'function') {
+                window.nusamaTrack('file_upload', params);
+            } else {
+                (window.dataLayer = window.dataLayer || []).push({ event: 'file_upload', ...params });
+            }
         }
     }
 
@@ -1179,7 +1205,8 @@ export default class ModelWorkspace {
         return `
             <article class="card overflow-hidden">
                 <div class="flex gap-3 p-3">
-                    <a href="${escapeAttribute(url)}"
+                    ${this.webgl
+                        ? `<a href="${escapeAttribute(url)}"
                        class="group relative block h-20 w-20 shrink-0 overflow-hidden rounded-xl bg-ink-100"
                        title="Buka viewer 3D ${escapeAttribute(record.name)}">
                         ${record.thumbnail
@@ -1189,7 +1216,8 @@ export default class ModelWorkspace {
                         <span class="absolute inset-0 flex items-center justify-center bg-ink-950/65 text-[0.6rem] font-bold text-white opacity-0 transition-opacity duration-200 group-hover:opacity-100">
                             Lihat 3D
                         </span>
-                    </a>
+                    </a>`
+                        : '<div class="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-ink-100 px-1 text-center text-[0.6rem] leading-tight text-ink-400">Pratinjau 3D tidak tersedia</div>'}
 
                     <div class="min-w-0 flex-1">
                         <p class="flex items-baseline gap-1.5">
@@ -1257,12 +1285,14 @@ export default class ModelWorkspace {
                     : ''}
 
                 <div class="flex items-center gap-2 border-t border-ink-100 px-3 py-2">
-                    <a href="${escapeAttribute(url)}"
+                    ${this.webgl
+                        ? `<a href="${escapeAttribute(url)}"
                        class="btn-outline shrink-0 px-3 py-1.5 text-[0.7rem]"
                        title="Lihat 3D ${escapeAttribute(record.name)}"
                        data-view-model="${escapeAttribute(record.id)}">
                         Lihat 3D
-                    </a>
+                    </a>`
+                        : ''}
 
                     <button type="button" class="btn-outline flex-1 px-3 py-1.5 text-[0.7rem]" data-edit-spec="${escapeAttribute(record.id)}">
                         Edit Specification

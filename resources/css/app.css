@@ -141,6 +141,49 @@
     }
 }
 
+/* Di ponsel, animasi AOS yang masuk dari kanan (fade-left, fade-up-left,
+   fade-down-left) diganti masuk dari bawah. Posisi awalnya 100px di luar
+   tepi kanan layar membuat halaman lebih lebar dari layar, sehingga browser
+   ponsel memperkecil seluruh tampilan saat halaman dibuka — termasuk bilah
+   CTA sticky. Animasi di layar lebar tidak berubah. */
+@media (max-width: 767px) {
+    [data-aos][data-aos='fade-left']:not(.aos-animate),
+    [data-aos][data-aos='fade-up-left']:not(.aos-animate),
+    [data-aos][data-aos='fade-down-left']:not(.aos-animate) {
+        transform: translate3d(0, 40px, 0);
+    }
+}
+
+/* Bayangan teks hero. Nilainya sama dengan utility drop-shadow / drop-shadow-lg
+   Tailwind, tetapi memakai text-shadow: untuk teks hasilnya sama, sementara
+   filter: drop-shadow jauh lebih berat dirender di ponsel. */
+.text-drop-shadow {
+    text-shadow: 0 1px 2px #0000001a, 0 1px 1px #0000000f;
+}
+
+.text-drop-shadow-lg {
+    text-shadow: 0 4px 4px #00000026;
+}
+
+/* Animasi masuk untuk konten di bagian paling atas halaman (hero). Setara
+   AOS fade-up (geser 100px, 650ms, ease-out-cubic) tetapi murni CSS, sehingga
+   langsung berjalan saat halaman tampil tanpa menunggu JavaScript. */
+@keyframes hero-reveal {
+    from {
+        opacity: 0;
+        transform: translate3d(0, 100px, 0);
+    }
+
+    to {
+        opacity: 1;
+        transform: none;
+    }
+}
+
+[data-hero-reveal] {
+    animation: hero-reveal 650ms cubic-bezier(0.215, 0.61, 0.355, 1) both;
+}
+
 /* -------------------------------------------------------------------------
  | Utility kustom
  | Tailwind v4 hanya mengizinkan `@apply` terhadap utility terdaftar, jadi
@@ -199,13 +242,13 @@
     }
 
     .nav-link {
-        @apply relative rounded-full px-4 py-2 text-sm font-semibold text-white/85 transition-colors duration-200
-               hover:text-white;
+        @apply relative whitespace-nowrap rounded-full px-3 py-2 text-sm font-semibold text-white/85 transition-colors duration-200
+               hover:text-white 2xl:px-4;
     }
 
     .nav-link::after {
         content: '';
-        @apply absolute inset-x-4 -bottom-0.5 h-0.5 origin-left scale-x-0 rounded-full bg-current
+        @apply absolute inset-x-3 -bottom-0.5 h-0.5 2xl:inset-x-4 origin-left scale-x-0 rounded-full bg-current
                transition-transform duration-300 ease-out;
     }
 
@@ -249,6 +292,73 @@
     }
 
     /* Tombol sekunder kanan navbar (Order Now) — bergaris, menyesuaikan latar. */
+    /* Isi dokumen legal (Kebijakan Privasi, Syarat & Ketentuan). */
+    .legal-content {
+        @apply max-w-3xl text-[0.95rem] leading-relaxed text-ink-600;
+    }
+
+    .legal-content section {
+        @apply scroll-mt-32 border-t border-ink-100 pt-8 mt-8 first-of-type:border-t-0 first-of-type:pt-0;
+    }
+
+    .legal-content h2 {
+        @apply font-display text-xl font-bold tracking-tight text-ink-900 sm:text-2xl;
+    }
+
+    .legal-content p,
+    .legal-content ul {
+        @apply mt-4;
+    }
+
+    .legal-content ul {
+        @apply list-disc space-y-2 pl-5 marker:text-brand-500;
+    }
+
+    .legal-content a {
+        @apply font-medium text-brand-600 underline decoration-brand-200 underline-offset-2 hover:text-brand-700;
+    }
+
+    .legal-content strong {
+        @apply font-semibold text-ink-800;
+    }
+
+    /* Daftar isi sticky di halaman detail Industri. */
+    .industry-toc-link {
+        @apply -ml-px block border-l-2 border-transparent py-1.5 pl-4 text-sm font-medium text-ink-500
+               transition-colors duration-200 hover:text-brand-600;
+    }
+
+    .industry-toc-link.is-active {
+        @apply border-brand-600 font-semibold text-brand-700;
+    }
+
+    /* Pilihan bahasa "ID / EN" — terang di atas hero gelap, gelap setelah
+       navbar memadat. Bahasa aktif ditandai aria-pressed. */
+    .lang-switch {
+        @apply inline-flex items-center gap-1.5 px-2 font-mono text-sm font-semibold tracking-wider text-white/35;
+    }
+
+    .lang-switch button {
+        @apply cursor-pointer rounded px-0.5 text-white/45 transition-colors duration-200 hover:text-white
+               focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-400;
+    }
+
+    .lang-switch button[aria-pressed='true'] {
+        @apply text-white;
+    }
+
+    .site-header.is-scrolled .lang-switch {
+        @apply text-ink-300;
+    }
+
+    .site-header.is-scrolled .lang-switch button {
+        @apply text-ink-400 hover:text-brand-600;
+    }
+
+    .site-header.is-scrolled .lang-switch button[aria-pressed='true'] {
+        @apply text-ink-900;
+    }
+
     .navbar .nav-cta-outline {
         @apply btn border border-white/40 px-5 py-2.5 text-white hover:border-white hover:bg-white hover:text-brand-700;
     }
@@ -621,12 +731,14 @@
         perspective: 1100px;
     }
 
+    /* Cahaya lembut. Dulu memakai filter: blur(20px) di atas gradien radial;
+       kini kelembutan itu langsung dibentuk oleh gradiennya sendiri, hasilnya
+       sama tetapi jauh lebih ringan dirender di ponsel. */
     .login-scene-glow {
         position: absolute;
         inset: 10% 20% 25%;
         border-radius: 9999px;
-        background: radial-gradient(closest-side, rgb(255 255 255 / 0.14), transparent);
-        filter: blur(20px);
+        background: radial-gradient(closest-side, rgb(255 255 255 / 0.13), rgb(255 255 255 / 0.07) 55%, rgb(255 255 255 / 0.02) 85%, transparent);
     }
 
     .login-scene-horizon {
@@ -912,4 +1024,27 @@
     .sidebar-collapsed .sidebar-collapse-icon {
         rotate: 180deg;
     }
+}
+
+/* Google Translate (mode EN): sembunyikan banner, tooltip, dan sorotan
+   bawaannya supaya tampilan situs tidak berubah. */
+.skiptranslate iframe,
+iframe.skiptranslate,
+.goog-te-banner-frame,
+.goog-te-balloon-frame,
+#goog-gt-tt,
+.VIpgJd-ZVi9od-ORHb-OEVmcd,
+.VIpgJd-ZVi9od-aZ2wEe-wOHMyf,
+.VIpgJd-yAWNEb-L7lbkb {
+    display: none !important;
+}
+
+body {
+    top: 0 !important;
+}
+
+.goog-text-highlight,
+font[style] {
+    background: none !important;
+    box-shadow: none !important;
 }

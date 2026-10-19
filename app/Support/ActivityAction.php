@@ -110,6 +110,24 @@ class ActivityAction
 
     public const COLOR_DELETE = 'color_delete';
 
+    /*
+     * Lead Management. LEAD_UPDATE mencatat status dan nilai deal sebelum dan
+     * sesudah perubahan — itulah riwayat yang tampil di detail lead.
+     */
+    public const LEAD_CREATE = 'lead_create';
+
+    public const LEAD_UPDATE = 'lead_update';
+
+    /** Export CSV Deal untuk impor konversi Google Ads. */
+    public const LEAD_EXPORT = 'lead_export';
+
+    /* Ulasan Google di Home (menu Ulasan Google). */
+    public const REVIEW_CREATE = 'review_create';
+
+    public const REVIEW_UPDATE = 'review_update';
+
+    public const REVIEW_DELETE = 'review_delete';
+
     /* -------------------------------------------------------- superadmin */
 
     public const ADMIN_CREATE = 'admin_create';
@@ -194,6 +212,14 @@ class ActivityAction
             self::QUOTATION_PRICE_UPDATE => ['label' => 'Ubah Estimasi Harga', 'module' => ActivityModule::ADMIN],
             self::QUOTATION_ITEM_NOTE_UPDATE => ['label' => 'Ubah Catatan Model', 'module' => ActivityModule::ADMIN],
             self::SETTING_UPDATE => ['label' => 'Ubah Konfigurasi Sistem', 'module' => ActivityModule::ADMIN],
+
+            self::LEAD_CREATE => ['label' => 'Lead Masuk', 'module' => ActivityModule::LEAD],
+            self::LEAD_UPDATE => ['label' => 'Ubah Status/Nilai Deal Lead', 'module' => ActivityModule::LEAD],
+            self::LEAD_EXPORT => ['label' => 'Export CSV Deal Google Ads', 'module' => ActivityModule::LEAD],
+
+            self::REVIEW_CREATE => ['label' => 'Tambah Ulasan', 'module' => ActivityModule::ADMIN],
+            self::REVIEW_UPDATE => ['label' => 'Ubah Ulasan', 'module' => ActivityModule::ADMIN],
+            self::REVIEW_DELETE => ['label' => 'Hapus Ulasan', 'module' => ActivityModule::ADMIN],
 
             self::ADMIN_CREATE => ['label' => 'Tambah Akun Admin', 'module' => ActivityModule::SUPERADMIN],
             self::ADMIN_UPDATE => ['label' => 'Ubah Akun Admin', 'module' => ActivityModule::SUPERADMIN],

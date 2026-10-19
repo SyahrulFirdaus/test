@@ -1,6 +1,7 @@
 @extends('layouts.app')
 
 @section('title', 'Tracking Penawaran')
+@section('og-image', 'tracking')
 @section('description', 'Masukkan nomor tracking untuk memantau perkembangan permintaan penawaran 3D printing Anda.')
 
 @section('content')
@@ -49,6 +50,8 @@
                         </button>
 
                     </form>
+
+                    <x-legal-note action="melanjutkan" class="mt-4 text-center" />
 
                     <div class="mt-8 border-t border-ink-100 pt-6">
                         <p class="text-xs font-bold uppercase tracking-[0.12em] text-ink-400">Nomor tracking Anda ada di mana?</p>

@@ -37,6 +37,19 @@ return [
     */
     'google_ads' => [
         'id' => env('GOOGLE_ADS_ID', 'AW-17850382906'),
+        // Label konversi "lead" Google Ads (mis. AW-17850382906/AbCdEf), opsional.
+        // Bila diisi, halaman Terima Kasih juga mengirim event konversi ini.
+        'lead_conversion' => env('GOOGLE_ADS_LEAD_CONVERSION'),
+    ],
+
+    /*
+    | Google Tag Manager (opsional). Bila diisi, container GTM dimuat setelah
+    | default Consent Mode v2; event situs (generate_lead, quote_submitted,
+    | whatsapp_click, dst.) sudah dikirim ke dataLayer untuk dipakai trigger
+    | "Custom Event" di GTM.
+    */
+    'google_tag_manager' => [
+        'id' => env('GTM_ID'),
     ],
 
     'slack' => [

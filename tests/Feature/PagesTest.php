@@ -110,6 +110,21 @@ class PagesTest extends TestCase
             ->assertSee('STL, STP, STEP, OBJ, 3MF');
     }
 
+    public function test_halaman_3d_models_tetap_bisa_dipakai_tanpa_webgl(): void
+    {
+        // Pemberitahuan tanpa WebGL disiapkan tersembunyi; model-viewer.js
+        // menampilkannya dan tetap menjalankan unggah & permintaan penawaran.
+        $this->get(route('models'))
+            ->assertSee('data-viewer-unsupported', false)
+            ->assertSee('Pratinjau 3D tidak tersedia di browser Anda')
+            ->assertSee('Namun, Anda tetap bisa mengunggah model dan mengajukan permintaan penawaran seperti biasa.')
+            ->assertDontSee('Browser Anda belum mendukung WebGL')
+            // Petunjuk "Lihat 3D" disembunyikan bila pratinjau tidak tersedia.
+            ->assertSee('data-viewer-hint', false)
+            // Area unggah tetap ada di halaman.
+            ->assertSee('data-dropzone', false);
+    }
+
     public function test_menu_lama_cek_barang_diarahkan_ke_3d_models(): void
     {
         // Tautan lama yang terlanjur tersebar tetap sampai ke tujuannya.
@@ -236,5 +251,125 @@ class PagesTest extends TestCase
         foreach (['home', 'services', 'technologies', 'models', 'about', 'tracking.index'] as $name) {
             $response->assertSee(route($name), false);
         }
+
+        $response->assertSee(route('industries.show', 'otomotif-motorsport'), false);
+    }
+
+    public function test_halaman_industri_dan_menu_navbar_tampil(): void
+    {
+        $this->get(route('industries'))
+            ->assertOk()
+            ->assertSee('Otomotif, Motorsport, dan Olahraga Air')
+            ->assertSee('Mainan dan Display')
+            ->assertSee(route('industries.show', 'otomotif-motorsport'), false)
+            ->assertSee('Dari file hingga part di tangan Anda')
+            ->assertSee('id="lainnya"', false);
+
+        // Dropdown navbar tampil di halaman lain dan menautkan halaman detail.
+        $this->get(route('home'))
+            ->assertSee('data-industry-menu', false)
+            // Judul "Industri" di dropdown menuju halaman ringkasan.
+            ->assertSee('href="'.route('industries').'"', false)
+            ->assertSee('Lihat semua')
+            ->assertSee(route('industries.show', 'aerospace-pertahanan-uav'), false)
+            ->assertSee('dan lainnya');
+    }
+
+    public function test_halaman_detail_industri_memuat_seluruh_bagian(): void
+    {
+        $this->seed(\Database\Seeders\ClientSeeder::class);
+
+        $response = $this->get(route('industries.show', 'otomotif-motorsport'));
+
+        $response->assertOk()
+            ->assertSee('Tantangan & Solusi')
+            ->assertSee('Contoh Hasilnya')
+            ->assertSee('data-industry-open="elbow"', false)
+            ->assertSee('Perbandingan material untuk industri ini')
+            ->assertSee('Clear coat tahan UV')
+            // Lama produksi diambil dari spesifikasi teknologi di database.
+            ->assertSee('1 – 3 hari kerja')
+            ->assertSee('Logo Mikuni', false)
+            ->assertSee('Pertanyaan yang sering diajukan')
+            ->assertSee('"@type":"FAQPage"', false)
+            ->assertSee('wa.me/', false)
+            ->assertSee('untuk%20industri%20Otomotif', false);
+
+        // Industri tanpa data klien tidak menampilkan bagian klien.
+        $this->get(route('industries.show', 'arsitektur-interior'))
+            ->assertOk()
+            ->assertDontSee('id="klien"', false);
+    }
+
+    public function test_industri_yang_tidak_terdaftar_menghasilkan_404(): void
+    {
+        $this->get('/industri/tidak-ada')->assertNotFound();
+    }
+
+    public function test_cta_consult_mengarah_ke_whatsapp_perusahaan(): void
+    {
+        $company = CompanyProfile::current();
+
+        $this->get(route('home'))
+            ->assertSee('data-consult-cta', false)
+            ->assertSee('Get a Quote')
+            ->assertSee($company->whatsapp_link.'?text=', false)
+            ->assertDontSee('data-scroll-top', false);
+    }
+
+    public function test_file_3d_asli_dipakai_bila_tersedia(): void
+    {
+        $directory = public_path('models/industries/otomotif-motorsport');
+        $created = ! is_dir($directory);
+        @mkdir($directory, 0777, true);
+
+        $files = [$directory.'/utama.stl', $directory.'/intake-ducting.obj'];
+
+        foreach ($files as $file) {
+            file_put_contents($file, 'solid test');
+        }
+
+        try {
+            $this->get(route('industries.show', 'otomotif-motorsport'))
+                // Hero memakai file utama, galeri memakai file per contoh.
+                ->assertSee(asset('models/industries/otomotif-motorsport/utama.stl'), false)
+                ->assertSee(asset('models/industries/otomotif-motorsport/intake-ducting.obj'), false);
+
+            // Industri tanpa file tetap memakai model buatan program.
+            $this->get(route('industries.show', 'arsitektur-interior'))
+                ->assertDontSee('data-industry-file', false);
+        } finally {
+            foreach ($files as $file) {
+                @unlink($file);
+            }
+
+            if ($created) {
+                @rmdir($directory);
+                @rmdir(dirname($directory));
+                @rmdir(dirname($directory, 2));
+            }
+        }
+    }
+
+    public function test_kartu_industri_memakai_foto_asli_beserta_kreditnya(): void
+    {
+        // Foto berlisensi bebas di public/images/industries/{slug}/utama.*
+        // (lihat config/industry-photos.php). Test ini hanya membaca berkas
+        // yang sudah ada, tidak membuat ataupun menghapusnya.
+        $response = $this->get(route('industries'))->assertOk();
+        $html = $response->getContent();
+
+        foreach (config('industry-photos') as $slug => $credit) {
+            $photo = \App\Support\IndustryModel::photoForIndustry(['slug' => $slug, 'examples' => []]);
+
+            $this->assertNotNull($photo, "Foto kartu {$slug} belum tersedia.");
+            $response->assertSee('src="'.$photo.'"', false)
+                ->assertSee($credit['source_url'], false);
+        }
+
+        // Kartu dengan foto tidak lagi memuat kanvas model 3D.
+        $this->assertStringNotContainsString('data-industry-framing="center"', $html);
+        $response->assertSee('Kredit foto')
+            ->assertSee('Foto: BigRep · CC BY 2.5', false);
     }
 }

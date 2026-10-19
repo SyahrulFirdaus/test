@@ -25,7 +25,8 @@ class GoogleTagTest extends TestCase
             'https://www.googletagmanager.com/gtag/js?id='.self::ID,
             $html,
         );
-        $this->assertStringContainsString("gtag('config', '".self::ID."')", $html);
+        // Enhanced Conversions aktif: user_data dari formulir/quote di-hash Google tag.
+        $this->assertStringContainsString("gtag('config', '".self::ID."', { allow_enhanced_conversions: true })", $html);
     }
 
     private function assertHasNoTag(string $html): void

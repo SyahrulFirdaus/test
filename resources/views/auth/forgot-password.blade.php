@@ -18,6 +18,8 @@
         <button type="submit" class="btn-primary w-full">Kirim Tautan Reset</button>
     </form>
 
+    <x-legal-note action="melanjutkan" class="mt-4 text-center" />
+
     <p class="mt-7 border-t border-ink-100 pt-6 text-center text-sm text-ink-500">
         Sudah ingat kata sandinya?
         <a href="{{ route('login') }}" class="font-semibold text-brand-600 transition-colors hover:text-brand-700">Kembali ke halaman masuk</a>

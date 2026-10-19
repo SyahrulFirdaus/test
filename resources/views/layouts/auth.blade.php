@@ -11,13 +11,13 @@
     @include('partials.google-tag')
 
     <link rel="icon" type="image/svg+xml" href="{{ asset('images/favicon.svg') }}">
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+    @include('partials.fonts')
 
     @vite(['resources/css/app.css'])
 </head>
 <body class="min-h-screen bg-ink-50">
+    @include('partials.google-tag-noscript')
+
 
     <div class="grid min-h-screen lg:grid-cols-[1.05fr_1fr]">
 
@@ -101,6 +101,9 @@
             </div>
         </main>
     </div>
+
+    {{-- Pemberitahuan cookie, sama dengan halaman publik lainnya. --}}
+    @include('partials.cookie-banner')
 
     @stack('scripts')
 

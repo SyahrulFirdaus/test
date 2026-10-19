@@ -3,47 +3,108 @@
     "file": "assets/confirm-dialog-y3DWp8NB.js",
     "name": "confirm-dialog"
   },
-  "_mesh-preview-DJlddT6L.js": {
-    "file": "assets/mesh-preview-DJlddT6L.js",
+  "_mesh-preview-BfIHAKFT.js": {
+    "file": "assets/mesh-preview-BfIHAKFT.js",
     "name": "mesh-preview",
     "imports": [
-      "_three.module-DqGBJaIX.js",
-      "_model-formats-d2XnPSGS.js"
+      "node_modules/three/build/three.module.js",
+      "node_modules/three/examples/jsm/controls/OrbitControls.js",
+      "node_modules/three/examples/jsm/loaders/STLLoader.js",
+      "node_modules/three/examples/jsm/loaders/OBJLoader.js",
+      "_model-formats-DiJB_qWN.js"
     ]
   },
-  "_model-formats-d2XnPSGS.js": {
-    "file": "assets/model-formats-d2XnPSGS.js",
+  "_model-formats-DiJB_qWN.js": {
+    "file": "assets/model-formats-DiJB_qWN.js",
     "name": "model-formats",
     "imports": [
-      "_three.module-DqGBJaIX.js"
+      "node_modules/three/build/three.module.js"
     ]
   },
   "_model-store-mUkLX12h.js": {
     "file": "assets/model-store-mUkLX12h.js",
     "name": "model-store"
   },
-  "_three.module-DqGBJaIX.js": {
-    "file": "assets/three.module-DqGBJaIX.js",
-    "name": "three.module"
+  "_preload-helper-BfFHrpNk.js": {
+    "file": "assets/preload-helper-BfFHrpNk.js",
+    "name": "preload-helper"
+  },
+  "_print-estimator-CHn6-Xix.js": {
+    "file": "assets/print-estimator-CHn6-Xix.js",
+    "name": "print-estimator"
+  },
+  "node_modules/three/build/three.module.js": {
+    "file": "assets/three.module-Y-ql4QRg.js",
+    "name": "three.module",
+    "src": "node_modules/three/build/three.module.js",
+    "isDynamicEntry": true
+  },
+  "node_modules/three/examples/jsm/controls/OrbitControls.js": {
+    "file": "assets/OrbitControls-Bm0pTgiB.js",
+    "name": "OrbitControls",
+    "src": "node_modules/three/examples/jsm/controls/OrbitControls.js",
+    "isDynamicEntry": true,
+    "imports": [
+      "node_modules/three/build/three.module.js"
+    ]
+  },
+  "node_modules/three/examples/jsm/environments/RoomEnvironment.js": {
+    "file": "assets/RoomEnvironment-BdqtWeaI.js",
+    "name": "RoomEnvironment",
+    "src": "node_modules/three/examples/jsm/environments/RoomEnvironment.js",
+    "isDynamicEntry": true,
+    "imports": [
+      "node_modules/three/build/three.module.js"
+    ]
+  },
+  "node_modules/three/examples/jsm/loaders/OBJLoader.js": {
+    "file": "assets/OBJLoader-Da0Ct1J0.js",
+    "name": "OBJLoader",
+    "src": "node_modules/three/examples/jsm/loaders/OBJLoader.js",
+    "isDynamicEntry": true,
+    "imports": [
+      "node_modules/three/build/three.module.js"
+    ]
+  },
+  "node_modules/three/examples/jsm/loaders/STLLoader.js": {
+    "file": "assets/STLLoader-DrhjG1ML.js",
+    "name": "STLLoader",
+    "src": "node_modules/three/examples/jsm/loaders/STLLoader.js",
+    "isDynamicEntry": true,
+    "imports": [
+      "node_modules/three/build/three.module.js"
+    ]
+  },
+  "node_modules/three/examples/jsm/utils/BufferGeometryUtils.js": {
+    "file": "assets/BufferGeometryUtils-DlyNiXkQ.js",
+    "name": "BufferGeometryUtils",
+    "src": "node_modules/three/examples/jsm/utils/BufferGeometryUtils.js",
+    "isDynamicEntry": true,
+    "imports": [
+      "node_modules/three/build/three.module.js"
+    ]
   },
   "resources/css/app.css": {
-    "file": "assets/app-BxmiQHgs.css",
+    "file": "assets/app-Df-WAWqS.css",
     "src": "resources/css/app.css",
     "isEntry": true
   },
   "resources/js/admin-model-viewer.js": {
-    "file": "assets/admin-model-viewer-D65DYUJ5.js",
+    "file": "assets/admin-model-viewer-BhpVtxdL.js",
     "name": "admin-model-viewer",
     "src": "resources/js/admin-model-viewer.js",
     "isEntry": true,
     "imports": [
-      "_mesh-preview-DJlddT6L.js",
-      "_three.module-DqGBJaIX.js",
-      "_model-formats-d2XnPSGS.js"
+      "_mesh-preview-BfIHAKFT.js",
+      "node_modules/three/build/three.module.js",
+      "node_modules/three/examples/jsm/controls/OrbitControls.js",
+      "node_modules/three/examples/jsm/loaders/STLLoader.js",
+      "node_modules/three/examples/jsm/loaders/OBJLoader.js",
+      "_model-formats-DiJB_qWN.js"
     ]
   },
   "resources/js/app.js": {
-    "file": "assets/app-WqI957RO.js",
+    "file": "assets/app-CkZagIR1.js",
     "name": "app",
     "src": "resources/js/app.js",
     "isEntry": true,
@@ -52,10 +113,13 @@
     ]
   },
   "resources/js/auth-scene.js": {
-    "file": "assets/auth-scene-BSxbgj6Q.js",
+    "file": "assets/auth-scene-BzMDpGp6.js",
     "name": "auth-scene",
     "src": "resources/js/auth-scene.js",
     "isEntry": true,
+    "imports": [
+      "_preload-helper-BfFHrpNk.js"
+    ],
     "dynamicImports": [
       "resources/js/modules/hero-scenes.js",
       "resources/js/modules/print-showcase.js"
@@ -70,45 +134,113 @@
       "_confirm-dialog-y3DWp8NB.js"
     ]
   },
+  "resources/js/industry-gallery.js": {
+    "file": "assets/industry-gallery-ChSm_QxA.js",
+    "name": "industry-gallery",
+    "src": "resources/js/industry-gallery.js",
+    "isEntry": true,
+    "imports": [
+      "_preload-helper-BfFHrpNk.js"
+    ],
+    "dynamicImports": [
+      "node_modules/three/build/three.module.js",
+      "node_modules/three/examples/jsm/environments/RoomEnvironment.js",
+      "node_modules/three/examples/jsm/controls/OrbitControls.js",
+      "resources/js/modules/shared-renderer.js",
+      "resources/js/modules/industry-parts.js",
+      "node_modules/three/examples/jsm/utils/BufferGeometryUtils.js",
+      "node_modules/three/examples/jsm/loaders/STLLoader.js",
+      "node_modules/three/examples/jsm/loaders/OBJLoader.js"
+    ]
+  },
   "resources/js/model-preview.js": {
-    "file": "assets/model-preview-X45nbWlc.js",
+    "file": "assets/model-preview-BPDZwbhf.js",
     "name": "model-preview",
     "src": "resources/js/model-preview.js",
     "isEntry": true,
     "imports": [
-      "_mesh-preview-DJlddT6L.js",
+      "_mesh-preview-BfIHAKFT.js",
       "_model-store-mUkLX12h.js",
-      "_three.module-DqGBJaIX.js",
-      "_model-formats-d2XnPSGS.js"
+      "node_modules/three/build/three.module.js",
+      "node_modules/three/examples/jsm/controls/OrbitControls.js",
+      "node_modules/three/examples/jsm/loaders/STLLoader.js",
+      "node_modules/three/examples/jsm/loaders/OBJLoader.js",
+      "_model-formats-DiJB_qWN.js"
     ]
   },
   "resources/js/model-viewer.js": {
-    "file": "assets/model-viewer-Db59fazm.js",
+    "file": "assets/model-viewer-B132CQE4.js",
     "name": "model-viewer",
     "src": "resources/js/model-viewer.js",
     "isEntry": true,
     "imports": [
-      "_three.module-DqGBJaIX.js",
-      "_model-formats-d2XnPSGS.js",
+      "_preload-helper-BfFHrpNk.js",
       "_model-store-mUkLX12h.js"
+    ],
+    "dynamicImports": [
+      "resources/js/modules/model-workspace.js",
+      "resources/js/modules/quotation-form.js"
     ]
   },
   "resources/js/modules/hero-scenes.js": {
-    "file": "assets/hero-scenes-Bg4U7Mvd.js",
+    "file": "assets/hero-scenes-CfceaYDu.js",
     "name": "hero-scenes",
     "src": "resources/js/modules/hero-scenes.js",
     "isDynamicEntry": true,
     "imports": [
-      "_three.module-DqGBJaIX.js"
+      "node_modules/three/build/three.module.js"
+    ]
+  },
+  "resources/js/modules/industry-parts.js": {
+    "file": "assets/industry-parts-Ab03w9cU.js",
+    "name": "industry-parts",
+    "src": "resources/js/modules/industry-parts.js",
+    "isDynamicEntry": true,
+    "imports": [
+      "node_modules/three/build/three.module.js"
+    ]
+  },
+  "resources/js/modules/model-workspace.js": {
+    "file": "assets/model-workspace-4HdBtr9_.js",
+    "name": "model-workspace",
+    "src": "resources/js/modules/model-workspace.js",
+    "isDynamicEntry": true,
+    "imports": [
+      "resources/js/modules/shared-renderer.js",
+      "node_modules/three/examples/jsm/controls/OrbitControls.js",
+      "node_modules/three/examples/jsm/loaders/STLLoader.js",
+      "node_modules/three/examples/jsm/loaders/OBJLoader.js",
+      "_model-formats-DiJB_qWN.js",
+      "_print-estimator-CHn6-Xix.js",
+      "node_modules/three/build/three.module.js",
+      "_model-store-mUkLX12h.js"
     ]
   },
   "resources/js/modules/print-showcase.js": {
-    "file": "assets/print-showcase-DpMqWJg6.js",
+    "file": "assets/print-showcase-Ce0EUnV9.js",
     "name": "print-showcase",
     "src": "resources/js/modules/print-showcase.js",
     "isDynamicEntry": true,
     "imports": [
-      "_three.module-DqGBJaIX.js"
+      "node_modules/three/build/three.module.js"
+    ]
+  },
+  "resources/js/modules/quotation-form.js": {
+    "file": "assets/quotation-form-4z4fubUw.js",
+    "name": "quotation-form",
+    "src": "resources/js/modules/quotation-form.js",
+    "isDynamicEntry": true,
+    "imports": [
+      "_print-estimator-CHn6-Xix.js"
+    ]
+  },
+  "resources/js/modules/shared-renderer.js": {
+    "file": "assets/shared-renderer-Dtof06tm.js",
+    "name": "shared-renderer",
+    "src": "resources/js/modules/shared-renderer.js",
+    "isDynamicEntry": true,
+    "imports": [
+      "node_modules/three/build/three.module.js"
     ]
   }
 }

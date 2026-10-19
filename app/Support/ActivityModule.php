@@ -20,6 +20,9 @@ class ActivityModule
     /** Permintaan penawaran dan perpindahan statusnya. */
     public const QUOTATION = 'quotation';
 
+    /** Lead Management: lead masuk, status lead, dan nilai deal. */
+    public const LEAD = 'lead';
+
     /** Bukti transfer, verifikasi, dan skema pembayaran. */
     public const PAYMENT = 'payment';
 
@@ -43,6 +46,7 @@ class ActivityModule
             self::ACCOUNT => 'Account',
             self::MODELS => '3D Models',
             self::QUOTATION => 'Quotation',
+            self::LEAD => 'Lead',
             self::PAYMENT => 'Payment',
             self::ADMIN => 'Admin',
             self::SUPERADMIN => 'Superadmin',

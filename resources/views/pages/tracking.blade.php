@@ -1,6 +1,7 @@
 @extends('layouts.app')
 
 @section('title', 'Tracking Penawaran '.$quotation->tracking_number)
+@section('og-image', 'tracking')
 @section('description', 'Pantau perkembangan permintaan penawaran 3D printing Anda melalui nomor tracking.')
 
 {{-- Halaman memuat data permintaan pelanggan, jadi tidak boleh diindeks. --}}
@@ -275,12 +276,12 @@
 
                         <div class="mt-4 flex flex-col gap-2">
                             @if ($company->whatsapp_link)
-                                <a href="{{ $company->whatsapp_link }}" target="_blank" rel="noopener noreferrer" class="viewer-tool justify-center">
+                                <a href="{{ wa_link(\App\Support\WhatsAppLink::message('status penawaran '.$quotation->tracking_number)) }}" target="_blank" rel="noopener noreferrer" data-wa-link data-cta="content" class="viewer-tool justify-center">
                                     <x-icons.whatsapp class="h-4 w-4" />
                                     Hubungi via WhatsApp
                                 </a>
                             @endif
-                            <a href="mailto:{{ $company->email }}?subject=Tracking%20{{ $quotation->tracking_number }}" class="viewer-tool justify-center">
+                            <a href="mailto:{{ $company->email }}?subject=Tracking%20{{ $quotation->tracking_number }}" data-cta="content" class="viewer-tool justify-center">
                                 <x-icons.mail class="h-4 w-4" />
                                 Kirim Email
                             </a>

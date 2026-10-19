@@ -1,11 +1,13 @@
 <?php
 
+use App\Http\Middleware\CaptureLeadTracking;
 use App\Http\Middleware\EnsureAccountIsActive;
 use App\Http\Middleware\EnsureAdminPermission;
 use App\Http\Middleware\EnsureUserIsAdmin;
 use App\Http\Middleware\EnsureUserIsBusiness;
 use App\Http\Middleware\EnsureUserIsCustomer;
 use App\Http\Middleware\EnsureUserIsSuperAdmin;
+use App\Http\Middleware\RedirectToCanonicalUrl;
 use App\Http\Middleware\TrackAdminPresence;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
@@ -18,6 +20,10 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware) {
+        // http:// dan www. dialihkan ke alamat resmi (config app.canonical_url)
+        // sebelum middleware lain berjalan.
+        $middleware->prepend(RedirectToCanonicalUrl::class);
+
         $middleware->alias([
             'admin' => EnsureUserIsAdmin::class,
             // Hak akses menu Admin per akun: ->middleware('admin.permission:penawaran').
@@ -33,6 +39,8 @@ return Application::configure(basePath: dirname(__DIR__))
             EnsureAccountIsActive::class,
             // Status Login pada menu Akun Admin; hanya mencatat.
             TrackAdminPresence::class,
+            // Sumber kedatangan pengunjung (GCLID/UTM) untuk Lead Management.
+            CaptureLeadTracking::class,
         ]);
 
         // Area admin dan area pelanggan punya halaman masuk masing-masing,

@@ -160,6 +160,8 @@
             <button type="submit" class="btn-primary flex-1 px-6 py-3">Lanjutkan</button>
         </div>
     </form>
+
+    <x-legal-note action="mendaftar" class="mt-4 text-center" />
 @endsection
 
 @push('scripts')

@@ -24,6 +24,7 @@ class CompanyProfile extends Model
         'email',
         'operational_hours',
         'maps_url',
+        'google_reviews_url',
         'socials',
     ];
 
@@ -53,6 +54,42 @@ class CompanyProfile extends Model
      * wa.me menuntut format internasional tanpa tanda plus, sedangkan nomor
      * biasanya ditulis dalam format lokal (0812…), jadi awalan 0 diganti 62.
      */
+    /**
+     * Tautan "Lihat semua ulasan di Google": URL profil Google Business yang
+     * diisi di admin (menu Ulasan Google), atau pencarian Google Maps atas
+     * nama & kota perusahaan selama URL itu belum diisi.
+     */
+    public function getGoogleReviewsLinkAttribute(): string
+    {
+        if (filled($this->google_reviews_url)) {
+            return $this->google_reviews_url;
+        }
+
+        return 'https://www.google.com/maps/search/?api=1&query='.rawurlencode(trim($this->name.' '.$this->city));
+    }
+
+    /**
+     * Tautan telepon format internasional (tel:+6281292388805) agar dapat
+     * dibuka dari ponsel di mana pun, termasuk nomor yang tersimpan dalam
+     * format lokal (0812…).
+     */
+    public function getPhoneLinkAttribute(): ?string
+    {
+        $digits = preg_replace('/\D/', '', (string) $this->phone);
+
+        if ($digits === '') {
+            return null;
+        }
+
+        if (str_starts_with($digits, '0')) {
+            $digits = '62'.substr($digits, 1);
+        } elseif (! str_starts_with($digits, '62')) {
+            $digits = '62'.$digits;
+        }
+
+        return 'tel:+'.$digits;
+    }
+
     public function getWhatsappLinkAttribute(): ?string
     {
         if (blank($this->whatsapp)) {

@@ -19,13 +19,27 @@ class SitemapController extends Controller
         $pages = [
             ['url' => route('home'), 'priority' => '1.0', 'changefreq' => 'monthly'],
             ['url' => route('services'), 'priority' => '0.9', 'changefreq' => 'monthly'],
+            ...collect(array_keys(config('service-pages.pages')))->map(fn (string $page) => [
+                'url' => route('services.show', $page),
+                'priority' => '0.9',
+                'changefreq' => 'monthly',
+            ])->all(),
+            ['url' => route('miniatur'), 'priority' => '0.8', 'changefreq' => 'monthly'],
             ['url' => route('technologies'), 'priority' => '0.9', 'changefreq' => 'monthly'],
+            ['url' => route('industries'), 'priority' => '0.8', 'changefreq' => 'monthly'],
+            ...collect(config('industries'))->map(fn (array $industry) => [
+                'url' => route('industries.show', $industry['slug']),
+                'priority' => '0.7',
+                'changefreq' => 'monthly',
+            ])->all(),
             ['url' => route('models'), 'priority' => '0.8', 'changefreq' => 'monthly'],
             ['url' => route('models.guide'), 'priority' => '0.7', 'changefreq' => 'monthly'],
             ['url' => route('about'), 'priority' => '0.7', 'changefreq' => 'yearly'],
             // Hanya formulir pencariannya yang diindeks; halaman tracking milik
             // masing-masing pelanggan sengaja ditandai noindex.
             ['url' => route('tracking.index'), 'priority' => '0.5', 'changefreq' => 'yearly'],
+            ['url' => route('legal.privacy'), 'priority' => '0.3', 'changefreq' => 'yearly'],
+            ['url' => route('legal.terms'), 'priority' => '0.3', 'changefreq' => 'yearly'],
         ];
 
         return response()

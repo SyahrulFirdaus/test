@@ -28,12 +28,12 @@
                     Menerima order harian di {{ $company->city }}
                 </span>
 
-                <h1 class="mt-6 text-4xl font-bold leading-[1.08] tracking-tight text-white drop-shadow-lg sm:text-5xl lg:text-6xl">
+                <h1 class="mt-6 text-4xl font-bold leading-[1.08] tracking-tight text-white text-drop-shadow-lg sm:text-5xl lg:text-6xl">
                     Wujudkan ide Anda<br>
                     menjadi <span class="text-brand-300">part nyata</span>
                 </h1>
 
-                <p class="mt-6 max-w-xl text-base leading-relaxed text-white/80 drop-shadow sm:text-lg">
+                <p class="mt-6 max-w-xl text-base leading-relaxed text-white/80 text-drop-shadow sm:text-lg">
                     {{ $company->short_description }}
                 </p>
 
@@ -54,10 +54,12 @@
     <section class="bg-ink-950 py-10">
         <div class="container-page">
             <dl class="grid grid-cols-2 gap-x-6 gap-y-8 sm:grid-cols-4" data-aos="fade-up">
-                @foreach ($company->stats as $stat)
+                {{-- Angka akhir dirender di server; animasi hitung hanya efek
+                     tambahan (resources/js/modules/counters.js). --}}
+                @foreach (\App\Support\CompanyStats::all() as $stat)
                     <div>
                         <dt class="font-display text-3xl font-bold text-white sm:text-4xl">
-                            <span data-counter="{{ $stat['value'] }}">0</span><span class="text-brand-400">{{ $stat['suffix'] }}</span>
+                            <span @if ($stat['value'] !== null) data-counter="{{ $stat['value'] }}" @endif>{{ $stat['display'] }}</span><span class="text-brand-400">{{ $stat['suffix'] }}</span>
                         </dt>
                         <dd class="mt-1.5 text-xs font-medium uppercase tracking-[0.1em] text-ink-400">{{ $stat['label'] }}</dd>
                     </div>
@@ -81,11 +83,11 @@
                             data-aos="fade-up" data-aos-delay="{{ ($loop->index % 5) * 60 }}">
                             {{-- Grayscale saat diam, berwarna saat disentuh: deretan logo jadi
                                  terlihat menyatu tanpa mengalahkan warna brand. --}}
-                            <img src="{{ asset($client->logo) }}"
+                            <x-picture :src="$client->logo"
                                  alt="Logo {{ $client->name }}"
                                  title="{{ $client->name }}{{ $client->industry ? ' ('.$client->industry.')' : '' }}"
                                  loading="lazy" decoding="async"
-                                 class="max-h-12 w-auto max-w-[150px] object-contain opacity-60 grayscale transition-all duration-500 ease-out hover:opacity-100 hover:grayscale-0 sm:max-h-14">
+                                 class="max-h-12 w-auto max-w-[150px] object-contain opacity-60 grayscale transition-all duration-500 ease-out hover:opacity-100 hover:grayscale-0 sm:max-h-14" />
                         </li>
                     @endforeach
                 </ul>
@@ -136,24 +138,24 @@
                         {{-- Mosaik foto: satu foto utama besar + dua foto pendukung --}}
                         <div class="grid grid-cols-2 gap-4">
                             <div class="col-span-2 overflow-hidden rounded-3xl border border-ink-100 bg-ink-100 shadow-card">
-                                <img src="{{ asset('images/photos/machine-01.jpg') }}"
+                                <x-picture src="images/photos/machine-01.jpg"
                                      alt="Mesin 3D printing sedang mencetak komponen berstruktur lattice"
                                      loading="lazy" decoding="async" width="900" height="675"
-                                     class="aspect-[4/3] w-full object-cover">
+                                     class="aspect-[4/3] w-full object-cover" />
                             </div>
 
                             <div class="overflow-hidden rounded-2xl border border-ink-100 bg-ink-100 shadow-card">
-                                <img src="{{ asset('images/photos/workshop-01.jpg') }}"
+                                <x-picture src="images/photos/workshop-01.jpg"
                                      alt="Suasana workshop dengan mesin cetak dan spool filamen"
                                      loading="lazy" decoding="async" width="900" height="675"
-                                     class="aspect-[4/3] w-full object-cover">
+                                     class="aspect-[4/3] w-full object-cover" />
                             </div>
 
                             <div class="overflow-hidden rounded-2xl border border-ink-100 bg-ink-100 shadow-card">
-                                <img src="{{ asset('images/photos/detail-01.jpg') }}"
+                                <x-picture src="images/photos/detail-01.jpg"
                                      alt="Detail hotend dan filamen saat proses ekstrusi berjalan"
                                      loading="lazy" decoding="async" width="900" height="675"
-                                     class="aspect-[4/3] w-full object-cover">
+                                     class="aspect-[4/3] w-full object-cover" />
                             </div>
                         </div>
 
@@ -184,12 +186,12 @@
                     Gratis &amp; Instan
                 </span>
 
-                <h2 class="mt-6 text-3xl font-bold leading-tight tracking-tight text-white drop-shadow-lg sm:text-4xl lg:text-[2.6rem]">
+                <h2 class="mt-6 text-3xl font-bold leading-tight tracking-tight text-white text-drop-shadow-lg sm:text-4xl lg:text-[2.6rem]">
                     Cek kelayakan cetak model Anda
                     <span class="text-brand-300">sebelum menghubungi kami</span>
                 </h2>
 
-                <p class="mt-5 text-base leading-relaxed text-white/75 drop-shadow sm:text-lg">
+                <p class="mt-5 text-base leading-relaxed text-white/75 text-drop-shadow sm:text-lg">
                     Unggah STL atau OBJ di browser, dan dalam hitungan detik Anda tahu kelayakan cetak,
                     lead time, serta perkiraan biayanya.
                 </p>
@@ -246,7 +248,7 @@
                     <x-service-card
                         :service="$service"
                         :delay="($loop->index % 3) * 80"
-                        :href="route('services').'#'.$service->slug" />
+                        :href="\App\Support\ServicePages::url($service->slug)" />
                 @endforeach
             </div>
 
@@ -415,12 +417,23 @@
                                 <span class="min-w-0">
                                     <span class="block truncate text-sm font-bold text-ink-900">{{ $testimonial->name }}</span>
                                     <span class="block text-[0.7rem] text-ink-400">
-                                        {{ $testimonial->source }}@if ($testimonial->reviewed_label) &middot; {{ $testimonial->reviewed_label }}@endif
+                                        {{-- Tanggal relatif dihitung dari tanggal ulasan
+                                             (menu Ulasan Google di admin). --}}
+                                        {{ $testimonial->source }}@if ($testimonial->reviewed_relative) &middot; <time @if ($testimonial->reviewed_at) datetime="{{ $testimonial->reviewed_at->toDateString() }}" @endif>{{ $testimonial->reviewed_relative }}</time>@endif
                                     </span>
                                 </span>
                             </figcaption>
                         </figure>
                     @endforeach
+                </div>
+
+                <div class="mt-4 text-center">
+                    <a href="{{ $company->google_reviews_link }}" target="_blank" rel="noopener noreferrer"
+                       class="inline-flex items-center gap-2 text-sm font-semibold text-brand-600 transition-colors hover:text-brand-700"
+                       data-google-reviews-link>
+                        Lihat semua ulasan di Google
+                        <x-icons.arrow-right class="h-4 w-4" />
+                    </a>
                 </div>
             </div>
         </section>
